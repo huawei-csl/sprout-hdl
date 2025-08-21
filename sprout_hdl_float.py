@@ -6,8 +6,8 @@
 # - bfloat16: EW=8, FW=7    (total 16)
 
 from typing import Tuple
-from hdl_test.sprout_hdl import *
-from hdl_test.sprout_hdl_simulator import Simulator
+from sprout_hdl import *
+from sprout_hdl_simulator import Simulator
 
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
 
@@ -191,7 +191,7 @@ def build_bf16_mul(name: str = "BF16Mul") -> Module:
 # Assumes:
 #   from sprout_hdl import Simulator
 #   from sprout_hdl import build_f16_mul, build_bf16_mul
-# Or adapt the imports to your paths (e.g., from hdl_test.sprout_hdl import ...)
+# Or adapt the imports to your paths (e.g., from sprout_hdl import ...)
 
 def half_to_float(h):
     s = (h >> 15) & 1

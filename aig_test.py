@@ -1,6 +1,6 @@
 from aigverse import Aig
-from hdl_test.sprout_hdl_float import build_f16_mul  # or your own module builder
-from hdl_test.sprout_hdl_aiger import export_module_to_aiger
+from sprout_hdl_float import build_f16_mul  # or your own module builder
+from sprout_hdl_aiger import export_module_to_aiger
 from hdl_test.aag_loader_writer import conv_aag_into_aig
 
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
