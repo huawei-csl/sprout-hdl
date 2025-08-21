@@ -1,4 +1,5 @@
-from sprout_hdl import Module, UInt
+from sprout_hdl_module import Module
+from sprout_hdl import UInt
 
 mac = Module("Mac32", with_clock=True, with_reset=True)
 a = mac.input(UInt(16), "a")

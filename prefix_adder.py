@@ -3,8 +3,12 @@ import random
 from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
+from attr import dataclass
+from matplotlib import pyplot as plt
+from sprout_hdl_analyzer import GraphReport
+from sprout_hdl_module import Module
 from aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
-from sprout_hdl import Module, UInt, cat
+from sprout_hdl import UInt, cat
 from sprout_hdl_aiger import AigerExporter
 from sprout_hdl_simulator import Simulator
 
@@ -63,6 +67,81 @@ def _find_split(nodes: Set[Pair], i: int, j: int) -> Optional[int]:
             return k
     return None
 
+def _valid_splits(nodes: Set[Pair], i: int, j: int) -> List[int]:
+    """All k with j ≤ k < i such that left=(i,k+1) and right=(k,j) both exist."""
+    Ks: List[int] = []
+    for k in range(j, i):
+        if _exists(nodes, i, k + 1) and _exists(nodes, k, j):
+            Ks.append(k)
+    return Ks
+
+def analyze_prefix_matrix(
+    n: int,
+    nodes: Set[Pair],
+    *,
+    tie_break: str = "min_k",  # among equal-min-depth splits: "max_k" | "min_k" | "balanced"
+) -> Tuple[Set[Pair], Dict[Pair, int], Dict[Pair, int], Dict[int, int], int]:
+    """
+    Compute minimal combine-depth for every (i,j) in P (and leaves), choose best splits, and
+    return:
+      nodes:   normalized set of (i,j)
+      depth:   map (i,j) -> minimal black-cell depth
+      best_k:  map (i,j) -> chosen split k that achieves depth[i,j] (only for i>j)
+      carry_depth: map i -> depth(i,0)     (depth to compute G[i:0])
+      worst_depth: max over i of depth(i,0)
+    """
+    depth: Dict[Pair, int] = {}
+    best_k: Dict[Pair, int] = {}
+
+    def node_depth(i: int, j: int) -> int:
+        key = (i, j)
+        if i == j:
+            depth[key] = 0
+            return 0
+        if key in depth:
+            return depth[key]
+        if key not in nodes:
+            raise ValueError(f"P does not declare combine node {(i,j)} but it is required.")
+        Ks = _valid_splits(nodes, i, j)
+        if not Ks:
+            raise ValueError(f"No valid split for node {(i,j)}. Check your P matrix.")
+        # Evaluate all splits: depth = 1 + max(depth(left), depth(right))
+        cand: List[Tuple[int, int, int, int]] = []  # (depth, k, dl, dr)
+        for k in Ks:
+            dl = node_depth(i, k + 1)
+            dr = node_depth(k, j)
+            d = 1 + max(dl, dr)
+            cand.append((d, k, dl, dr))
+        # Choose min depth; tie-break as requested
+        minD = min(c[0] for c in cand)
+        best = [c for c in cand if c[0] == minD]
+        if tie_break == "max_k":
+            chosen = max(best, key=lambda t: t[1])
+        elif tie_break == "min_k":
+            chosen = min(best, key=lambda t: t[1])
+        elif tie_break == "balanced":
+            # minimize subtree imbalance; tie-break to larger k
+            def imbalance(t):
+                _, k, dl, dr = t
+                return (abs(dl - dr), -k)
+            chosen = min(best, key=imbalance)
+        else:
+            raise ValueError(f"Unknown tie_break '{tie_break}'")
+        depth[key] = chosen[0]
+        best_k[key] = chosen[1]
+        return depth[key]
+
+    # Ensure carries to bit 0 exist; compute depths for all required (i,0)
+    for i in range(n):
+        node_depth(i, 0)
+
+    # Optionally compute depth for every declared node (fills depth map)
+    for (i, j) in nodes:
+        node_depth(i, j)
+
+    carry_depth = {i: depth[(i, 0)] for i in range(n)}
+    worst_depth = max(carry_depth.values()) if carry_depth else 0
+    return depth, best_k, carry_depth, worst_depth
 
 
 # ------------------------- Builder -------------------------
@@ -74,6 +153,7 @@ def build_prefix_adder_from_matrix(
     *,
     with_cin: bool = False,
     with_cout: bool = True,
+    depth_optimize: bool = True,
 ) -> Module:
     """
     Build an n-bit SproutHDL adder using a prefix tree specified by P.
@@ -92,6 +172,8 @@ def build_prefix_adder_from_matrix(
       combine: (G,P) ⊗ (G',P') = (G | (P & G'), P & P')
     """
     nodes = _normalize_P(n, P)
+    if depth_optimize:
+        depth, best_k, _, _ = analyze_prefix_matrix(n, nodes)
     m = Module(name, with_clock=False, with_reset=False)
 
     a = m.input(UInt(n), "a")
@@ -109,7 +191,7 @@ def build_prefix_adder_from_matrix(
     p = [a[i] ^ b[i] for i in range(n)]  # XOR-propagate (good for sum)
     g = [a[i] & b[i] for i in range(n)]
 
-    # memo for (G,P) at any (i,j) that exists (or leaf)
+    # memo for (G,P) at any (i,j) that exists (or leaf) - GP means generate, propagate
     GP: Dict[Pair, Tuple[Any, Any]] = {}
 
     def gp(i: int, j: int) -> Tuple[Any, Any]:
@@ -122,7 +204,10 @@ def build_prefix_adder_from_matrix(
             return GP[key]
         if (i, j) not in nodes:
             raise ValueError(f"Matrix P does not declare a combine node at {(i,j)}")
-        k = _find_split(nodes, i, j)
+        if depth_optimize:
+            k = best_k[(i, j)]
+        else:
+            k = _find_split(nodes, i, j)
         if k is None:
             raise ValueError(f"No valid split for node {(i,j)}. Check your P matrix.")
         Gl, Pl = gp(i, k + 1)
@@ -130,7 +215,7 @@ def build_prefix_adder_from_matrix(
         Gij = Gl | (Pl & Gr)
         Pij = Pl & Pr
         GP[key] = (Gij, Pij)
-        print(f"produced node {(i,j)} out of ({i,k+1}) and ({k,j}): G={Gij}, P={Pij}")
+        print(f"produced node {(i,j)} out of ({i,k+1}) and ({k,j})")
         return GP[key]
 
     # sanity: for every i, we must be able to get the prefix up to bit 0 (directly or via its tree).
@@ -151,6 +236,28 @@ def build_prefix_adder_from_matrix(
         cout <<= c[n]
     return m
 
+def validate_legality(n: int, nodes: Set[Pair]) -> bool:
+    def exists(i,j): return (i == j) or ((i,j) in nodes)
+    for (i,j) in nodes:
+        ok = False
+        for k in range(j, i):  # look for a valid split
+            if exists(i, k+1) and exists(k, j):
+                ok = True
+                break
+        if not ok:
+            print(f"Node {(i,j)} has no legal split (i.e., no k with (i,k+1) and (k,j) existing).")
+            return False
+    # check that (n-1,0) exists (carry to bit 0)
+    if not exists(n - 1, 0):
+        print(f"Carry to bit 0 (node {(n-1,0)}) is not declared in P.")
+        return False
+    # check that all (i, 0) in nodes
+    for i in range(n):
+        if not (i, 0) in nodes:
+            print(f"Node {(i,0)} is not declared in P (carry to bit 0).")
+            return False
+    return True
+
 
 # ------------------------- Famous topologies -------------------------
 
@@ -168,6 +275,10 @@ def build_prefix_adder_from_matrix(
 #         span = (span << 1) | 1
 #     return nodes
 
+def P_ripple_carry(n: int) -> Set[Pair]:
+    """Only (i,0) for i=1..n-1. Leaves (i,i) are implicit."""
+    return {(i, 0) for i in range(1, n)}
+
 def P_kogge_stone(n: int) -> Set[Pair]:
     """
     Kogge–Stone nodes over indices 0..n-1.
@@ -180,7 +291,7 @@ def P_kogge_stone(n: int) -> Set[Pair]:
 
     # Ensure (i, i) and (i, 0) exist for i=1..n-1
     for i in range(1, n):
-        nodes.add((i, i))
+        #nodes.add((i, i)) # implicit in the tree
         nodes.add((i, 0))
 
     # Kogge–Stone spans: 1, 3, 7, 15, ...
@@ -214,30 +325,162 @@ def P_sklansky(n: int) -> Set[Pair]:
 
 def P_brent_kung(n: int) -> Set[Pair]:
     """
-    Brent–Kung: upsweep then downsweep (2n - O(log n) nodes).
-    Upsweep: stage s, step=2^{s+1}, add (i, i-(2^{s+1}-1)) for i=step-1, step-1+step, ...
-    Downsweep: stage s from L-2..0, add (i, i-(2^{s+1}-1)) for i=3*2^s-1, 3*2^s-1+step, ...
+    Brent–Kung nodes as (i,j), where the node *outputs* the prefix over [j..i].
+    We simulate upsweep (reduction) and downsweep (distribution) while tracking,
+    for each bit index t, the current available prefix start j_at[t].
     """
     import math
 
     nodes: Set[Pair] = set()
-    L = math.ceil(math.log2(n)) if n > 1 else 0
-    # upsweep
+    if n <= 1:
+        return nodes
+
+    L = math.ceil(math.log2(n))
+
+    # j_at[t] = lowest index j such that we currently have prefix for [j..t]
+    j_at = [i for i in range(n)]  # initially only leaves (i,i)
+
+    # ---- Upsweep: compute group prefixes at block ends ----
+    # At level s, step = 2^(s+1), half = 2^s.
+    # For i = step-1, step-1+step, ... we combine (i, i-half+1) with prefix at r=i-half.
     for s in range(L):
         step = 1 << (s + 1)
-        span = (1 << (s + 1)) - 1
+        half = 1 << s
         for i in range(step - 1, n, step):
-            nodes.add((i, i - span))
-    # downsweep
+            r = i - half                # right index feeds the lower-half prefix
+            j = j_at[r]                 # right child's j determines the output j
+            nodes.add((i, j))           # this black cell outputs prefix [j..i]
+            j_at[i] = j                 # update available prefix at i
+
+    # ---- Downsweep: distribute prefixes to the missing positions ----
+    # For level s = L-2 .. 0: positions i = 3*2^s - 1, then + step
+    # Combine (i, i-half+1) with the prefix available at r=i-half (which already holds a wider j).
     for s in range(L - 2, -1, -1):
         step = 1 << (s + 1)
-        span = (1 << (s + 1)) - 1
-        start = (3 << s) - 1  # 3*2^s - 1
+        half = 1 << s
+        start = (3 << s) - 1           # 3*2^s - 1
         for i in range(start, n, step):
-            j = i - span
-            if j >= 0:
-                nodes.add((i, j))
+            r = i - half
+            j = j_at[r]                 # right child's j propagates to the output
+            nodes.add((i, j))
+            j_at[i] = j
+
     return nodes
+
+# ------------------------- Test Vectors -------------------------
+
+def build_prefix_adder_vectors_cin0():
+    return [  # a, b, cin, y, ulp
+        ("1+6", 1, 6, 0, 7),
+         # ...
+    ]
+
+# (name, a, b, cin, y_exp, cout_exp)
+Vec: TypeAlias = Tuple[str, int, int, int, int, int]
+
+def build_adder_vectors16(num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
+    n = 16
+    M = (1 << n) - 1
+    V: List[Vec] = []
+
+    def add(name: str, a: int, b: int, cin: int):
+        total = (a & M) + (b & M) + (cin & 1)
+        y = total & M
+        co = (total >> n) & 1
+        V.append((name, a & M, b & M, cin & 1, y, co))
+
+    # --- Directed: extremes & big numbers ---
+    add("zero+zero",        0x0000, 0x0000, 0)
+    add("max+zero",         0xFFFF, 0x0000, 0)
+    add("max+one",          0xFFFF, 0x0001, 0)
+    add("max+max",          0xFFFF, 0xFFFF, 0)
+    add("half+half",        0x8000, 0x8000, 0)
+    add("near-msb-carry",   0x7FFF, 0x0001, 0)
+    add("cin-only",         0x0000, 0x0000, 1)
+    add("max+zero+cin",     0xFFFF, 0x0000, 1)
+    add("max+max+cin",      0xFFFF, 0xFFFF, 1)
+
+    # Famous hexes / “large numbers”
+    add("DEAD+BEEF",        0xDEAD, 0xBEEF, 0)
+    add("C0DE+F00D",        0xC0DE, 0xF00D, 0)
+    add("FACE+FEED",        0xFACE, 0xFEED, 0)
+    add("ACDC+1337+cin",    0xACDC, 0x1337, 1)
+    add("8001+7FFE",        0x8001, 0x7FFE, 0)
+    add("FF00+00FF",        0xFF00, 0x00FF, 0)
+
+    # --- Patterns: alternating/blocks ---
+    for a,b in [(0x5555,0xAAAA), (0x3333,0xCCCC), (0x0F0F,0xF0F0),
+                (0xF00F,0x0FF0), (0xAA55,0x55AA), (0xFFFF,0x5555)]:
+        add(f"pat {a:04X}+{b:04X}", a, b, 0)
+        add(f"pat {a:04X}+{b:04X}+cin", a, b, 1)
+
+    # --- Carry-ripple lengths: (2^k−1)+1 ---
+    for k in range(1, 16):
+        add(f"ripple_len_{k}", (1 << k) - 1, 0x0001, 0)
+
+    # --- One-hot sweeps vs full/one-hot ---
+    for k in range(16):
+        add(f"onehot{k}+full",      1 << k, M, 0)
+        add(f"onehot{k}+onehot{k}", 1 << k, 1 << k, 1)  # tests carry-in handling
+
+    # --- Near-boundary big cases ---
+    edges = [
+        (0xFFFE, 0x0001, 0), (0xFFFE, 0x0001, 1),
+        (0x7FFF, 0x8000, 0), (0x7FFF, 0x8000, 1),
+        (0x8000, 0x7FFF, 1), (0x4000, 0x4000, 1),
+        (0xFFF0, 0x0010, 0), (0xFFF0, 0x0010, 1),
+        (0x8000, 0x0000, 1), (0x0001, 0x0001, 1),
+    ]
+    for a,b,c in edges:
+        add(f"edge {a:04X}+{b:04X}+c{c}", a, b, c)
+
+    # --- Reproducible randoms ---
+    rng = random.Random(seed)
+    for i in range(num_random):
+        a = rng.randrange(1 << 16)
+        b = rng.randrange(1 << 16)
+        c = rng.randrange(2)
+        add(f"rnd{i:04d}", a, b, c)
+
+    # filter out vectors with cin not equal 0
+    V = [v for v in V if v[3] == 0]
+
+    return V
+
+def build_adder_verctorsn_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
+    M = (1 << n) - 1
+    V: List[Vec] = []
+
+    def add(name: str, a: int, b: int, cin: int):
+        total = (a & M) + (b & M) + (cin & 1)
+        y = total & M
+        co = (total >> n) & 1
+        V.append((name, a & M, b & M, cin & 1, y, co))
+
+    rng = random.Random(seed)
+    for i in range(num_random):
+        a = rng.randrange(1 << n)
+        b = rng.randrange(1 << n)
+        c = 0 #c = rng.randrange(2)
+        add(f"rnd{i:04d}", a, b, c)
+
+    return V
+
+def run_vectors(mod, vectors, *, label=""):
+    sim = Simulator(mod)
+    print(f"\n== {label} ==")
+    ok = 0
+    for name, a, b, cin, y, cout in vectors:
+        sim.set("a", a).set("b", b).eval()
+        goty = sim.get("y")
+        cout_available = True
+        gotcout = sim.get("cout") if cout_available else None
+        pass_fail = "PASS" if goty == y  and gotcout == cout else "FAIL"
+
+        #print(f"{pass_fail:4s}  {name:25s}  a=0x{a:04X}  b=0x{b:04X}  cin=0x{cin:04X} -> y=0x{goty:04X}  (exp 0x{y:04X})  cout=0x{gotcout:04X} (exp 0x{cout:04X})")
+        if goty == y and (gotcout == cout if gotcout is not None else cout is None):
+            ok += 1
+    print(f"Summary: {ok}/{len(vectors)} passed.\n")
 
 
 def P_to_matrix(n: int, nodes: Iterable[Pair]) -> List[List[int]]:
@@ -250,136 +493,24 @@ def P_to_matrix(n: int, nodes: Iterable[Pair]) -> List[List[int]]:
         M[i][i] = 1  # leaves shown as 1 for readability (not required by builder)
     return M
 
-def main_test():
 
-    n = 4
-    #P, name = P_kogge_stone(n), "Kogge-Stone"
-    P, name = P_sklansky(n), "Sklansky"
-    # P1, name1 = P_brent_kung(n), "Brent-Kung"
-    #P = {(1, 0), (3, 2), (2, 1), (2, 0), (3,1)}
+    
+@dataclass
+class AigReport:
+    size: int
+    depth: int
+    optimized_size: int = 0
+    optimized_depth: int = 0
 
-    m = build_prefix_adder_from_matrix(name, n, P, with_cin=False, with_cout=True)
+def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
+
+    m = build_prefix_adder_from_matrix(name, n, nodes, with_cin=False, with_cout=True, depth_optimize=True)
     print(m.to_verilog())
-
-    def build_prefix_adder_vectors_cin0():
-        return [  # a, b, cin, y, ulp
-            ("1+6", 1, 6, 0, 7),
-             # ...
-        ]
-
-    # (name, a, b, cin, y_exp, cout_exp)
-    Vec: TypeAlias = Tuple[str, int, int, int, int, int]
-
-    def build_adder_vectors16(num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
-        n = 16
-        M = (1 << n) - 1
-        V: List[Vec] = []
-
-        def add(name: str, a: int, b: int, cin: int):
-            total = (a & M) + (b & M) + (cin & 1)
-            y = total & M
-            co = (total >> n) & 1
-            V.append((name, a & M, b & M, cin & 1, y, co))
-
-        # --- Directed: extremes & big numbers ---
-        add("zero+zero",        0x0000, 0x0000, 0)
-        add("max+zero",         0xFFFF, 0x0000, 0)
-        add("max+one",          0xFFFF, 0x0001, 0)
-        add("max+max",          0xFFFF, 0xFFFF, 0)
-        add("half+half",        0x8000, 0x8000, 0)
-        add("near-msb-carry",   0x7FFF, 0x0001, 0)
-        add("cin-only",         0x0000, 0x0000, 1)
-        add("max+zero+cin",     0xFFFF, 0x0000, 1)
-        add("max+max+cin",      0xFFFF, 0xFFFF, 1)
-
-        # Famous hexes / “large numbers”
-        add("DEAD+BEEF",        0xDEAD, 0xBEEF, 0)
-        add("C0DE+F00D",        0xC0DE, 0xF00D, 0)
-        add("FACE+FEED",        0xFACE, 0xFEED, 0)
-        add("ACDC+1337+cin",    0xACDC, 0x1337, 1)
-        add("8001+7FFE",        0x8001, 0x7FFE, 0)
-        add("FF00+00FF",        0xFF00, 0x00FF, 0)
-
-        # --- Patterns: alternating/blocks ---
-        for a,b in [(0x5555,0xAAAA), (0x3333,0xCCCC), (0x0F0F,0xF0F0),
-                    (0xF00F,0x0FF0), (0xAA55,0x55AA), (0xFFFF,0x5555)]:
-            add(f"pat {a:04X}+{b:04X}", a, b, 0)
-            add(f"pat {a:04X}+{b:04X}+cin", a, b, 1)
-
-        # --- Carry-ripple lengths: (2^k−1)+1 ---
-        for k in range(1, 16):
-            add(f"ripple_len_{k}", (1 << k) - 1, 0x0001, 0)
-
-        # --- One-hot sweeps vs full/one-hot ---
-        for k in range(16):
-            add(f"onehot{k}+full",      1 << k, M, 0)
-            add(f"onehot{k}+onehot{k}", 1 << k, 1 << k, 1)  # tests carry-in handling
-
-        # --- Near-boundary big cases ---
-        edges = [
-            (0xFFFE, 0x0001, 0), (0xFFFE, 0x0001, 1),
-            (0x7FFF, 0x8000, 0), (0x7FFF, 0x8000, 1),
-            (0x8000, 0x7FFF, 1), (0x4000, 0x4000, 1),
-            (0xFFF0, 0x0010, 0), (0xFFF0, 0x0010, 1),
-            (0x8000, 0x0000, 1), (0x0001, 0x0001, 1),
-        ]
-        for a,b,c in edges:
-            add(f"edge {a:04X}+{b:04X}+c{c}", a, b, c)
-
-        # --- Reproducible randoms ---
-        rng = random.Random(seed)
-        for i in range(num_random):
-            a = rng.randrange(1 << 16)
-            b = rng.randrange(1 << 16)
-            c = rng.randrange(2)
-            add(f"rnd{i:04d}", a, b, c)
-
-        # filter out vectors with cin not equal 0
-        V = [v for v in V if v[3] == 0]
-
-        return V
-    
-    def build_adder_verctorsn_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
-        M = (1 << n) - 1
-        V: List[Vec] = []
-
-        def add(name: str, a: int, b: int, cin: int):
-            total = (a & M) + (b & M) + (cin & 1)
-            y = total & M
-            co = (total >> n) & 1
-            V.append((name, a & M, b & M, cin & 1, y, co))
-
-        rng = random.Random(seed)
-        for i in range(num_random):
-            a = rng.randrange(1 << n)
-            b = rng.randrange(1 << n)
-            c = 0 #c = rng.randrange(2)
-            add(f"rnd{i:04d}", a, b, c)
-
-        return V
-    
-    def run_vectors(mod, vectors, *, label=""):
-        sim = Simulator(mod)
-        print(f"\n== {label} ==")
-        ok = 0
-        for name, a, b, cin, y, cout in vectors:
-            sim.set("a", a).set("b", b).eval()
-            goty = sim.get("y")
-            cout_available = True
-            gotcout = sim.get("cout") if cout_available else None
-            pass_fail = "PASS" if goty == y  and gotcout == cout else "FAIL"
-
-            print(f"{pass_fail:4s}  {name:25s}  a=0x{a:04X}  b=0x{b:04X}  cin=0x{cin:04X} -> y=0x{goty:04X}  (exp 0x{y:04X})  cout=0x{gotcout:04X} (exp 0x{cout:04X})")
-            if goty == y and (gotcout == cout if gotcout is not None else cout is None):
-                ok += 1
-        print(f"Summary: {ok}/{len(vectors)} passed.\n")
 
     sim = Simulator(m)
     sim.set("a", 3).set("b", 5).eval()
     print("y =", sim.get("y"))
 
-    # run_vectors(m, build_prefix_adder_vectors_cin0(), label="Prefix Adder Test Vectors")
-    #run_vectors(m, build_adder_vectors16(), label="Prefix Adder Test Vectors 16-bit")
     run_vectors(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
 
     aag = AigerExporter(m).get_aag()
@@ -387,7 +518,6 @@ def main_test():
 
     # Clone the AIG network for size comparison
     aig_clone = aig.clone()
-
     # Optimize the AIG with several optimization algorithms
     n_iter_optimizations = 10
     for i in range(n_iter_optimizations):
@@ -399,6 +529,77 @@ def main_test():
     print(f"Optimized AIG Size: {aig.size()}")
     print(f"Original AIG Depth: {DepthAig(aig_clone).num_levels()}")
     print(f"Optimized AIG Depth: {DepthAig(aig).num_levels()}")
+        
+    aig_report = AigReport(
+        size=aig.size(),
+        depth=DepthAig(aig).num_levels(),
+        optimized_size=aig_clone.size(),
+        optimized_depth=DepthAig(aig_clone).num_levels()
+        )
+    graph_report = m.module_analyze(include_wiring=True, include_consts=True)    
+
+    return graph_report, aig_report
+
+def main_test():
+
+    n = 16
+    
+    configs = [
+        (P_ripple_carry(n), "Ripple Carry"),
+        (P_kogge_stone(n), "Kogge-Stone"),
+        (P_sklansky(n), "Sklansky"),
+        (P_brent_kung(n), "Brent-Kung"),
+    ]
+
+    results: List[Tuple[str, GraphReport, AigReport]] = []
+    for nodes, name in configs:
+        #if not validate_legality(n, nodes):
+        #    print(f"Invalid configuration for {name}. Skipping.")
+        #    continue
+        print(f"\nBuilding {name} prefix adder with n={n}...")
+        graph_report, aig_report = get_stats(nodes, n, name)
+        results.append((name, graph_report, aig_report))
+        
+    area_depth_aig = [(aig_report.size, aig_report.depth) for _, _, aig_report in results]
+    area_depth_aig_optimzied = [(aig_report.optimized_size, aig_report.optimized_depth) for _, _, aig_report in results]
+    area_depth_graph = [(graph_report.max_depth, graph_report.op_nodes) for _,graph_report,_ in results]
+    names = [name for name, _, _ in results]
+    
+
+    # plot results in scatter plot size vs depth, aig
+    plt.figure(figsize=(6, 4))
+    for name, graph_report, aig_report in results:
+        plt.scatter(aig_report.size, aig_report.depth, label=name)        
+    plt.title("Prefix Adder AIG Size vs Depth")
+    plt.xlabel("AIG Size")
+    plt.ylabel("AIG Depth")
+    plt.legend()
+    plt.grid()
+    plt.savefig("prefix_adder_aig_size_vs_depth.png")
+    
+    # plot results in scatter plot size vs depth, optimized aig
+    plt.figure(figsize=(6, 4))
+    for name, graph_report, aig_report in results:
+        plt.scatter(aig_report.optimized_size, aig_report.optimized_depth, label=name)
+    plt.title("Prefix Adder Optimized AIG Size vs Depth")
+    plt.xlabel("Optimized AIG Size")
+    plt.ylabel("Optimized AIG Depth")
+    plt.legend()
+    plt.grid()
+    plt.savefig("prefix_adder_optimized_aig_size_vs_depth.png")
+    
+    # plot results in scatter plot size vs depth, graph
+    plt.figure(figsize=(6, 4))
+    for name, graph_report, aig_report in results:
+        plt.scatter(graph_report.op_nodes, graph_report.max_depth, label=name)  
+    plt.title("Prefix Adder Graph Size vs Depth")
+    plt.xlabel("Graph Nodes")
+    plt.ylabel("Graph Depth")
+    plt.legend()
+    plt.grid()
+    plt.savefig("prefix_adder_graph_size_vs_depth.png")
+
+
 
 if __name__ == "__main__":
     main_test()

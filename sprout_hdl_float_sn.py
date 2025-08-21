@@ -14,6 +14,7 @@
 # Requires: Module, UInt, Bool, mux, cat from your sprout_hdl.
 
 from typing import List
+from sprout_hdl_module import Module
 from sprout_hdl import *
 from sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
 from sprout_hdl_simulator import Simulator
