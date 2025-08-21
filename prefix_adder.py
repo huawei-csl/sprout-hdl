@@ -54,6 +54,69 @@ def _exists(nodes: Set[Pair], i: int, j: int) -> bool:
     """Does (i,j) exist as a node (combine) or leaf?"""
     return (i == j) or ((i, j) in nodes)
 
+def legalize_P(n: int, nodes: Set[Pair]) -> Set[Pair]:
+    """
+    Ensure that the nodes are legal for a prefix adder:
+      - (i,0) exists for all i=1..n-1
+      - (i,i) exists for all i=0..n-1
+      - (n-1,0) exists
+    Returns: normalized set of nodes.
+    """
+    nodes = _normalize_P(n, nodes)
+
+    # add all (i,0) for i=1..n-1
+    for i in range(1, n):
+        if not (i, 0) in nodes:
+            nodes.add((i, 0))
+
+    def exists(i, j):
+        return (i == j) or ((i, j) in nodes)
+    
+    def fix_node(i: int, j: int):
+        if i == j:
+            return
+        for k in range(j, i):  # look for a valid split
+            if exists(i, k + 1) and exists(k, j):
+                return
+        # choose a k
+        k_new = i - 1
+        nodes.add((i, k_new))
+        fix_node(i, k_new)  # recurse to fix the new node
+        if k_new-1 != j:
+            nodes.add((k_new-1, j))
+            fix_node(k_new - 1, j)  # recurse to fix the new node
+
+    for node in nodes.copy():
+        fix_node(*node)
+        
+    for i in range(1, n):
+        fix_node(i, 0)  # ensure (n-1,0) exists
+        
+    return nodes
+
+def gen_random_P(n: int, num_nodes: int) -> Set[Pair]:
+    """
+    Generate a random set of combine nodes (i,j) for a prefix adder.
+    The set will contain num_nodes nodes, with 0 <= j <= i < n and j < i.
+    """
+    if num_nodes > n * (n - 1) // 2:
+        raise ValueError(f"Too many nodes {num_nodes} for n={n}; max is {n*(n-1)//2}")
+    
+    nodes: Set[Pair] = set()
+    while len(nodes) < num_nodes:
+        i = random.randint(1, n - 1)
+        j = random.randint(0, i - 1)
+        nodes.add((i, j))
+        
+    # Ensure (i,0) for all i=1..n-1
+    for i in range(1, n):
+        nodes.add((i, 0))
+        
+    nodes = legalize_P(n, nodes)
+    
+    return nodes
+
+
 def _find_split(nodes: Set[Pair], i: int, j: int) -> Optional[int]:
     """
     Find a k (j ≤ k < i) such that left=(i,k+1) and right=(k,j) both exist
@@ -466,7 +529,7 @@ def build_adder_verctorsn_rand(n: int, num_random: int = 512, seed: int = 0xADDE
 
     return V
 
-def run_vectors(mod, vectors, *, label=""):
+def run_vectors(mod, vectors, *, label="") -> bool:
     sim = Simulator(mod)
     print(f"\n== {label} ==")
     ok = 0
@@ -481,6 +544,7 @@ def run_vectors(mod, vectors, *, label=""):
         if goty == y and (gotcout == cout if gotcout is not None else cout is None):
             ok += 1
     print(f"Summary: {ok}/{len(vectors)} passed.\n")
+    return ok == len(vectors)  # True if all passed
 
 
 def P_to_matrix(n: int, nodes: Iterable[Pair]) -> List[List[int]]:
@@ -494,7 +558,6 @@ def P_to_matrix(n: int, nodes: Iterable[Pair]) -> List[List[int]]:
     return M
 
 
-    
 @dataclass
 class AigReport:
     size: int
@@ -511,7 +574,9 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
     sim.set("a", 3).set("b", 5).eval()
     print("y =", sim.get("y"))
 
-    run_vectors(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
+    passed = run_vectors(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
+    if not passed:
+        raise RuntimeError("Prefix adder test vectors failed.")
 
     aag = AigerExporter(m).get_aag()
     aig = conv_aag_into_aig(aag)
@@ -543,62 +608,79 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
 def main_test():
 
     n = 16
-    
+
     configs = [
         (P_ripple_carry(n), "Ripple Carry"),
         (P_kogge_stone(n), "Kogge-Stone"),
         (P_sklansky(n), "Sklansky"),
         (P_brent_kung(n), "Brent-Kung"),
     ]
+    
+    configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(40)]
 
     results: List[Tuple[str, GraphReport, AigReport]] = []
     for nodes, name in configs:
-        #if not validate_legality(n, nodes):
+        # if not validate_legality(n, nodes):
         #    print(f"Invalid configuration for {name}. Skipping.")
         #    continue
         print(f"\nBuilding {name} prefix adder with n={n}...")
         graph_report, aig_report = get_stats(nodes, n, name)
         results.append((name, graph_report, aig_report))
-        
-    area_depth_aig = [(aig_report.size, aig_report.depth) for _, _, aig_report in results]
-    area_depth_aig_optimzied = [(aig_report.optimized_size, aig_report.optimized_depth) for _, _, aig_report in results]
-    area_depth_graph = [(graph_report.max_depth, graph_report.op_nodes) for _,graph_report,_ in results]
-    names = [name for name, _, _ in results]
-    
+
 
     # plot results in scatter plot size vs depth, aig
     plt.figure(figsize=(6, 4))
+    first_gray = True
     for name, graph_report, aig_report in results:
-        plt.scatter(aig_report.size, aig_report.depth, label=name)        
+        color = "gray" if "Random" in name else None
+        if "Random" in name:
+            label = 'Random (legal)' if first_gray else None
+            first_gray = False
+        else:
+            label = name
+        plt.scatter(aig_report.size, aig_report.depth, color=color, label=label)
     plt.title("Prefix Adder AIG Size vs Depth")
     plt.xlabel("AIG Size")
     plt.ylabel("AIG Depth")
     plt.legend()
     plt.grid()
     plt.savefig("prefix_adder_aig_size_vs_depth.png")
-    
+
     # plot results in scatter plot size vs depth, optimized aig
     plt.figure(figsize=(6, 4))
+    first_gray = True
     for name, graph_report, aig_report in results:
-        plt.scatter(aig_report.optimized_size, aig_report.optimized_depth, label=name)
+        color = "gray" if "Random" in name else None
+        if "Random" in name:
+            label = "Random (legal)" if first_gray else None
+            first_gray = False
+        else:
+            label = name
+        plt.scatter(aig_report.optimized_size, aig_report.optimized_depth, color=color, label=label)
     plt.title("Prefix Adder Optimized AIG Size vs Depth")
     plt.xlabel("Optimized AIG Size")
     plt.ylabel("Optimized AIG Depth")
     plt.legend()
     plt.grid()
     plt.savefig("prefix_adder_optimized_aig_size_vs_depth.png")
-    
+
     # plot results in scatter plot size vs depth, graph
     plt.figure(figsize=(6, 4))
+    first_gray = True
     for name, graph_report, aig_report in results:
-        plt.scatter(graph_report.op_nodes, graph_report.max_depth, label=name)  
+        color = 'gray' if 'Random' in name else None
+        if 'Random' in name:
+            label = "Random (legal)" if first_gray else None
+            first_gray = False
+        else:
+            label = name
+        plt.scatter(graph_report.op_nodes, graph_report.max_depth, color=color, label=label)
     plt.title("Prefix Adder Graph Size vs Depth")
     plt.xlabel("Graph Nodes")
     plt.ylabel("Graph Depth")
     plt.legend()
     plt.grid()
     plt.savefig("prefix_adder_graph_size_vs_depth.png")
-
 
 
 if __name__ == "__main__":
