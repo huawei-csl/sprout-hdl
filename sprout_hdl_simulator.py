@@ -1,5 +1,5 @@
-from hdl_test.sprout_hdl import *
-from hdl_test.sprout_hdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
+from sprout_hdl import *
+from sprout_hdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
 
 
 class Simulator:

@@ -1,0 +1,404 @@
+# sprout_prefix_adder.py
+import random
+from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
+
+from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
+from aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
+from sprout_hdl import Module, UInt, cat
+from sprout_hdl_aiger import AigerExporter
+from sprout_hdl_simulator import Simulator
+
+Pair = Tuple[int, int]
+
+# ------------------------- Utilities -------------------------
+
+
+def _normalize_P(n: int, P: Any) -> Set[Pair]:
+    """
+    Accepts:
+      - set of (i,j),
+      - list of (i,j),
+      - NxN list-of-lists with truthy entries where nodes exist.
+    Returns: set of (i,j) with 0 <= j <= i < n and j < i (combine nodes only).
+    Leaves (i,i) are implicit and NOT stored.
+    """
+    nodes: Set[Pair] = set()
+    if isinstance(P, (set, list, tuple)) and P and isinstance(next(iter(P)), tuple):
+        for i, j in P:
+            if not (0 <= j <= i < n):
+                raise ValueError(f"Node {(i,j)} out of range for n={n}")
+            if i != j:
+                nodes.add((i, j))
+        return nodes
+    # assume matrix
+    if not hasattr(P, "__len__"):
+        raise TypeError("Unsupported P; pass set[(i,j)] or NxN list")
+    if len(P) != n:
+        raise ValueError(f"P must be {n}x{n}")
+    for i in range(n):
+        row = P[i]
+        if len(row) != n:
+            raise ValueError(f"P row {i} must have length {n}")
+        for j in range(n):
+            if j <= i and row[j]:
+                if i != j:
+                    nodes.add((i, j))
+    return nodes
+
+
+def _exists(nodes: Set[Pair], i: int, j: int) -> bool:
+    """Does (i,j) exist as a node (combine) or leaf?"""
+    return (i == j) or ((i, j) in nodes)
+
+def _find_split(nodes: Set[Pair], i: int, j: int) -> Optional[int]:
+    """
+    Find a k (j ≤ k < i) such that left=(i,k+1) and right=(k,j) both exist
+    (either as combine nodes in 'nodes' or as leaves when left has k+1==i or right has k==j).
+    Greedy from the top (largest k) to encourage shallow cones (typical for KS/BK/Sklansky).
+    """
+    for k in reversed(range(i - 1, j - 1, -1)): # actually needs  to be reversed
+        left_ok  = _exists(nodes, i, k + 1)
+        right_ok = _exists(nodes, k, j)
+        if left_ok and right_ok:
+            return k
+    return None
+
+
+
+# ------------------------- Builder -------------------------
+
+def build_prefix_adder_from_matrix(
+    name: str,
+    n: int,
+    P: Any,
+    *,
+    with_cin: bool = False,
+    with_cout: bool = True,
+) -> Module:
+    """
+    Build an n-bit SproutHDL adder using a prefix tree specified by P.
+
+    P: either set/list of (i,j) pairs (combine nodes) OR an n×n matrix (truthy at [i][j]).
+       Leaves (i,i) are implicit and must NOT be listed.
+
+    Ports:
+      - a: UInt(n), b: UInt(n)
+      - cin: UInt(1)  (optional)
+      - y: UInt(n)
+      - cout: UInt(1) (optional)
+
+    Conventions:
+      p_i = a_i ^ b_i, g_i = a_i & b_i
+      combine: (G,P) ⊗ (G',P') = (G | (P & G'), P & P')
+    """
+    nodes = _normalize_P(n, P)
+    m = Module(name, with_clock=False, with_reset=False)
+
+    a = m.input(UInt(n), "a")
+    b = m.input(UInt(n), "b")
+    if with_cin:
+        cin = m.input(UInt(1), "cin")
+    else:
+        cin = 0  # constant 0 (DSL const)
+
+    y   = m.output(UInt(n), "y")
+    if with_cout:
+        cout = m.output(UInt(1), "cout")
+
+    # bit locals
+    p = [a[i] ^ b[i] for i in range(n)]  # XOR-propagate (good for sum)
+    g = [a[i] & b[i] for i in range(n)]
+
+    # memo for (G,P) at any (i,j) that exists (or leaf)
+    GP: Dict[Pair, Tuple[Any, Any]] = {}
+
+    def gp(i: int, j: int) -> Tuple[Any, Any]:
+        """Return (G[i:j], P[i:j]) according to the matrix-defined tree."""
+        key = (i, j)
+        if key in GP:
+            return GP[key]
+        if i == j:
+            GP[key] = (g[i], p[i])
+            return GP[key]
+        if (i, j) not in nodes:
+            raise ValueError(f"Matrix P does not declare a combine node at {(i,j)}")
+        k = _find_split(nodes, i, j)
+        if k is None:
+            raise ValueError(f"No valid split for node {(i,j)}. Check your P matrix.")
+        Gl, Pl = gp(i, k + 1)
+        Gr, Pr = gp(k, j)
+        Gij = Gl | (Pl & Gr)
+        Pij = Pl & Pr
+        GP[key] = (Gij, Pij)
+        print(f"produced node {(i,j)} out of ({i,k+1}) and ({k,j}): G={Gij}, P={Pij}")
+        return GP[key]
+
+    # sanity: for every i, we must be able to get the prefix up to bit 0 (directly or via its tree).
+    # If (i,0) is not explicitly declared, we still require that the tree contains a path to combine to j=0.
+    # The 'gp' will enforce presence of the needed nodes; if it misses, it will raise.
+    # Carry chain:
+    c = [None] * (n + 1)
+    c[0] = cin
+    for i in range(n):
+        # carry into bit i+1:
+        Gi0, Pi0 = gp(i, 0)
+        c[i + 1] = Gi0 | (Pi0 & cin)
+
+    # sum bits
+    s = [p[i] ^ c[i] for i in range(n)]
+    y <<= cat(*reversed(s))
+    if with_cout:
+        cout <<= c[n]
+    return m
+
+
+# ------------------------- Famous topologies -------------------------
+
+
+# def P_kogge_stone(n: int) -> Set[Pair]:
+#     """
+#     Kogge–Stone nodes: at stage s (s=0..), span = 2^{s+1}-1, nodes (i, i-span) for i >= span.
+#     """
+#     nodes: Set[Pair] = set()
+#     span = 1
+#     while span < n:
+#         # span = 2^{s+1}-1 sequence: 1,3,7,15,...
+#         for i in range(span, n):
+#             nodes.add((i, i - span))
+#         span = (span << 1) | 1
+#     return nodes
+
+def P_kogge_stone(n: int) -> Set[Pair]:
+    """
+    Kogge–Stone nodes over indices 0..n-1.
+    At stage s, span = 2^{s+1} - 1 -> 1,3,7,15,...
+    Add:
+      - the KS pairs (i, i-span) for i >= span
+      - (i, i) and (i, 0) for all i=1..n-1
+    """
+    nodes: Set[Pair] = set()
+
+    # Ensure (i, i) and (i, 0) exist for i=1..n-1
+    for i in range(1, n):
+        nodes.add((i, i))
+        nodes.add((i, 0))
+
+    # Kogge–Stone spans: 1, 3, 7, 15, ...
+    span = 1
+    while span < n:
+        for i in range(span, n):
+            nodes.add((i, i - span))
+        span = (span << 1) | 1  # 2*span + 1
+
+    return nodes
+
+
+def P_sklansky(n: int) -> Set[Pair]:
+    """
+    Sklansky (divide&conquer): for stage s, block=2^{s+1}, half=2^s.
+    For each block starting at g, connect all i in [g+half .. g+block-1] to j=g.
+    """
+    nodes: Set[Pair] = set()
+    s = 0
+    while (1 << (s + 1)) <= n:
+        block = 1 << (s + 1)
+        half = 1 << s
+        for g in range(0, n, block):
+            j = g
+            upper = min(g + block - 1, n - 1)
+            for i in range(g + half, upper + 1):
+                nodes.add((i, j))
+        s += 1
+    return nodes
+
+
+def P_brent_kung(n: int) -> Set[Pair]:
+    """
+    Brent–Kung: upsweep then downsweep (2n - O(log n) nodes).
+    Upsweep: stage s, step=2^{s+1}, add (i, i-(2^{s+1}-1)) for i=step-1, step-1+step, ...
+    Downsweep: stage s from L-2..0, add (i, i-(2^{s+1}-1)) for i=3*2^s-1, 3*2^s-1+step, ...
+    """
+    import math
+
+    nodes: Set[Pair] = set()
+    L = math.ceil(math.log2(n)) if n > 1 else 0
+    # upsweep
+    for s in range(L):
+        step = 1 << (s + 1)
+        span = (1 << (s + 1)) - 1
+        for i in range(step - 1, n, step):
+            nodes.add((i, i - span))
+    # downsweep
+    for s in range(L - 2, -1, -1):
+        step = 1 << (s + 1)
+        span = (1 << (s + 1)) - 1
+        start = (3 << s) - 1  # 3*2^s - 1
+        for i in range(start, n, step):
+            j = i - span
+            if j >= 0:
+                nodes.add((i, j))
+    return nodes
+
+
+def P_to_matrix(n: int, nodes: Iterable[Pair]) -> List[List[int]]:
+    """(Optional) helper to render a set of pairs into an n×n 0/1 matrix (for printing/debug)."""
+    M = [[0] * n for _ in range(n)]
+    for i, j in nodes:
+        if 0 <= j <= i < n and i != j:
+            M[i][j] = 1
+    for i in range(n):
+        M[i][i] = 1  # leaves shown as 1 for readability (not required by builder)
+    return M
+
+def main_test():
+
+    n = 4
+    #P, name = P_kogge_stone(n), "Kogge-Stone"
+    P, name = P_sklansky(n), "Sklansky"
+    # P1, name1 = P_brent_kung(n), "Brent-Kung"
+    #P = {(1, 0), (3, 2), (2, 1), (2, 0), (3,1)}
+
+    m = build_prefix_adder_from_matrix(name, n, P, with_cin=False, with_cout=True)
+    print(m.to_verilog())
+
+    def build_prefix_adder_vectors_cin0():
+        return [  # a, b, cin, y, ulp
+            ("1+6", 1, 6, 0, 7),
+             # ...
+        ]
+
+    # (name, a, b, cin, y_exp, cout_exp)
+    Vec: TypeAlias = Tuple[str, int, int, int, int, int]
+
+    def build_adder_vectors16(num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
+        n = 16
+        M = (1 << n) - 1
+        V: List[Vec] = []
+
+        def add(name: str, a: int, b: int, cin: int):
+            total = (a & M) + (b & M) + (cin & 1)
+            y = total & M
+            co = (total >> n) & 1
+            V.append((name, a & M, b & M, cin & 1, y, co))
+
+        # --- Directed: extremes & big numbers ---
+        add("zero+zero",        0x0000, 0x0000, 0)
+        add("max+zero",         0xFFFF, 0x0000, 0)
+        add("max+one",          0xFFFF, 0x0001, 0)
+        add("max+max",          0xFFFF, 0xFFFF, 0)
+        add("half+half",        0x8000, 0x8000, 0)
+        add("near-msb-carry",   0x7FFF, 0x0001, 0)
+        add("cin-only",         0x0000, 0x0000, 1)
+        add("max+zero+cin",     0xFFFF, 0x0000, 1)
+        add("max+max+cin",      0xFFFF, 0xFFFF, 1)
+
+        # Famous hexes / “large numbers”
+        add("DEAD+BEEF",        0xDEAD, 0xBEEF, 0)
+        add("C0DE+F00D",        0xC0DE, 0xF00D, 0)
+        add("FACE+FEED",        0xFACE, 0xFEED, 0)
+        add("ACDC+1337+cin",    0xACDC, 0x1337, 1)
+        add("8001+7FFE",        0x8001, 0x7FFE, 0)
+        add("FF00+00FF",        0xFF00, 0x00FF, 0)
+
+        # --- Patterns: alternating/blocks ---
+        for a,b in [(0x5555,0xAAAA), (0x3333,0xCCCC), (0x0F0F,0xF0F0),
+                    (0xF00F,0x0FF0), (0xAA55,0x55AA), (0xFFFF,0x5555)]:
+            add(f"pat {a:04X}+{b:04X}", a, b, 0)
+            add(f"pat {a:04X}+{b:04X}+cin", a, b, 1)
+
+        # --- Carry-ripple lengths: (2^k−1)+1 ---
+        for k in range(1, 16):
+            add(f"ripple_len_{k}", (1 << k) - 1, 0x0001, 0)
+
+        # --- One-hot sweeps vs full/one-hot ---
+        for k in range(16):
+            add(f"onehot{k}+full",      1 << k, M, 0)
+            add(f"onehot{k}+onehot{k}", 1 << k, 1 << k, 1)  # tests carry-in handling
+
+        # --- Near-boundary big cases ---
+        edges = [
+            (0xFFFE, 0x0001, 0), (0xFFFE, 0x0001, 1),
+            (0x7FFF, 0x8000, 0), (0x7FFF, 0x8000, 1),
+            (0x8000, 0x7FFF, 1), (0x4000, 0x4000, 1),
+            (0xFFF0, 0x0010, 0), (0xFFF0, 0x0010, 1),
+            (0x8000, 0x0000, 1), (0x0001, 0x0001, 1),
+        ]
+        for a,b,c in edges:
+            add(f"edge {a:04X}+{b:04X}+c{c}", a, b, c)
+
+        # --- Reproducible randoms ---
+        rng = random.Random(seed)
+        for i in range(num_random):
+            a = rng.randrange(1 << 16)
+            b = rng.randrange(1 << 16)
+            c = rng.randrange(2)
+            add(f"rnd{i:04d}", a, b, c)
+
+        # filter out vectors with cin not equal 0
+        V = [v for v in V if v[3] == 0]
+
+        return V
+    
+    def build_adder_verctorsn_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
+        M = (1 << n) - 1
+        V: List[Vec] = []
+
+        def add(name: str, a: int, b: int, cin: int):
+            total = (a & M) + (b & M) + (cin & 1)
+            y = total & M
+            co = (total >> n) & 1
+            V.append((name, a & M, b & M, cin & 1, y, co))
+
+        rng = random.Random(seed)
+        for i in range(num_random):
+            a = rng.randrange(1 << n)
+            b = rng.randrange(1 << n)
+            c = 0 #c = rng.randrange(2)
+            add(f"rnd{i:04d}", a, b, c)
+
+        return V
+    
+    def run_vectors(mod, vectors, *, label=""):
+        sim = Simulator(mod)
+        print(f"\n== {label} ==")
+        ok = 0
+        for name, a, b, cin, y, cout in vectors:
+            sim.set("a", a).set("b", b).eval()
+            goty = sim.get("y")
+            cout_available = True
+            gotcout = sim.get("cout") if cout_available else None
+            pass_fail = "PASS" if goty == y  and gotcout == cout else "FAIL"
+
+            print(f"{pass_fail:4s}  {name:25s}  a=0x{a:04X}  b=0x{b:04X}  cin=0x{cin:04X} -> y=0x{goty:04X}  (exp 0x{y:04X})  cout=0x{gotcout:04X} (exp 0x{cout:04X})")
+            if goty == y and (gotcout == cout if gotcout is not None else cout is None):
+                ok += 1
+        print(f"Summary: {ok}/{len(vectors)} passed.\n")
+
+    sim = Simulator(m)
+    sim.set("a", 3).set("b", 5).eval()
+    print("y =", sim.get("y"))
+
+    # run_vectors(m, build_prefix_adder_vectors_cin0(), label="Prefix Adder Test Vectors")
+    #run_vectors(m, build_adder_vectors16(), label="Prefix Adder Test Vectors 16-bit")
+    run_vectors(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
+
+    aag = AigerExporter(m).get_aag()
+    aig = conv_aag_into_aig(aag)
+
+    # Clone the AIG network for size comparison
+    aig_clone = aig.clone()
+
+    # Optimize the AIG with several optimization algorithms
+    n_iter_optimizations = 10
+    for i in range(n_iter_optimizations):
+        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing]:
+            optimization(aig)
+
+    print(f"Results for {name} (n={n}):")
+    print(f"Original AIG Size:  {aig_clone.size()}")
+    print(f"Optimized AIG Size: {aig.size()}")
+    print(f"Original AIG Depth: {DepthAig(aig_clone).num_levels()}")
+    print(f"Optimized AIG Depth: {DepthAig(aig).num_levels()}")
+
+if __name__ == "__main__":
+    main_test()

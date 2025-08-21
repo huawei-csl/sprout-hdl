@@ -1,7 +1,7 @@
 # -----------------------------
 # Tiny Python-level simulator
 # -----------------------------
-from hdl_test.sprout_hdl import *
+from sprout_hdl import *
 
 def _mask(w: int) -> int:
     return (1 << w) - 1 if w > 0 else 0

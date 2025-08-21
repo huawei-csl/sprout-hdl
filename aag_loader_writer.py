@@ -223,11 +223,16 @@ class _Adapter(AbstractAdapter):
         return self._call("create_and", a, b)
 
 
-def read_aag_into_aig(path: str, aig: Any) -> Any:
+def read_aag_into_aig(path: str, aig: Any | None) -> Any:
+    if aig is None:
+        aig = Aig()
     lines = file_to_lines(path)
     return conv_aag_into_aig(lines, aig)
 
-def conv_aag_into_aig(lines: List[str], aig: Any) -> Any:
+def conv_aag_into_aig(lines: List[str], aig: Any | None = None) -> Any:
+    if aig is None:
+        from aigverse import Aig
+        aig = Aig()
     return conv_aag_into_graph(lines, aig, _Adapter)
 
 def conv_aag_into_graph(lines: List[str], aig: Any, adapter: Type[AbstractAdapter]) -> Any:
