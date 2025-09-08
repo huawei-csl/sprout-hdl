@@ -209,6 +209,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
         sticky_s = _pref_sig_at(shift_amt - 2)
 
         lsb_s = frac_trunc[0]
+        # lsb_s = 0 # reproduces the error
         round_up_s = guard_s & (sticky_s | lsb_s)
 
         frac_trunc_zext = cat(0, frac_trunc)  # FW+1

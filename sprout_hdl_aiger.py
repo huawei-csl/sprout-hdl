@@ -164,6 +164,8 @@ class _AIG:
 
     def bv_sub(self, a: List[int], b: List[int], w_out: Optional[int] = None) -> Tuple[List[int], int]:
         # a - b = a + (~b) + 1 ; returns (diff, carry_out). carry_out==0 -> borrow (a<b)
+        a = self._extend(a, w_out) # added
+        b = self._extend(b, w_out) # added
         nb = [lit_not(x) for x in b]
         return self.bv_add(a, nb, cin=lit_const1(), w_out=w_out)
 

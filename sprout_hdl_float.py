@@ -7,6 +7,7 @@
 
 from typing import Tuple
 from sprout_hdl import *
+from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator
 
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)

@@ -312,3 +312,105 @@ class Simulator:
 
         self._cache_expr[eid] = bits
         return bits
+    
+    
+    # peek logic not teste yet
+    
+
+    # --- helpers to convert ---
+    def _bits_to_int(self, bits: list[int]) -> int:
+        v = 0
+        for i, b in enumerate(bits):
+            if b & 1:
+                v |= (1 << i)
+        return v
+
+    def _resolve_expr(self, what):
+        """Accept str name, Signal, or Expr; return an Expr to evaluate."""
+        from sprout_hdl import Signal, Expr  # or your actual path
+        if isinstance(what, str):
+            s = next((s for s in self.m._signals if s.name == what), None)
+            if s is None:
+                raise KeyError(f"No signal named '{what}' in module {self.m.name}.")
+            return s
+        # duck-type: if it has .to_verilog it's an Expr-ish
+        if hasattr(what, "to_verilog"):
+            return what
+        raise TypeError(f"peek/watch expects signal name or Expr, got {type(what)}")
+
+    # --- public APIs ---
+    def list_signals(self) -> list[str]:
+        """All signal names (inputs, outputs, wires, regs)."""
+        return [s.name for s in self.m._signals]
+
+    def peek(self, what) -> int:
+        """Evaluate current value of an internal Signal/Expr."""
+        e = self._resolve_expr(what)
+        # If it's a reg, read the stored state; else evaluate driver cone
+        from sprout_hdl import Signal
+        if isinstance(e, Signal) and e.kind == "reg":
+            bits = self._state_bits[id(e)]  # use your reg state store
+        else:
+            bits = self._eval_signal_bits(e) if isinstance(e, Signal) else self._eval_expr_bits(e)
+        return self._bits_to_int(bits)
+
+    def peek_next(self, reg_name: str) -> int:
+        """Evaluate a register's next-state expression (combinational)."""
+        from sprout_hdl import Signal
+        s = next((s for s in self.m._signals if s.name == reg_name), None)
+        if s is None or s.kind != "reg":
+            raise KeyError(f"'{reg_name}' is not a register in {self.m.name}.")
+        if s._next is None:
+            raise ValueError(f"Register '{reg_name}' has no next-state.")
+        bits = self._eval_expr_bits(s._next)
+        return self._bits_to_int(self._fit_bits(bits, s.typ.width, signed=s.typ.signed))
+
+    def watch(self, what, alias: str | None = None):
+        """Register a probe; value captured at each eval()/tick()."""
+        e = self._resolve_expr(what)
+        name = alias
+        if name is None:
+            # Try to use the signal name; else make a unique label
+            name = getattr(e, "name", None) or f"watch_{len(getattr(self, '_watches', {}))}"
+        if not hasattr(self, "_watches"):
+            self._watches = {}
+            self._watch_values = {}
+        self._watches[name] = e
+        return self
+
+    def get_watch(self, name: str) -> int:
+        if not hasattr(self, "_watch_values") or name not in self._watch_values:
+            raise KeyError(f"No watch named '{name}'.")
+        return self._watch_values[name]
+
+    def clear_watches(self):
+        if hasattr(self, "_watches"):
+            self._watches.clear()
+            self._watch_values.clear()
+
+    # In your eval()/step()/tick() method, after you've computed the current combinational state,
+    # add this block to capture probe values (so they’re available immediately):
+    def _capture_watches(self):
+        if not hasattr(self, "_watches"):
+            return
+        out = {}
+        for name, e in self._watches.items():
+            from sprout_hdl import Signal
+            if isinstance(e, Signal) and e.kind == "reg":
+                bits = self._state_bits[id(e)]
+            else:
+                bits = self._eval_signal_bits(e) if isinstance(e, Signal) else self._eval_expr_bits(e)
+            out[name] = self._bits_to_int(bits)
+        self._watch_values = out
+
+    # Call _capture_watches() at the end of eval() and also at the end of tick()/cycle():
+    # def eval(self):
+    #     ... existing eval work ...
+    #     self._capture_watches()
+    #     return self
+    #
+    # def tick(self):
+    #     ... advance regs ...
+    #     self._capture_watches()
+    #     return self
+
