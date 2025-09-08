@@ -6,6 +6,7 @@ from typing import Dict, Set, Tuple, Iterable
 
 #from sprout_hdl_module import Module
 from sprout_hdl import Concat, Const, Expr, Op1, Op2, Resize, Signal, Slice, Ternary, _clsname
+from sprout_hdl_module import Module
 
 @dataclass
 class GraphReport:
