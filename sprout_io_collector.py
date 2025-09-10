@@ -22,6 +22,8 @@ class IOCollector:
         out: Dict[str, Any] = {}
         for base, typ in spec.items():
             width = typ.width
+            if width == 1:
+                continue  # nothing to do for 1-bit ports
             # Gather all ports that look like base[i]
             bits = self._find_bit_ports(m, base, width)
 
@@ -62,9 +64,11 @@ class IOCollector:
 
     def _demote_port_to_wire(self, m: Module, s):
         """Turn an input/output port into an internal wire (keeps drivers/uses intact)."""
-        if s in m._ports:
-            m._ports.remove(s)
-        s.kind = "wire"  # from input/output → wire
+        # if s in m._ports:
+        #     m._ports.remove(s)
+        # s.kind = "wire"  # from input/output → wire
+        m._ports[:] = [p for p in m._ports if p is not s]
+        s.kind = "wire"
 
     def _create_agg_input_and_wire_bits(self, m: Module, base: str, typ: Any, bits: List[Any]):
         """Create 'input <typ> base' and drive each former port-bit (now wire) from base[i]."""

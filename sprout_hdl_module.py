@@ -1,4 +1,4 @@
-from sprout_hdl import Bool, ExprLike, HDLType, Signal, fit_width
+from sprout_hdl import Bool, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
 
 
 from typing import List, Optional
@@ -87,7 +87,7 @@ class Module:
             lines.append(f"  {dir_} {sign}{rng} {p.name};")
 
         # Internals
-        wires = self._internals_of("wire")
+        wires = self._internals_of("wire") + _SHARED.wires
         regs = self._internals_of("reg")
         for w in wires:
             sign = "signed " if w.typ.signed else ""
@@ -128,7 +128,7 @@ class Module:
 
         lines.append("endmodule")
         return "\n".join(lines)
-    
+
     def module_analyze(self: "Module",
                         *,
                         include_wiring: bool = False,

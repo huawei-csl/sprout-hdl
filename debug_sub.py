@@ -1,7 +1,7 @@
 # minus_semantics_test.py
 import random
 from math import ceil, log2
-from roundtrip import roundtrip_and_group
+from tests.roundtrip import roundtrip_and_group
 from sprout_hdl import UInt
 from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator  # or your sim path

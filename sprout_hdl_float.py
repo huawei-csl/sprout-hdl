@@ -238,6 +238,7 @@ def run_vectors(mod, vectors, *, label="", decoder=None):
         print(f"{pass_fail:4s}  {name:25s}  a=0x{a_hex:04X}  b=0x{b_hex:04X}  -> y=0x{got:04X}  (exp 0x{exp_hex:04X}){extra}")
         ok += (got == exp_hex)
     print(f"Summary: {ok}/{len(vectors)} passed.\n")
+    return ok
 
 def build_f16_vectors():
     # float16 (binary16) constants

@@ -1,2 +1,9 @@
 *.png
 *.pyc
+*.v
+*.aig
+*.aag
+*.map
+*.dot
+*.vscode
+*/__pycache__/*

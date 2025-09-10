@@ -6,66 +6,6 @@ from typing import Optional, Union, Sequence
 
 
 # -----------------------------
-# Shared sub-expression (CSE) support
-# -----------------------------
-
-class _SharedCache:
-    """
-    Tracks how many times an Expr *instance* is wrapped via as_expr(...).
-    On the 2nd time, we create a Verilog wire (sig_{index}) with a driver = original expr.
-    Further uses return that wire to shrink emitted Verilog.
-    """
-    def __init__(self):
-        self.counts: dict[int, int] = {}        # node_id -> count
-        self.expr2sig: dict[int, "Signal"] = {} # node_id -> created Signal
-        self.wires: list["Signal"] = []         # all created wires in encounter order
-        self.index: int = 0                     # for naming sig_{index}
-
-global _SHARED
-_SHARED = _SharedCache()
-
-def reset_shared_cache():
-    """Call this before emitting each Verilog module to avoid cross-module bleed."""
-    _SHARED.counts.clear()
-    _SHARED.expr2sig.clear()
-    _SHARED.wires.clear()
-    _SHARED.index = 0
-
-def get_shared_wires() -> list["Signal"]:
-    """Access the created wires (for inclusion in module's declarations/assigns)."""
-    return list(_SHARED.wires)
-
-def _maybe_share(e: "Expr") -> "Expr":
-    """
-    If this exact Expr instance is seen the 2nd time via as_expr(...),
-    create a 'wire sig_{index}' that drives from the original expression.
-    On 3rd+ times, reuse the same wire.
-    Leaf Signals/Consts are skipped (they're already "named"/literal).
-    """
-    if isinstance(e, (Signal, Const)):
-        return e
-
-    nid = id(e)
-    cnt = _SHARED.counts.get(nid, 0) + 1
-    _SHARED.counts[nid] = cnt
-    cnt_share = 1 # at what count start sharing
-    if cnt == cnt_share:
-        # Create the shared wire
-        name = f"sig_{_SHARED.index}"
-        _SHARED.index += 1
-        sig = Signal(name, e.typ, "wire")
-        sig._driver = e  # continuous assignment: assign sig = <original expr>;
-        _SHARED.expr2sig[nid] = sig
-        _SHARED.wires.append(sig)
-        return sig
-    elif cnt > cnt_share:
-        return _SHARED.expr2sig[nid]
-    else:
-        # 1st sighting: return original expr
-        return e
-
-
-# -----------------------------
 # Types
 # -----------------------------
 
@@ -198,13 +138,6 @@ class Expr:
 
     def to_verilog(self) -> str:
         raise NotImplementedError
-    
-    def as_expr(self) -> "Expr":
-        """
-        Returns self, but may replace it by a shared wire once this
-        exact Expr instance has been seen multiple times.
-        """
-        return _maybe_share(self)
 
 
 ExprLike = Union[Expr, int, bool]
@@ -309,7 +242,7 @@ class Ternary(Expr):
 
 class Concat(Expr):
     def __init__(self, parts: Sequence[Expr]):
-        self.parts = [as_expr(x) for x in list(parts)]
+        self.parts = list(parts)
         w = sum(p.typ.width for p in self.parts)
         self.typ = HDLType(w, signed=False, is_bool=False)
 
@@ -322,7 +255,7 @@ class Slice(Expr):
     def __init__(self, a: Expr, msb: int, lsb: int):
         if msb < lsb:
             raise ValueError("Slice msb must be >= lsb")
-        self.a = as_expr(a)
+        self.a = a
         self.msb = msb
         self.lsb = lsb
         self.typ = HDLType(msb - lsb + 1, signed=False, is_bool=(msb == lsb))
@@ -367,21 +300,9 @@ def bits_required(v: int) -> int:
     return (-v).bit_length() + 1  # include sign
 
 
-# def as_expr(x: ExprLike) -> Expr:
-#     if isinstance(x, Expr):
-#         return x
-#     if isinstance(x, bool):
-#         return Const(1 if x else 0, Bool())
-#     if isinstance(x, int):
-#         signed = x < 0
-#         w = bits_required(x)
-#         return Const(x, HDLType(w, signed=signed))
-#     raise TypeError(f"Cannot convert {type(x)} to Expr")
-
 def as_expr(x: ExprLike) -> Expr:
     if isinstance(x, Expr):
-        # Route through the instance method so sharing can occur
-        return x.as_expr()
+        return x
     if isinstance(x, bool):
         return Const(1 if x else 0, Bool())
     if isinstance(x, int):
@@ -441,44 +362,9 @@ def op_shift(a: Expr, b: Expr, sym: str) -> Expr:
         t = HDLType(a.typ.width, signed=a.typ.signed)
     return Op2(a, b, sym, t)
 
-# works fine except for emitting verilog with different widths
+
 def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
     return Op2(a, b, sym, Bool())
-
-# only necessary for hdl generation, otherwise incorrect results
-# def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-#     # Align widths for equality/inequality as *unsigned* bitwise compares
-#     if sym in ("==", "!="):
-#         w = max(a.typ.width, b.typ.width)
-#         t_uns = HDLType(w, signed=False)
-#         a_al = fit_width(a, t_uns)
-#         b_al = fit_width(b, t_uns)
-#         return Op2(a_al, b_al, sym, Bool())
-#     else:
-#         # Relational compares: align to common width, and if either is signed, align as signed
-#         w = max(a.typ.width, b.typ.width)
-#         signed = a.typ.signed or b.typ.signed
-#         t_rel = HDLType(w, signed=signed)
-#         a_al = fit_width(a, t_rel)
-#         b_al = fit_width(b, t_rel)
-#         return Op2(a_al, b_al, sym, Bool())
-
-
-def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-    # Align widths for equality/inequality as *unsigned* bitwise compares
-
-    w = max(a.typ.width, b.typ.width)
-    t_target = HDLType(w, signed=a.typ.signed or b.typ.signed)
-    # if a is not const
-    if not isinstance(a, Const):
-        a_al = fit_width(a, t_target)
-    else:
-        a_al = a
-    if not isinstance(b, Const):
-        b_al = fit_width(b, t_target)
-    else:
-        b_al = b
-    return Op2(a_al, b_al, sym, Bool())
 
 
 def mux(sel: ExprLike, a: ExprLike, b: ExprLike) -> Expr:
@@ -532,3 +418,4 @@ def _sid(s: "Signal") -> int:
 
 def _clsname(o) -> str:
     return o.__class__.__name__
+
