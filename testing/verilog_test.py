@@ -1,7 +1,7 @@
 import tempfile
 
 from aigverse import equivalence_checking, read_verilog_into_aig
-from aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, file_to_lines, read_aag_into_aig
+from aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, file_to_lines, read_aag_into_aig
 from sprout_hdl import UInt
 from sprout_hdl_aiger import AigerExporter, AigerImporter
 from sprout_hdl_float import build_f16_vectors, half_to_float, run_vectors

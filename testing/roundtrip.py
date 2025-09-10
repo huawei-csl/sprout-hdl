@@ -2,7 +2,7 @@
 from collections import OrderedDict
 from typing import Dict, Tuple
 
-from aag_loader_writer import _get_aag_sym
+from aigerverse_aag_loader_writer import _get_aag_sym
 from sprout_hdl_aiger import AigerExporter, AigerImporter
 from sprout_io_collector import IOCollector
 

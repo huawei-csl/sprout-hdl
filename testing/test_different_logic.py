@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple
 
 # --- your libs (adjust paths as needed) ---
 from aigverse import equivalence_checking
-from aag_loader_writer import (
+from aigerverse_aag_loader_writer import (
     _get_aag_sym,
     file_to_lines,
     read_aag_into_aig,

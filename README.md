@@ -45,6 +45,7 @@ class Adder(Module):
 - remove is_bool flag, probably not necessary, just use length of 1
 - parse wires and regs from graph
 - test peek / watch logic
+- add better hierarchy capablities / all in graph.  m.wire / m.reg not necessary.
 
 ## License
 

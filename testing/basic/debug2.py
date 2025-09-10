@@ -2,7 +2,7 @@
 import random
 from math import ceil, log2
 
-from aag_loader_writer import _get_aag_sym, conv_aag_into_aig
+from aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
 from sprout_hdl import UInt, mux, fit_width
 from sprout_hdl_aiger import AigerExporter, AigerImporter
 from sprout_hdl_module import Module

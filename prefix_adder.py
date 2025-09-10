@@ -7,7 +7,7 @@ from attr import dataclass
 from matplotlib import pyplot as plt
 from sprout_hdl_analyzer import GraphReport
 from sprout_hdl_module import Module
-from aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
+from aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
 from sprout_hdl import UInt, cat
 from sprout_hdl_aiger import AigerExporter
 from sprout_hdl_simulator import Simulator
