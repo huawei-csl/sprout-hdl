@@ -1,0 +1,5 @@
+aigverse==0.0.24
+attr==0.3.2
+matplotlib==3.10.6
+numpy==2.3.3
+pyosys==0.57.7

@@ -12,7 +12,8 @@ from sprout_io_collector import IOCollector
 import os
 from pyosys import libyosys as ys
 
-from tests.testvectors_general import build_fp_vectors, floatx_to_float
+from testing.testvectors_general import build_fp_vectors, floatx_to_float
+
 
 
 def main():

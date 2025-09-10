@@ -17,7 +17,7 @@ from sprout_hdl_aiger import AigerExporter, AigerImporter
 from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator
 from sprout_io_collector import IOCollector
-from tests.testvectors_general import build_fp_vectors, floatx_to_float  # generic EW,FW vectors/decoder
+from testing.testvectors_general import build_fp_vectors, floatx_to_float  # generic EW,FW vectors/decoder
 from sprout_hdl_float_sn import build_fp_mul_sn  # your FP mul (with/without subnormals)
 
 # Pyosys

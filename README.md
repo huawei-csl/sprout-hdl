@@ -39,13 +39,16 @@ class Adder(Module):
         self.result <<= self.a + self.b
 ```
 
-## Documentation
+## Todo
 
-For more detailed documentation, see the [docs](docs/) folder.
+- remove _SHARED object (now used for verilog generation)
+- remove is_bool flag, probably not necessary, just use length of 1
+- parse wires and regs from graph
+- test peek / watch logic
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+
 
 ## Contributing
 
