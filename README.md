@@ -11,7 +11,6 @@ Sprout-HDL is a hardware description library designed to streamline the process 
 - Component-based design
 - Built-in simulation capabilities
 - Synthesis support
-- Comprehensive standard library
 - Easy integration with existing HDL workflows
 
 ## Installation
@@ -41,6 +40,8 @@ class Adder(Module):
 
 ## Todo
 
+- create package out of this
+- add pytest to gitlab to be run automatically
 - remove _SHARED object (now used for verilog generation)
 - remove is_bool flag, probably not necessary, just use length of 1
 - parse wires and regs from graph
