@@ -1,7 +1,14 @@
 import random
-from typing import List
-from low_level_arithmetic.compressor_tree_multiplier import build_wallace_compressor_graph, random_compressor_tree
+import time
+from typing import List, Tuple
+
+from aigverse import DepthAig, DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
+import numpy as np
+from tqdm import tqdm
+from aigerverse_aag_loader_writer import conv_aag_into_aig
+from low_level_arithmetic.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
 from low_level_arithmetic.prefix_adder import Vec
+from sprout_hdl_aiger import AigerExporter
 from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator
 
@@ -90,8 +97,23 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
                     if len(ins) != 3:
                         raise ValueError(f"FA at idx={nd.idx} does not have 3 signal inputs")
                     x, yb, z = (sig_expr[ins[0]], sig_expr[ins[1]], sig_expr[ins[2]])
-                    s_bit = (x ^ yb) ^ z
-                    c_bit = (x & yb) | (x & z) | (yb & z)
+                    
+                    # fast version
+                    #s_bit = (x ^ yb) ^ z
+                    #c_bit = (x & yb) | (x & z) | (yb & z)
+                    
+                    # with nands
+                    def nand(u, v):
+                        return ~(u & v)
+                    
+                    s1 = x ^ yb
+                    s_bit = s1 ^ z
+                    c_bit = nand(nand(s1, z), nand(x, yb))
+                    
+                    # low transistor count version
+                    #s1 = x ^ yb
+                    #s_bit = s1 ^ z 
+                    #c_bit = (s1 & z) | (x & yb)
                 else:  # HA
                     if len(ins) != 2:
                         raise ValueError(f"HA at idx={nd.idx} does not have 2 signal inputs")
@@ -170,8 +192,8 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
     return m
 
 
-def gen_compressor_tree_graph_and_sprout_module(n: int, policy: str = "dadda") -> Module:
-    
+def gen_compressor_tree_graph_and_sprout_module(n_bits: int, policy: str = "dadda") -> Tuple[Graph, Module]:
+
     """
     Convenience function to build a compressor-tree multiplier graph and
     corresponding SproutHDL module for an n-bit unsigned multiplier.
@@ -185,7 +207,7 @@ def gen_compressor_tree_graph_and_sprout_module(n: int, policy: str = "dadda") -
       sprout_hdl_module.Module
     """
 
-    N = n  # change to try other bitwidths; for plotting, keep <= 6
+    N = n_bits  # change to try other bitwidths; for plotting, keep <= 6
     if policy == "wallace":
         A, nodes = build_wallace_compressor_graph(N)
     elif policy == "random":
@@ -193,7 +215,7 @@ def gen_compressor_tree_graph_and_sprout_module(n: int, policy: str = "dadda") -
     else:
         raise ValueError(f"Unknown policy '{policy}'; must be 'dadda', 'wallace', or 'random'")
     m = build_multiplier_from_compressor_graph(policy, A, nodes)
-    return m
+    return Graph(nodes, A), m
 
 def build_mul_verctor_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
     M = (1 << n) - 1
@@ -225,19 +247,159 @@ def run_vectors(mod, vectors, *, label="") -> bool:
         cout_available = True
         pass_fail = "PASS" if goty == y else "FAIL"
 
-        print(f"{pass_fail:4s}  {name:25s}  a=0x{a:04X}  b=0x{b:04X}  -> y=0x{goty:04X}  (exp 0x{y:04X})")
+        #print(f"{pass_fail:4s}  {name:25s}  a=0x{a:04X}  b=0x{b:04X}  -> y=0x{goty:04X}  (exp 0x{y:04X})")
         if goty == y:
             ok += 1
     print(f"Summary: {ok}/{len(vectors)} passed.\n")
-    return ok == len(vectors)  # True if all passed
-    
+    all_ok = ok == len(vectors)  # True if all passed
+    if not all_ok:
+        raise ValueError("Some vectors failed!")
+    return all_ok
+
 def main():
-    m = gen_compressor_tree_graph_and_sprout_module(8, policy="wallace")
-    run_vectors(m, build_mul_verctor_rand(8), label="8x8 Wallace Multiplier")
+
+    def get_size_and_depth(name: str, m: Module):
+        aag = AigerExporter(m).get_aag()
+        aig = conv_aag_into_aig(aag)
+
+        # Clone the AIG network for size comparison
+        aig_clone = aig.clone()
+        # Optimize the AIG with several optimization algorithms
+        n_iter_optimizations = 10
+        for i in range(n_iter_optimizations):
+            for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing]:
+                optimization(aig)
+
+        print(f"Results for {name}")
+        print(f"Original AIG Size:  {aig_clone.size()}")
+        print(f"Optimized AIG Size: {aig.size()}")
+        print(f"Original AIG Depth: {DepthAig(aig_clone).num_levels()}")
+        print(f"Optimized AIG Depth: {DepthAig(aig).num_levels()}")
+
+        return aig.size(), DepthAig(aig).num_levels()
+
+    n_bits = 4
+
+    g, m = gen_compressor_tree_graph_and_sprout_module(n_bits, policy="wallace")
+    run_vectors(m, build_mul_verctor_rand(n_bits), label="8x8 Wallace Multiplier")
+    s, d = get_size_and_depth("8x8 Wallace Multiplier", m)
+
+    c_n = get_node_kind_counts(g.nodes)
+
+    def get_transistor_count(node_counts: dict, n_bits) -> int:
+        # Rough estimates based on typical implementations
+        # use yosys notech count
+        fa_count = node_counts.get("FA", 0) # 2 XOR, 3 NAND -> 2*12 + 3*4 = 24 + 12 = 36 # or 2 XOR + MUX = 2*12 + 12 = 36
+        ha_count = node_counts.get("HA", 0) # 1 XOR, 1 AND -> 12 +  6 = 18
+        sig_count = node_counts.get("sig", 0)
+        pp_count = node_counts.get("pp", 0) # 1 AND = 6
+
+        # s_bit = (a_bit ^ b_bit) ^ carry
+        # c_out = (a_bit & b_bit) | (a_bit & carry) | (b_bit & carry)
+        # 2 xor + 3 and + 2 or = 2*12 + 3*6 + 2*6 = 24 + 18 + 12 = 54
+        n_ripple = 2/2* n_bits * 54  # rough estimate for final ripple-carry adder
+
+        # Estimate: 1 transistor per signal, 4 per FA, 2 per HA
+        return sig_count * 0 + 36 * fa_count + 18 * ha_count + 6 * pp_count + n_ripple
     
-    m = gen_compressor_tree_graph_and_sprout_module(8, policy="random")
-    run_vectors(m, build_mul_verctor_rand(8), label="8x8 Wallace Multiplier")
+    def get_transistor_count_from_m(m: Module) -> int:
+        
+        gr = m.module_analyze()
+        transistor_count_dict = {'Op2<&>': 6, 'Op2<|>': 6, 'Op2<^>': 12, 'Op1<~>': 2,
+                                 'Op1<-:>': None, 'Op1<+:>': None}
+        
+        total_transistor_count = 0
+        for cls_op, count in gr.by_class_incl_typ.items():
+            if cls_op in transistor_count_dict and transistor_count_dict[cls_op] is not None:
+                total_transistor_count += count * transistor_count_dict[cls_op]
+            else:
+                raise ValueError(f"Unknown operation type for transistor count estimation: {cls_op}")
+        return total_transistor_count
+
+    transistor_count = get_transistor_count(c_n, n_bits)
+    print(f"Node counts: {c_n}, estimated transistor count: {transistor_count}")
+    print(f"Transistor count from module analysis: {get_transistor_count_from_m(m)}")
+
+    gr = m.module_analyze()
+
     
     
+    # Wallace: https://de.wikipedia.org/wiki/Wallace-Tree-Multiplizierer
+    # For 8 bit:
+    # 14 HA + 38 FA = 14*14 + 38*28 -->  196 + 1064 = 1260 transistors
+    # we get 1740
+
+    g, m = gen_compressor_tree_graph_and_sprout_module(n_bits, policy="random")
+    run_vectors(m, build_mul_verctor_rand(n_bits), label="8x8 Random Compressor Multiplier")
+    s, d = get_size_and_depth("8x8 Random Compressor Multiplier", m)
+
+    # Generate and compare n random compressor trees
+    import matplotlib.pyplot as plt
+
+    def compare_random_compressor_trees(n_bits, n_realizations=50, shrink_range=(0.6, 0.95), p_fa=0.65):
+        """Generate n_realizations random compressor trees and plot size vs depth."""
+        sizes = []
+        depths = []
+
+        # Generate test vectors once
+        vectors = build_mul_verctor_rand(n_bits, num_random=50)
+
+        for i in tqdm(range(n_realizations), desc=f"Generating {n_bits}x{n_bits} compressor trees"):
+            seed = int(time.time()) + i  # Different seed for each tree
+            try:
+                # Generate random compressor tree
+                A, nodes = random_compressor_tree(n=n_bits, seed=seed, shrink_range=shrink_range, p_fa=p_fa)
+
+                # Build the multiplier module
+                name = f"random_mul_{i}"
+                m = build_multiplier_from_compressor_graph(name, A, nodes)
+
+                # Verify correctness with test vectors
+                if run_vectors(m, vectors, label=f"Tree {i}"):
+                    # Get metrics
+                    size, depth = get_size_and_depth(name, m)
+                    sizes.append(size)
+                    depths.append(depth)
+                else:
+                    print(f"Tree {i} failed verification")
+            except Exception as e:
+                print(f"Error with tree {i}: {str(e)}")
+
+        # Plot results
+        if sizes:
+            plt.figure(figsize=(10, 6))
+            plt.scatter(sizes, depths, alpha=0.7)
+            plt.xlabel('AIG Size')
+            plt.ylabel('AIG Depth')
+            plt.title(f'Size vs Depth for {len(sizes)} Random {n_bits}x{n_bits} Compressor Trees')
+            plt.grid(True)
+
+            # Add trendline
+            # if len(sizes) > 1:
+            #     z = np.polyfit(sizes, depths, 1)
+            #     p = np.poly1d(z)
+            #     plt.plot(sizes, p(sizes), "r--", alpha=0.8,
+            #             label=f"Trend: y={z[0]:.4f}x+{z[1]:.4f}")
+            #     plt.legend()
+
+            plt.savefig(f"random_compressor_tree_{n_bits}x{n_bits}_n{len(sizes)}.png")
+            # plt.show()
+
+            # Print statistics
+            print(f"\nStatistics for {len(sizes)} successful realizations:")
+            print(f"Size: min={min(sizes)}, max={max(sizes)}, avg={sum(sizes)/len(sizes):.2f}")
+            print(f"Depth: min={min(depths)}, max={max(depths)}, avg={sum(depths)/len(depths):.2f}")
+        else:
+            print("No successful trees to plot.")
+
+        return sizes, depths
+
+    # Run the comparison with multiple random compressor trees
+    n_realizations = 50
+
+    print(f"\nGenerating {n_realizations} random compressor trees...")
+    sizes, depths = compare_random_compressor_trees(n_bits, n_realizations)
+
+
 if __name__ == "__main__":
     main()

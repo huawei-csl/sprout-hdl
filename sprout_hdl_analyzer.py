@@ -4,16 +4,17 @@
 from dataclasses import dataclass
 from typing import Dict, Set, Tuple, Iterable
 
-#from sprout_hdl_module import Module
+# from sprout_hdl_module import Module
 from sprout_hdl import Concat, Const, Expr, Op1, Op2, Resize, Signal, Slice, Ternary, _clsname
-#from sprout_hdl_module import Module
+# from sprout_hdl_module import Module
 
 @dataclass
 class GraphReport:
     # Counts
     total_expr_nodes: int          # unique Expr nodes counted per options
     op_nodes: int                  # Op1 + Op2 + Ternary only (no wiring/consts/signals)
-    by_type: Dict[str, int]        # class-name -> count
+    by_class: Dict[str, int]        # class-name -> count
+    by_class_incl_typ: Dict[str, int] # class-name<typ> -> count (for nodes with typ attribute)
     # Depths
     output_depth: Dict[str, int]   # depth of each output driver cone
     reg_next_depth: Dict[str, int] # depth to each reg next-state (sequential inputs)
@@ -27,7 +28,8 @@ class _Analyzer:
         self.include_reg_cones = include_reg_cones
         # visited set for counting (ids, to avoid Expr.__eq__)
         self._seen_for_count: Set[int] = set()
-        self._type_counts: Dict[str, int] = {}
+        self._class_counts: Dict[str, int] = {}
+        self._class_count_incl_op: Dict[str, int] = {}
         # memo for depth by expr id
         self._depth_memo: Dict[int, int] = {}
 
@@ -92,7 +94,12 @@ class _Analyzer:
             self._seen_for_count.add(cid)
             if self._should_count(cur):
                 cls = _clsname(cur)
-                self._type_counts[cls] = self._type_counts.get(cls, 0) + 1
+                self._class_counts[cls] = self._class_counts.get(cls, 0) + 1
+                # if cur has attribute typ, add it to key
+                if hasattr(cur, "op"):
+                    cls_op = f"{cls}<{cur.op}>"
+                    self._class_count_incl_op[cls_op] = self._class_count_incl_op.get(cls_op, 0) + 1
+
             # Always traverse children to reach ops behind wiring/signals
             for ch in self._children(cur):
                 st.append(ch)
@@ -150,8 +157,8 @@ class _Analyzer:
                     reg_depth[r.name] = 0
 
         # Summaries
-        op_nodes = sum(self._type_counts.get(t, 0) for t in ("Op1", "Op2", "Ternary"))
-        total_expr_nodes = sum(self._type_counts.values())
+        op_nodes = sum(self._class_counts.get(t, 0) for t in ("Op1", "Op2", "Ternary"))
+        total_expr_nodes = sum(self._class_counts.values())
         max_depth = 0
         if out_depth:
             max_depth = max(max_depth, max(out_depth.values()))
@@ -161,7 +168,8 @@ class _Analyzer:
         return GraphReport(
             total_expr_nodes=total_expr_nodes,
             op_nodes=op_nodes,
-            by_type=dict(self._type_counts),
+            by_class=dict(self._class_counts),
+            by_class_incl_typ=dict(self._class_count_incl_op),
             output_depth=out_depth,
             reg_next_depth=reg_depth,
             max_depth=max_depth,

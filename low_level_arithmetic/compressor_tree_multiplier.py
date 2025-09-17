@@ -645,6 +645,16 @@ def plot_graph(A: np.ndarray, nodes: List[Node], title: str = "Compressor Tree (
     plt.legend(loc="upper right")
     plt.tight_layout()
     plt.savefig(f'compressor_tree_graph{suffix}.png')
+    
+def get_node_kind_counts(nodes: List[Node], split=True) -> Dict[str, int]:
+    counts = defaultdict(int)
+    for nd in nodes:
+        kind = nd.kind
+        if split:
+            if nd.kind == "signal" and nd.port == "pp":
+                kind = "pp"
+        counts[kind] += 1
+    return dict(counts)
 
 
 def plot_adjacency_spy(A: np.ndarray, title: str = "Adjacency Matrix (sparsity)", suffix: str = "") -> None:
@@ -657,7 +667,7 @@ def plot_adjacency_spy(A: np.ndarray, title: str = "Adjacency Matrix (sparsity)"
     plt.savefig(f'compressor_tree_adjacency{suffix}.png')
 
 # -----------------------------
-# Just for testing
+# Contracted graph without signal nodes but labeled edges
 # -----------------------------
 
 
