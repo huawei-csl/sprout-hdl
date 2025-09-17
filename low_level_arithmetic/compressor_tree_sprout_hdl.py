@@ -1,6 +1,6 @@
 import random
 from typing import List
-from low_level_arithmetic.compressor_tree_multiplier_ex3 import build_wallace_compressor_graph, random_compressor_tree
+from low_level_arithmetic.compressor_tree_multiplier import build_wallace_compressor_graph, random_compressor_tree
 from low_level_arithmetic.prefix_adder import Vec
 from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator

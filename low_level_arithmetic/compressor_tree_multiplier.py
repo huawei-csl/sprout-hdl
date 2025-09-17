@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 from math import ceil
 
 
-
 # -----------------------------
 # Graph representation
 # -----------------------------
@@ -298,8 +297,7 @@ def random_compressor_tree(n: int,
 # Validators (formula-only + simulation)
 # -----------------------------
 
-    
-        
+
 def quick_formula_checks(A: np.ndarray, nodes) -> dict:
     n_nodes = A.shape[0]
     rows, cols = np.nonzero(A)
@@ -658,6 +656,104 @@ def plot_adjacency_spy(A: np.ndarray, title: str = "Adjacency Matrix (sparsity)"
     plt.tight_layout()
     plt.savefig(f'compressor_tree_adjacency{suffix}.png')
 
+# -----------------------------
+# Just for testing
+# -----------------------------
+
+
+def contract_signals_to_labeled_edges(G: Graph) -> Graph:
+    """
+    Contract a compressor-tree Graph by removing intermediate signal nodes and
+    encoding edge types in the adjacency matrix:
+        - sum edges   : 1
+        - carry edges : 2
+        - source edges: 3  (from input partial-products)
+
+    Rules:
+      - Keep all non-signal nodes ('FA', 'HA', 'sink').
+      - Keep input signal nodes with port='pp', but rename their kind to 'sources'.
+      - Remove all other 'sig' nodes ('sum', 'carry').
+      - Connect producers directly to consumers, labeling edges as above.
+        * For adder -> (adder|sink): follow through 'sum'/'carry' signals and label 1/2.
+        * For sources(pp) -> (adder|sink): label 3.
+
+    Returns a NEW Graph with reduced node set and an adjacency matrix whose entries
+    are in {0,1,2,3}.
+    """
+    # Build predecessor/successor lists for the original graph
+    N = len(G.nodes)
+    succ = [[] for _ in range(N)]
+    pred = [[] for _ in range(N)]
+    for u in range(N):
+        row = G.A[u]
+        for v, val in enumerate(row):
+            if val:
+                succ[u].append(v)
+                pred[v].append(u)
+
+    # Decide which nodes to keep:
+    #  - keep all non-signal nodes
+    #  - keep 'sig' nodes only if they are partial-products (port == 'pp') -> rename kind='sources'
+    keep_old_idxs = []
+    for nd in G.nodes:
+        if nd.kind != "sig":
+            keep_old_idxs.append(nd.idx)
+        elif nd.port == "pp":
+            keep_old_idxs.append(nd.idx)
+        # else drop 'sum'/'carry' signal nodes
+
+    # Map old indices -> new indices
+    old2new = {old_idx: new_idx for new_idx, old_idx in enumerate(keep_old_idxs)}
+
+    # Create new graph and add kept nodes (renaming pp->sources)
+    G2 = Graph()
+    for old_idx in keep_old_idxs:
+        nd = G.nodes[old_idx]
+        G2.add_node(name=nd.name, kind=nd.kind, weight=nd.weight, stage=nd.stage, port=nd.port)
+
+    # Helper to set labeled edge with conflict checking
+    def set_edge(u_new: int, v_new: int, label: int):
+        cur = G2.A[u_new][v_new]
+        if cur == 0 or cur == label:
+            G2.A[u_new][v_new] = label
+        else:
+            # This should not happen in a legal compressor tree (no multi-edges with different labels).
+            raise ValueError(f"Edge label conflict on ({u_new}->{v_new}): have {cur}, tried {label}")
+
+    # 1) Wire sources (pp) directly to their adder/sink consumers with label 3
+    for old_idx in keep_old_idxs:
+        nd = G.nodes[old_idx]
+        if nd.kind == "sig" and nd.port == "pp":
+            u_new = old2new[old_idx]
+            for v in succ[old_idx]:
+                kind_v = G.nodes[v].kind
+                if kind_v in ("FA", "HA", "sink"):
+                    if v in old2new:
+                        set_edge(u_new, old2new[v], 3)
+                # If pp -> sig (rare), skip; only connect to kept nodes
+
+    # 2) Bypass 'sum'/'carry' signal nodes: adder -> (adder|sink) with labels 1/2
+    for old_idx in range(N):
+        nd = G.nodes[old_idx]
+        if nd.kind in ("FA", "HA"):
+            if old_idx not in old2new:
+                continue
+            u_new = old2new[old_idx]
+            # Find outgoing signal nodes from this adder (sum/carry)
+            out_sig_ids = [v for v in succ[old_idx] if G.nodes[v].kind == "sig"]
+            # For each signal, forward its edges to final consumers with appropriate label
+            for s in out_sig_ids:
+                port = G.nodes[s].port  # 'sum' or 'carry'
+                label = 1 if port == "sum" else 2 if port == "carry" else None
+                if label is None:
+                    continue
+                for t in succ[s]:
+                    kind_t = G.nodes[t].kind
+                    if kind_t in ("FA", "HA", "sink") and t in old2new:
+                        set_edge(u_new, old2new[t], label)
+
+    G2.A = np.array(G2.A, dtype=np.uint8)
+    return G2
 
 
 # -----------------------------
@@ -684,7 +780,10 @@ stats
 
 # Plots
 plot_graph(A, nodes, title=f"Compressor Tree (Wallace), n={N}")
+G_c = contract_signals_to_labeled_edges(Graph(nodes, A))
+plot_graph(G_c.A, G_c.nodes, title=f"Contracted Graph (Wallace) (n={N})", suffix="_contracted")
 plot_adjacency_spy(A, title=f"Adjacency Matrix (Wallace) (n={N})")
+plot_adjacency_spy(G_c.A, title=f"Contracted Adjacency Matrix (Wallace) (n={N})", suffix="_contracted")
 
 # Save CSVs for download
 nodes_csv_path = f"wallace_n{N}_nodes.csv"
@@ -720,4 +819,3 @@ print(f"Formula checks: {form}")
 print(f"Functional verification: {ver}")
 plot_graph(A_rand, nodes_rand, title=f"Compressor Tree (Random), n={N}", suffix="_random")
 plot_adjacency_spy(A_rand, title=f"Adjacency Matrix (Random, n={N})", suffix="_random")
-
