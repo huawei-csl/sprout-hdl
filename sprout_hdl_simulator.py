@@ -217,6 +217,12 @@ class Simulator:
                     bits = _to_bits(av | bv, tw)
                 else:
                     bits = _to_bits(av ^ bv, tw)
+                    
+            elif op == "nand": # experimental feature
+                # Bitwise NAND: inputs are already Resize'd by op_bit() to match widths
+                av = self._eval_expr_bits(e.a, _visiting)
+                bv = self._eval_expr_bits(e.b, _visiting)
+                bits = _to_bits(~(av & bv), tw)
 
             elif op in ("+", "-"):
                 # Extend both operands to result width using their own signedness

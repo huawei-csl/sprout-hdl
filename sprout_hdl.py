@@ -278,7 +278,10 @@ class Op2(Expr):
         self.typ = typ
 
     def to_verilog(self) -> str:
-        return f"({self.a.to_verilog()} {self.op} {self.b.to_verilog()})"
+        if self.op != "nand":
+            return f"({self.a.to_verilog()} {self.op} {self.b.to_verilog()})"
+        else:
+            return f"~({self.a.to_verilog()} & {self.b.to_verilog()})"  # nand # experimental feature
 
 
 class Op1(Expr):

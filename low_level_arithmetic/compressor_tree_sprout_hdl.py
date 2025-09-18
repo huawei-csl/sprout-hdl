@@ -5,12 +5,14 @@ from typing import List, Tuple
 from aigverse import DepthAig, DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 import numpy as np
 from tqdm import tqdm
-from aigerverse_aag_loader_writer import conv_aag_into_aig
+from aigerverse_aag_loader_writer import conv_aag_into_aig, conv_aig_into_aag
 from low_level_arithmetic.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
 from low_level_arithmetic.prefix_adder import Vec
+from sprout_hdl import Bool, HDLType, Op2
 from sprout_hdl_aiger import AigerExporter
 from sprout_hdl_module import Module
 from sprout_hdl_simulator import Simulator
+from yosys_extract_metrics import extract_yosys_metrics
 
 
 def build_multiplier_from_compressor_graph(name: str, A, nodes):
@@ -97,23 +99,26 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
                     if len(ins) != 3:
                         raise ValueError(f"FA at idx={nd.idx} does not have 3 signal inputs")
                     x, yb, z = (sig_expr[ins[0]], sig_expr[ins[1]], sig_expr[ins[2]])
-                    
+
                     # fast version
-                    #s_bit = (x ^ yb) ^ z
-                    #c_bit = (x & yb) | (x & z) | (yb & z)
-                    
+                    # s_bit = (x ^ yb) ^ z
+                    # c_bit = (x & yb) | (x & z) | (yb & z)
+
                     # with nands
+                    #def nand(u, v):
+                    #   return ~(u & v)
+
                     def nand(u, v):
-                        return ~(u & v)
-                    
+                        return Op2(u, v, "nand", Bool())  # experimental feature
+
                     s1 = x ^ yb
                     s_bit = s1 ^ z
                     c_bit = nand(nand(s1, z), nand(x, yb))
-                    
+
                     # low transistor count version
-                    #s1 = x ^ yb
-                    #s_bit = s1 ^ z 
-                    #c_bit = (s1 & z) | (x & yb)
+                    # s1 = x ^ yb
+                    # s_bit = s1 ^ z
+                    # c_bit = (s1 & z) | (x & yb)
                 else:  # HA
                     if len(ins) != 2:
                         raise ValueError(f"HA at idx={nd.idx} does not have 2 signal inputs")
@@ -182,8 +187,24 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
     for w in range(W):
         a_bit = rowA[w] if w < len(rowA) else 0
         b_bit = rowB[w] if w < len(rowB) else 0
-        s_bit = (a_bit ^ b_bit) ^ carry
-        c_out = (a_bit & b_bit) | (a_bit & carry) | (b_bit & carry)
+
+        #s_bit = (a_bit ^ b_bit) ^ carry
+        #c_out = (a_bit & b_bit) | (a_bit & carry) | (b_bit & carry)
+        
+        # optimized version:
+        # if b_bit is integer and zero
+        if isinstance(b_bit, int) and b_bit == 0:
+            if isinstance(carry, int) and carry == 0:
+                s_bit = a_bit
+                c_out = 0
+            else:
+                s_bit = a_bit ^ carry
+                c_out = a_bit & carry
+        else:
+            s1 = a_bit ^ b_bit
+            s_bit = s1 ^ carry
+            c_out = (a_bit & b_bit) | (s1 & carry)
+            
         bits.append(s_bit)
         carry = c_out
     # (product fits in W bits; overflow carry is discarded by design)
@@ -258,6 +279,19 @@ def run_vectors(mod, vectors, *, label="") -> bool:
 
 def main():
 
+    def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
+
+        # aag to aig
+        aig = conv_aag_into_aig(aag_lines)
+        
+        for i in range(n_iter_optimizations):
+            for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
+                optimization(aig)
+                
+        # aig back to aag
+        aag_optimized = conv_aig_into_aag(aig)
+        return aag_optimized
+
     def get_size_and_depth(name: str, m: Module):
         aag = AigerExporter(m).get_aag()
         aig = conv_aag_into_aig(aag)
@@ -286,6 +320,10 @@ def main():
 
     c_n = get_node_kind_counts(g.nodes)
 
+    # aag_lines = AigerExporter(m).get_aag()
+    # stat = extract_yosys_metrics(aag_lines)
+    # print(f"Yosys stats: {stat}")
+
     def get_transistor_count(node_counts: dict, n_bits) -> int:
         # Rough estimates based on typical implementations
         # use yosys notech count
@@ -301,13 +339,13 @@ def main():
 
         # Estimate: 1 transistor per signal, 4 per FA, 2 per HA
         return sig_count * 0 + 36 * fa_count + 18 * ha_count + 6 * pp_count + n_ripple
-    
+
     def get_transistor_count_from_m(m: Module) -> int:
-        
+
         gr = m.module_analyze()
-        transistor_count_dict = {'Op2<&>': 6, 'Op2<|>': 6, 'Op2<^>': 12, 'Op1<~>': 2,
+        transistor_count_dict = {'Op2<&>': 6, 'Op2<|>': 6, 'Op2<^>': 12, 'Op1<~>': 2, "Op2<nand>":4,
                                  'Op1<-:>': None, 'Op1<+:>': None}
-        
+
         total_transistor_count = 0
         for cls_op, count in gr.by_class_incl_typ.items():
             if cls_op in transistor_count_dict and transistor_count_dict[cls_op] is not None:
@@ -316,14 +354,19 @@ def main():
                 raise ValueError(f"Unknown operation type for transistor count estimation: {cls_op}")
         return total_transistor_count
 
+    def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0) -> int:
+        aag_lines = AigerExporter(m).get_aag()
+
+        if n_iter_optimizations > 0:
+            aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
+
+        stat = extract_yosys_metrics(aag_lines)
+        return stat
+
     transistor_count = get_transistor_count(c_n, n_bits)
     print(f"Node counts: {c_n}, estimated transistor count: {transistor_count}")
     print(f"Transistor count from module analysis: {get_transistor_count_from_m(m)}")
 
-    gr = m.module_analyze()
-
-    
-    
     # Wallace: https://de.wikipedia.org/wiki/Wallace-Tree-Multiplizierer
     # For 8 bit:
     # 14 HA + 38 FA = 14*14 + 38*28 -->  196 + 1064 = 1260 transistors
@@ -340,6 +383,7 @@ def main():
         """Generate n_realizations random compressor trees and plot size vs depth."""
         sizes = []
         depths = []
+        transistor_counts = []
 
         # Generate test vectors once
         vectors = build_mul_verctor_rand(n_bits, num_random=50)
@@ -360,6 +404,10 @@ def main():
                     size, depth = get_size_and_depth(name, m)
                     sizes.append(size)
                     depths.append(depth)
+                    #transistor_count = get_transistor_count_from_m(m)
+                    transistor_count = get_transistor_count_from_m_yosys(m, n_iter_optimizations=2)
+                    transistor_counts.append(transistor_count)
+                    m_depth = m.module_analyze().max_depth
                 else:
                     print(f"Tree {i} failed verification")
             except Exception as e:
@@ -392,10 +440,21 @@ def main():
         else:
             print("No successful trees to plot.")
 
+        if transistor_counts:
+            plt.figure(figsize=(10, 6))
+            plt.scatter(transistor_counts, depths, alpha=0.7)
+            plt.xlabel('Transistor Count')
+            plt.ylabel('AIG Depth')
+            plt.title(f'Transistor Count vs Depth for {len(transistor_counts)} Random {n_bits}x{n_bits} Compressor Trees')
+            plt.grid(True)
+            plt.savefig(f"random_compressor_tree_{n_bits}x{n_bits}__n{len(sizes)}_transistor_count.png")
+            # plt.show()
+            print(f"\nTransistor Count Statistics for {len(transistor_counts)} successful realizations:")
+
         return sizes, depths
 
     # Run the comparison with multiple random compressor trees
-    n_realizations = 50
+    n_realizations = 1000
 
     print(f"\nGenerating {n_realizations} random compressor trees...")
     sizes, depths = compare_random_compressor_trees(n_bits, n_realizations)

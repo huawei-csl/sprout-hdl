@@ -416,6 +416,9 @@ class AigerExporter:
                 bits = self.aig.bv_or(a, b)
             elif op == "^":
                 bits = self.aig.bv_xor(a, b)
+            elif op == "nand":  # experimental feature
+                # Bitwise NAND: inputs are already Resize'd by op_bit() to match widths
+                bits = self.aig.bv_not(self.aig.bv_and(a, b))
             elif op == "+":
                 bits, _ = self.aig.bv_add(a, b, w_out=w_out)
             elif op == "-":

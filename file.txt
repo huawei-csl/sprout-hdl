@@ -1,0 +1,32 @@
+{
+   "creator": "Yosys 0.57+7 (git sha1 012ddc2f1, g++ 12.2.1 -fPIC -O3)",
+   "invocation": "stat -tech cmos -json ",
+   "modules": {
+      "\\/tmp/tmpepaleta6.aag": {
+         "num_wires":         74,
+         "num_wire_bits":     74,
+         "num_pub_wires":     16,
+         "num_pub_wire_bits": 16,
+         "num_ports":         16,
+         "num_port_bits":     16,
+         "num_memories":      0,
+         "num_memory_bits":   0,
+         "num_processes":     0,
+         "num_cells":         66,
+         "num_submodules":       0,
+         "num_cells_by_type": {
+            "$_ANDNOT_": 12,
+            "$_AND_": 12,
+            "$_NAND_": 6,
+            "$_NOR_": 1,
+            "$_ORNOT_": 6,
+            "$_OR_": 7,
+            "$_XNOR_": 6,
+            "$_XOR_": 16
+         },
+         "estimated_num_transistors": "514"
+      }
+   }
+
+}
+
