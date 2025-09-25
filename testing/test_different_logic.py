@@ -178,43 +178,6 @@ def build_adder(W: int = 8) -> Tuple[Module, Dict[str, UInt], List]:
     return m, spec, vecs
 
 
-# PickProbe reuses your earlier micro (vec:UInt(W), idx:UInt(IW); outputs robust/naive)
-def build_pick_probe(W: int = 11):
-    from math import ceil, log2
-    from sprout_hdl_pick_probe import build_pick_probe  # if you saved it; else inline your builder here
-
-    m = build_pick_probe(W)
-    IW = max(1, ceil(log2(W + 2)))
-
-    # random cases: check robust_idx against Python ref; (we also expect robust_* == naive_* if your minus fix is in)
-    def ref(vec_int, idx_val):
-        return (vec_int >> idx_val) & 1 if 0 <= idx_val < W else 0
-
-    vecs = []
-    for _ in range(64):
-        vec_int = random.getrandbits(W)
-        idx_val = random.randint(0, W + 1)
-        vecs.append(
-            (
-                f"vec={vec_int:0{W}b},idx={idx_val}",
-                {"vec": vec_int, "idx": idx_val},
-                {
-                    "robust_idx": ref(vec_int, idx_val),
-                    "robust_idxm1": ref(vec_int, idx_val - 1),
-                    "robust_idxm2": ref(vec_int, idx_val - 2),
-                },
-            )
-        )
-    spec = {
-        "vec": UInt(W),
-        "idx": UInt(IW),
-        "robust_idx": UInt(1),
-        "robust_idxm1": UInt(1),
-        "robust_idxm2": UInt(1),
-    }
-    return m, spec, vecs
-
-
 def build_fp_mul_case(EW: int, FW: int, *, subnormals: bool = False):
     bits_tot = 1 + EW + FW
     m = build_fp_mul_sn(f"FPMul_E{EW}_F{FW}_{'SN' if subnormals else 'NZ'}", EW=EW, FW=FW, subnormals=subnormals)

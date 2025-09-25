@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs", "hatch-requirements-txt"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sprout-hdl"
+version = "0.0.0"
+description = "Sprout HDL is a hardware description language for digital circuits."
+authors = [{ name = "Felix Arnold", email = "felix.arnold@h-partners.com" }]
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dynamic = [
+    "dependencies"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sprout_hdl"]
+
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["sprout_hdl"]
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]
+
+[tool.ruff]
+line-length = 120

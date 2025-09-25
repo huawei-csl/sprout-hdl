@@ -1,0 +1,16 @@
+# Define stages
+stages:
+  - test
+
+# Test job
+pytest:
+  stage: test
+  image: python:3.12
+  cache:
+    paths:
+      - .pip-cache/
+  before_script:
+    - pip install --cache-dir=.pip-cache pytest
+    - pip install --cache-dir=.pip-cache -e .
+  script:
+    - pytest
