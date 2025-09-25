@@ -14,3 +14,5 @@ pytest:
     - pip install --cache-dir=.pip-cache -e .
   script:
     - pytest
+  tags:
+    - x86
