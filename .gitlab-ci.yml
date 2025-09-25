@@ -13,6 +13,6 @@ pytest:
     - pip install --cache-dir=.pip-cache pytest
     - pip install --cache-dir=.pip-cache -e .
   script:
-    - pytest
+    - PYTHONPATH=$(pwd) pytest
   tags:
     - x86
