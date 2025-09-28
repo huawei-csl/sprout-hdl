@@ -24,18 +24,33 @@ pip install -e .
 ## Usage
 
 ```python
-from sprout_hdl import Module, Signal, Wire
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl import Bool, UInt, SInt, mux, cat
 
-# Create a simple module
-class Adder(Module):
-    def __init__(self):
-        super().__init__()
-        self.a = UInt(8)
-        self.b = UInt(8)
-        self.result = UInt(9)
-        
-    def elaborate(self):
-        self.result <<= self.a + self.b
+# declare Moudule
+m = Module("LogicDemo", with_clock=False, with_reset=False)
+
+# declare inputs
+x = m.input(UInt(8), "x")
+y = m.input(UInt(8), "y")
+sg = m.input(SInt(8), "sg")
+
+# declare outputs
+f = m.input(Bool(), "f")
+z = m.output(UInt(9), "z")  # 8+8 -> 9 bits
+eq = m.output(Bool(), "eq")
+hi = m.output(UInt(4), "hi")
+
+sum_ = x + y  # sum is 9-bit
+z <<= sum_  # auto-fit/truncate handled
+eq <<= x == y  # Bool
+hi <<= cat(x[7:6], y[7:6])  # concat 2+2 = 4 bits
+
+# Mux on Bool
+w = m.output(UInt(8), "w")
+w <<= mux(f, x & y, x | y)
+
+print(m.to_verilog())
 ```
 
 ## Todo
