@@ -1,7 +1,7 @@
 # io_collect.py
 from typing import Dict, Tuple, List, Optional, Any
-from sprouthdl.sprout_hdl import UInt, cat
-from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprouthdl import UInt, cat
+from sprouthdl.sprouthdl_module import Module
 
 
 class IOCollector:

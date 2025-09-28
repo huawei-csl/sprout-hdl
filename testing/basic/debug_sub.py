@@ -1,10 +1,10 @@
 # minus_semantics_test.py
 import random
 from math import ceil, log2
-from tests.roundtrip import roundtrip_and_group
-from sprouthdl.sprout_hdl import UInt
-from sprouthdl.sprout_hdl_module import Module
-from sprouthdl.sprout_hdl_simulator import Simulator
+from testing.roundtrip import roundtrip_and_group
+from sprouthdl.sprouthdl import UInt
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator import Simulator
 
 
 def build_minus_probe(IW: int):

@@ -1,9 +1,9 @@
-from sprouthdl.sprout_hdl import Bool, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
+from sprouthdl.sprouthdl import Bool, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
 
 
 from typing import List, Optional
 
-from sprouthdl.sprout_hdl_analyzer import _Analyzer, GraphReport
+from sprouthdl.sprouthdl_analyzer import _Analyzer, GraphReport
 
 
 class Module:

@@ -6,9 +6,9 @@
 # - bfloat16: EW=8, FW=7    (total 16)
 
 from typing import Tuple
-from sprouthdl.sprout_hdl import *
-from sprouthdl.sprout_hdl_module import Module
-from sprouthdl.sprout_hdl_simulator import Simulator
+from sprouthdl.sprouthdl import *
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator import Simulator
 
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
 

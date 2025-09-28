@@ -3,11 +3,11 @@ import random
 from math import ceil, log2
 
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
-from sprouthdl.sprout_hdl import UInt, mux, fit_width
-from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.sprout_hdl_module import Module
-from sprouthdl.sprout_hdl_simulator import Simulator
-from sprouthdl.sprout_io_collector import IOCollector
+from sprouthdl.sprouthdl import UInt, mux, fit_width
+from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator import Simulator
+from sprouthdl.sprouthdl_io_collector import IOCollector
 
 def _eq_const_bits(x, k: int, w: int):
     xw = fit_width(x, UInt(w))

@@ -5,12 +5,12 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from attr import dataclass
 from matplotlib import pyplot as plt
-from sprouthdl.sprout_hdl_analyzer import GraphReport
-from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprouthdl_analyzer import GraphReport
+from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
-from sprouthdl.sprout_hdl import UInt, cat
-from sprouthdl.sprout_hdl_aiger import AigerExporter
-from sprouthdl.sprout_hdl_simulator import Simulator
+from sprouthdl.sprouthdl import UInt, cat
+from sprouthdl.sprouthdl_aiger import AigerExporter
+from sprouthdl.sprouthdl_simulator import Simulator
 
 Pair = Tuple[int, int]
 

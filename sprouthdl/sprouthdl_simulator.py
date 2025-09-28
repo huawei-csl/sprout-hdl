@@ -1,6 +1,6 @@
-from sprouthdl.sprout_hdl_module import Module
-from sprouthdl.sprout_hdl import *
-from sprouthdl.sprout_hdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl import *
+from sprouthdl.sprouthdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
 
 
 class Simulator:
@@ -333,7 +333,7 @@ class Simulator:
 
     def _resolve_expr(self, what):
         """Accept str name, Signal, or Expr; return an Expr to evaluate."""
-        from sprouthdl.sprout_hdl import Signal, Expr
+        from sprouthdl.sprouthdl import Signal, Expr
         if isinstance(what, str):
             s = next((s for s in self.m._signals if s.name == what), None)
             if s is None:
@@ -353,7 +353,7 @@ class Simulator:
         """Evaluate current value of an internal Signal/Expr."""
         e = self._resolve_expr(what)
         # If it's a reg, read the stored state; else evaluate driver cone
-        from sprouthdl.sprout_hdl import Signal
+        from sprouthdl.sprouthdl import Signal
         if isinstance(e, Signal) and e.kind == "reg":
             bits = self._state_bits[id(e)]  # use your reg state store
         else:
@@ -362,7 +362,7 @@ class Simulator:
 
     def peek_next(self, reg_name: str) -> int:
         """Evaluate a register's next-state expression (combinational)."""
-        from sprouthdl.sprout_hdl import Signal
+        from sprouthdl.sprouthdl import Signal
         s = next((s for s in self.m._signals if s.name == reg_name), None)
         if s is None or s.kind != "reg":
             raise KeyError(f"'{reg_name}' is not a register in {self.m.name}.")
@@ -401,7 +401,7 @@ class Simulator:
             return
         out = {}
         for name, e in self._watches.items():
-            from sprouthdl.sprout_hdl import Signal
+            from sprouthdl.sprouthdl import Signal
             if isinstance(e, Signal) and e.kind == "reg":
                 bits = self._state_bits[id(e)]
             else:
