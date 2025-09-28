@@ -2,8 +2,8 @@ from aigverse import equivalence_checking
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
 from sprouthdl.sprout_hdl import UInt
 from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter
-from sprout_hdl_float import half_to_float, run_vectors
-from sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_fp_mul_sn
+from sprouthdl.floating_point.sprout_hdl_float import half_to_float, run_vectors
+from sprouthdl.floating_point.sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_fp_mul_sn
 from sprouthdl.sprout_io_collector import IOCollector
 
 

@@ -1,8 +1,8 @@
 from aigverse import Aig, DepthAig
 from sprouthdl.sprout_hdl import UInt
-from sprout_hdl_float import build_f16_mul, build_f16_vectors, build_fp_mul, half_to_float, run_vectors  # or your own module builder
+from sprouthdl.floating_point.sprout_hdl_float import build_f16_mul, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
 from sprout_hdl_float_bk import build_f16_subnormal_vectors
-from sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_fp_mul_sn  # or your own module builder
+from sprouthdl.floating_point.sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_fp_mul_sn
 from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter, export_module_to_aiger
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, read_aag_into_aig
 

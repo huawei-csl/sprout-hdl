@@ -12,7 +12,7 @@ from sprouthdl.sprout_hdl import Bool, HDLType, Op2
 from sprouthdl.sprout_hdl_aiger import AigerExporter
 from sprouthdl.sprout_hdl_module import Module
 from sprouthdl.sprout_hdl_simulator import Simulator
-from yosys_extract_metrics import extract_yosys_metrics
+from sprouthdl.yosys_extract_metrics import extract_yosys_metrics
 
 
 def build_multiplier_from_compressor_graph(name: str, A, nodes):

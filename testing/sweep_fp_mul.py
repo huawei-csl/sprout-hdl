@@ -1,6 +1,6 @@
 from aigverse import Aig, DepthAig
-from sprout_hdl_float import build_f16_mul, build_fp_mul  # or your own module builder
-from sprout_hdl_float_sn import build_fp_mul_sn  # or your own module builder
+from sprouthdl.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul
+from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 from sprouthdl.sprout_hdl_aiger import export_module_to_aiger
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
 
