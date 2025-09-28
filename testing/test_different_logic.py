@@ -6,17 +6,12 @@ from typing import Callable, Dict, List, Tuple
 
 # --- your libs (adjust paths as needed) ---
 from aigverse import equivalence_checking
-from aigerverse_aag_loader_writer import (
-    _get_aag_sym,
-    file_to_lines,
-    read_aag_into_aig,
-    conv_aag_into_aig,  # if you want in-memory AIG too
-)
-from sprout_hdl import UInt, Bool, reset_shared_cache
-from sprout_hdl_aiger import AigerExporter, AigerImporter
-from sprout_hdl_module import Module
-from sprout_hdl_simulator import Simulator
-from sprout_io_collector import IOCollector
+from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines, read_aag_into_aig, conv_aag_into_aig
+from sprouthdl.sprout_hdl import UInt, Bool, reset_shared_cache
+from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl_simulator import Simulator
+from sprouthdl.sprout_io_collector import IOCollector
 from testing.testvectors_general import build_fp_vectors, floatx_to_float  # generic EW,FW vectors/decoder
 from sprout_hdl_float_sn import build_fp_mul_sn  # your FP mul (with/without subnormals)
 

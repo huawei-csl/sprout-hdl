@@ -1,12 +1,12 @@
 import tempfile
 
 from aigverse import equivalence_checking, read_verilog_into_aig
-from aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, file_to_lines, read_aag_into_aig
-from sprout_hdl import UInt
-from sprout_hdl_aiger import AigerExporter, AigerImporter
+from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, file_to_lines, read_aag_into_aig
+from sprouthdl.sprout_hdl import UInt
+from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter
 from sprout_hdl_float import build_f16_vectors, half_to_float, run_vectors
 from sprout_hdl_float_sn import build_f16_subnormal_vectors, build_fp_mul_sn
-from sprout_io_collector import IOCollector
+from sprouthdl.sprout_io_collector import IOCollector
 
 # import pyosys as ys, tempfile, os
 import os

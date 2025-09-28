@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs", "hatch-requirements-txt"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sprout-hdl"
+name = "sprouthdl"
 version = "0.0.0"
 description = "Sprout HDL is a hardware description language for digital circuits."
 authors = [{ name = "Felix Arnold", email = "felix.arnold@h-partners.com" }]
@@ -19,12 +19,12 @@ dynamic = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sprout_hdl"]
+include = ["sprouthdl"]
 
 
 
 [tool.hatch.build.targets.wheel]
-packages = ["sprout_hdl"]
+packages = ["sprouthdl"]
 
 [tool.hatch.metadata.hooks.requirements_txt]
 files = ["requirements.txt"]

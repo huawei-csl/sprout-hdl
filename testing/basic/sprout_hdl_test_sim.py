@@ -1,6 +1,6 @@
-from sprout_hdl_module import Module
-from sprout_hdl import UInt
-from sprout_hdl_simulator import Simulator
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl import UInt
+from sprouthdl.sprout_hdl_simulator import Simulator
 
 
 m = Module("MulAddComb", with_clock=False, with_reset=False)

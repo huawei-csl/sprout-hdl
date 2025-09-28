@@ -1,5 +1,5 @@
-from sprout_hdl_module import Module
-from sprout_hdl import Bool, UInt, SInt, mux, cat
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl import Bool, UInt, SInt, mux, cat
 
 # declare Moudule
 m = Module("LogicDemo", with_clock=False, with_reset=False)
@@ -25,6 +25,4 @@ w = m.output(UInt(8), "w")
 w <<= mux(f, x & y, x | y)
 
 print(m.to_verilog())
-
-
 

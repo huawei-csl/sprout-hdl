@@ -1,7 +1,7 @@
 # io_collect.py
 from typing import Dict, Tuple, List, Optional, Any
-from sprout_hdl import UInt, cat
-from sprout_hdl_module import Module  # Bool not needed; bits already exist
+from sprouthdl.sprout_hdl import UInt, cat
+from sprouthdl.sprout_hdl_module import Module
 
 
 class IOCollector:

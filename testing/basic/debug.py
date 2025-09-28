@@ -2,14 +2,14 @@
 import random
 from math import ceil, log2
 
-from aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
-from sprout_hdl import  Const, UInt, mux
+from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
+from sprouthdl.sprout_hdl import Const, UInt, mux
 
 
-from sprout_hdl_aiger import AigerExporter, AigerImporter
-from sprout_hdl_simulator import Simulator
-from sprout_hdl_module import Module
-from sprout_io_collector import IOCollector
+from sprouthdl.sprout_hdl_aiger import AigerExporter, AigerImporter
+from sprouthdl.sprout_hdl_simulator import Simulator
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_io_collector import IOCollector
 
 
 def build_round_probe(FW: int) -> Module:

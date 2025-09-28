@@ -3,10 +3,7 @@
 
 from __future__ import annotations
 import abc
-from typing import Dict, List, Tuple, Optional, Any
-
-from torch import Type
-
+from typing import Dict, List, Tuple, Optional, Any, Type
 
 class AagParseError(RuntimeError):
     pass

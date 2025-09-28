@@ -5,13 +5,13 @@ from typing import List, Tuple
 from aigverse import DepthAig, DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 import numpy as np
 from tqdm import tqdm
-from aigerverse_aag_loader_writer import conv_aag_into_aig, conv_aig_into_aag
+from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, conv_aig_into_aag
 from low_level_arithmetic.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
 from low_level_arithmetic.prefix_adder import Vec
-from sprout_hdl import Bool, HDLType, Op2
-from sprout_hdl_aiger import AigerExporter
-from sprout_hdl_module import Module
-from sprout_hdl_simulator import Simulator
+from sprouthdl.sprout_hdl import Bool, HDLType, Op2
+from sprouthdl.sprout_hdl_aiger import AigerExporter
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl_simulator import Simulator
 from yosys_extract_metrics import extract_yosys_metrics
 
 
@@ -37,8 +37,8 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
     import numpy as np
     from collections import defaultdict
 
-    from sprout_hdl_module import Module
-    from sprout_hdl import UInt, cat
+    from sprouthdl.sprout_hdl_module import Module
+    from sprouthdl.sprout_hdl import UInt, cat
 
     # --- helpers ---------------------------------------------------------------
     def infer_n():

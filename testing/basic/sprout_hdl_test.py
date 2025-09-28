@@ -1,5 +1,5 @@
-from sprout_hdl_module import Module
-from sprout_hdl import UInt
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl import UInt
 
 m = Module("MulAddComb", with_clock=False, with_reset=False)
 a = m.input(UInt(16), "a")

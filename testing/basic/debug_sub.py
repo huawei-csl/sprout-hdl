@@ -2,9 +2,9 @@
 import random
 from math import ceil, log2
 from tests.roundtrip import roundtrip_and_group
-from sprout_hdl import UInt
-from sprout_hdl_module import Module
-from sprout_hdl_simulator import Simulator  # or your sim path
+from sprouthdl.sprout_hdl import UInt
+from sprouthdl.sprout_hdl_module import Module
+from sprouthdl.sprout_hdl_simulator import Simulator
 
 
 def build_minus_probe(IW: int):
