@@ -8,3 +8,5 @@
 *.vscode
 */__pycache__/*
 *.csv
+output/*
+*.history
