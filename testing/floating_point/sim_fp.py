@@ -12,6 +12,8 @@ from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.test_different_logic import gen_m_case, run_vectors_io
 
+import matplotlib.pyplot as plt
+
 
 def run_vectors_io_log(
     m: Module, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
@@ -87,8 +89,8 @@ def build_signed_multiplier(W: int = 8, tb_sigma: Optional[float]= None, n_vecs:
     vecs = []
     for _ in range(n_vecs):
         if tb_sigma is not None:
-            va = int(np.random.normal(0, tb_sigma))
-            vb = int(np.random.normal(0, tb_sigma))
+            va = int(np.round((np.random.normal(0, tb_sigma))))
+            vb = int(np.round((np.random.normal(0, tb_sigma))))
             # clamp to range
             va = max(min(va, (1 << (W-1)) - 1), -(1 << (W-1)))
             vb = max(min(vb, (1 << (W-1)) - 1), -(1 << (W-1)))
@@ -117,8 +119,8 @@ def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float]
     vecs = []
     for _ in range(n_vecs):
         if tb_sigma is not None:
-            va = int(np.random.normal(0, tb_sigma))
-            vb = int(np.random.normal(0, tb_sigma))
+            va = int(np.round((np.random.normal(0, tb_sigma))))
+            vb = int(np.round((np.random.normal(0, tb_sigma))))
             # clamp to range
             va = max(min(va, (1 << (W - 1)) - 1), -(1 << (W - 1)))
             vb = max(min(vb, (1 << (W - 1)) - 1), -(1 << (W - 1)))
@@ -159,92 +161,100 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
 
 def main():
 
-    optim=False
+    optim=True
+    n_vecs = 1000
+    
+    for n_bits in [4, 8, 16]:
+        
+        results = {}
+        
+        for builder_f in [build_multiplier, build_signed_multiplier, build_signed_multiplier_sign_magnitude]:
 
-    t0 = time.time()
+            t0 = time.time()
 
-    # m, spec, vecs, dec = gen_m_case(3)
+            # m, spec, vecs, dec = gen_m_case(3)
 
-    #builder_f = build_multiplier
-    builder_f = build_signed_multiplier
-    #builder_f = build_signed_multiplier_sign_magnitude
+            #builder_f = build_multiplier
+            #builder_f = build_signed_multiplier
+            #builder_f = build_signed_multiplier_sign_magnitude
 
-    # m, spec, vecs, dec = build_multiplier(4)
-    m, spec, vecs, dec = builder_f(4)
+            # m, spec, vecs, dec = build_multiplier(4)
+            m, spec, vecs, dec = builder_f(n_bits)
 
-    print(f"\n=== {m.name} ===")
+            print(f"\n=== {m.name} ===")
 
-    # 1) Original sim
-    print("Sim (original) …")
-    run_vectors_io(m, vecs, decoder=dec)
+            # 1) Original sim
+            print("Sim (original) …")
+            run_vectors_io(m, vecs, decoder=dec)
 
-    # get AIG
-    aag = AigerExporter(m).get_aag()
-    if optim:
-        aag = optimize_aag(aag, n_iter_optimizations=10)
-    m_aig = AigerImporter(aag).get_sprout_module()
-    IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
+            # get AIG
+            aag = AigerExporter(m).get_aag()
+            if optim:
+                aag = optimize_aag(aag, n_iter_optimizations=10)
+            m_aig = AigerImporter(aag).get_sprout_module()
+            IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
 
-    # AIG network sim
-    print("Sim (AIG) …")
-    run_vectors_io(m_aig, vecs, decoder=dec)
+            # AIG network sim
+            print("Sim (AIG) …")
+            run_vectors_io(m_aig, vecs, decoder=dec)
 
-    exprs = m_aig.all_exprs()
+            exprs = m_aig.all_exprs()
 
-    all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
+            all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
 
-    def run_and_count(vecs_run) -> int:
+            def run_and_count(vecs_run) -> int:
 
-        # if vecs_diff is not None:
-        #    vecs = vecs_diff
+                # if vecs_diff is not None:
+                #    vecs = vecs_diff
 
-        states_list = run_vectors_io_log(m_aig, vecs_run, decoder=dec, exprs=all_ands)
+                states_list = run_vectors_io_log(m_aig, vecs_run, decoder=dec, exprs=all_ands)
 
-        # get all ids from step 0
-        ids = set(states_list[0].keys())
-        # count number of switches per id
-        switches = {i: 0 for i in ids}
-        for i in ids:
-            last = states_list[0][i]
-            for s in states_list[1:]:
-                if s[i] != last:
-                    switches[i] += 1
-                    last = s[i]
+                # get all ids from step 0
+                ids = set(states_list[0].keys())
+                # count number of switches per id
+                switches = {i: 0 for i in ids}
+                for i in ids:
+                    last = states_list[0][i]
+                    for s in states_list[1:]:
+                        if s[i] != last:
+                            switches[i] += 1
+                            last = s[i]
 
-        # sum up all switches
-        total_switches = sum(switches.values())
-        return total_switches / len(states_list)  # average per vector
+                # sum up all switches
+                total_switches = sum(switches.values())
+                return total_switches / len(states_list)  # average per vector
 
-    switches = run_and_count(vecs)
-    print(f"Total AND switches: {switches}")
+            switches = run_and_count(vecs)
+            print(f"Total AND switches: {switches}")
 
-    n_vecs = 10000
+            sigmas = list(range(1, 9))
+            switches = []
+            for sigma in sigmas:
+                _, _, vecs, _ = builder_f(n_bits, tb_sigma=sigma, n_vecs=n_vecs)
+                switches.append(run_and_count(vecs))
+                print(f"Total AND switches (sigma={sigma}): {switches[-1]}")
 
-    sigmas = list(range(1, 9))
-    switches = []
-    for sigma in sigmas:
-        _, _, vecs, _ = builder_f(4, tb_sigma=sigma, n_vecs=n_vecs)
-        switches.append(run_and_count(vecs))
-        print(f"Total AND switches (sigma={sigma}): {switches[-1]}")
+            print("Sigma vs AND switches:")
+            for sigma, change in zip(sigmas, switches):
+                print(f"{sigma:.2f} {change}")
 
-    print("Sigma vs AND switches:")
-    for sigma, change in zip(sigmas, switches):
-        print(f"{sigma:.2f} {change}")
+            t_end = time.time()
+            print(f"Time: {t_end - t0:.2f} seconds")
 
-    t_end = time.time()
-    print(f"Time: {t_end - t0:.2f} seconds")
 
-    # plot
-
-    import matplotlib.pyplot as plt
-
-    plt.plot(sigmas, switches, marker="o")
-    plt.xlabel("Input sigma")
-    plt.ylabel("Total AND switches")
-    plt.title(f"AND switches in {m.name} vs input sigma")
-    plt.grid()
-    plt.savefig(f"fp_and_switches_{m.name}.png")
-    plt.show()
+            
+            results[m.name] = (sigmas, switches)
+            
+        # plot
+        plt.figure(figsize=(8, 6))
+        for m_name, (sigmas, switches) in results.items():       
+            plt.plot(sigmas, switches, marker="o", label=m_name)
+        plt.legend()
+        plt.xlabel("Input sigma")
+        plt.ylabel("Total AND switches")
+        plt.title(f"AND switches in {m.name} vs input sigma")
+        plt.grid()
+        plt.savefig(f"switches_all_{n_bits}.png")
 
 
 if __name__ == "__main__":
