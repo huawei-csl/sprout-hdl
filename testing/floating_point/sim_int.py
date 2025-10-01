@@ -73,8 +73,15 @@ def build_multiplier(W: int = 8, tb_sigma: Optional[float] = None, n_vecs: int =
     y <<= a * b
     vecs = []
     for _ in range(n_vecs):
-        va = random.getrandbits(W)
-        vb = random.getrandbits(W)
+        if tb_sigma is not None:
+            va = int(np.round((np.random.normal(1 << (W-1), tb_sigma))))
+            vb = int(np.round((np.random.normal(1 << (W-1), tb_sigma))))
+            # clamp to range
+            va = max(min(va, (1 << W) - 1), 0)
+            vb = max(min(vb, (1 << W) - 1), 0)
+        else:
+            va = random.getrandbits(W)
+            vb = random.getrandbits(W)
         vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": (va * vb) & ((1 << (2*W)) - 1)}))
     spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
     return m, spec, vecs, None
@@ -94,9 +101,12 @@ def build_signed_multiplier(W: int = 8, tb_sigma: Optional[float]= None, n_vecs:
             # clamp to range
             va = max(min(va, (1 << (W-1)) - 1), -(1 << (W-1)))
             vb = max(min(vb, (1 << (W-1)) - 1), -(1 << (W-1)))
+            #va = -1 if random.random() < 0.5 else 0
+            #vb = -1 if random.random() < 0.5 else 0
         else:
             va = random.getrandbits(W) - (1 << (W-1))
             vb = random.getrandbits(W) - (1 << (W-1))
+
         vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": va * vb}))
     spec = {"a": SInt(W), "b": SInt(W), "y": SInt(2*W)}
     decoder = None
@@ -118,24 +128,33 @@ def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float]
     y <<= Concat([sy, mag_y[2*W-2:0]])  # sign + magnitude (drop overflow bit)
     vecs = []
     for _ in range(n_vecs):
+        abs_max = (1 << (W - 1)) - 1
         if tb_sigma is not None:
             va = int(np.round((np.random.normal(0, tb_sigma))))
             vb = int(np.round((np.random.normal(0, tb_sigma))))
             # clamp to range
-            va = max(min(va, (1 << (W - 1)) - 1), -(1 << (W - 1)))
-            vb = max(min(vb, (1 << (W - 1)) - 1), -(1 << (W - 1)))
+            va = max(min(va, abs_max), -abs_max)
+            vb = max(min(vb, abs_max), -abs_max)
+            #  randomly choose between 0 and -1
+            # va = -1 if random.random() < 0.5 else 0
+            # vb = -1 if random.random() < 0.5 else 0
         else:
             va = random.getrandbits(W) - (1 << (W - 1))
             vb = random.getrandbits(W) - (1 << (W - 1))
-            
-        sa = (va >> (W-1)) & 1
-        sb = (vb >> (W-1)) & 1
-        mag_a = va & ((1 << (W-1)) - 1)
-        mag_b = vb & ((1 << (W-1)) - 1)
+            va = max(min(va, abs_max), -abs_max)
+            vb = max(min(vb, abs_max), -abs_max)
+
+        sa = 1 if va >= 0 else 0 # (va >> (W-1)) & 1
+        sb = 1 if vb >= 0 else 0 # (vb >> (W-1)) & 1
+        mag_a = int(np.abs(va)) # va & ((1 << (W-1)) - 1)
+        mag_b = int(np.abs(vb)) # vb & ((1 << (W-1)) - 1)
+        va_sm = (sa << (W-1)) | (mag_a & ((1 << (W-1)) - 1))
+        vb_sm = (sb << (W-1)) | (mag_b & ((1 << (W-1)) - 1))
         sy = sa ^ sb
         mag_y = mag_a * mag_b
-        vy = (sy << (2*W-1)) | (mag_y & ((1 << (2*W-1)) - 1))
-        vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": vy}))
+        vy_sm = (sy << (2*W-1)) | (mag_y & ((1 << (2*W-1)) - 1))
+
+        vecs.append((f"{va}*{vb}", {"a": va_sm, "b": vb_sm}, {"y": vy_sm}))
     spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
     return m, spec, vecs, None
 
@@ -162,21 +181,29 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
 def main():
 
     optim=True
-    n_vecs = 1000
-    
-    for n_bits in [4, 8, 16]:
-        
+    n_vecs = 50# 1000
+
+    sigma_factor = 0.5
+    # sigmas = [1, 2]
+    n_bits_vec = [4, 8, 16]
+    # n_bits_vec = [16]
+
+    for n_bits in n_bits_vec:
+
+        #sigmas = list(range(1, 9))
+        sigma_max = 2**n_bits * sigma_factor
+        sigmas = [sigma_max * (i / 8) + 1  for i in range(8)]  # 1 to sigma_max in 8 steps
         results = {}
-        
+
         for builder_f in [build_multiplier, build_signed_multiplier, build_signed_multiplier_sign_magnitude]:
 
             t0 = time.time()
 
             # m, spec, vecs, dec = gen_m_case(3)
 
-            #builder_f = build_multiplier
-            #builder_f = build_signed_multiplier
-            #builder_f = build_signed_multiplier_sign_magnitude
+            # builder_f = build_multiplier
+            # builder_f = build_signed_multiplier
+            # builder_f = build_signed_multiplier_sign_magnitude
 
             # m, spec, vecs, dec = build_multiplier(4)
             m, spec, vecs, dec = builder_f(n_bits)
@@ -194,7 +221,7 @@ def main():
             m_aig = AigerImporter(aag).get_sprout_module()
             IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
 
-            # AIG network sim
+            # AIG network test sim
             print("Sim (AIG) …")
             run_vectors_io(m_aig, vecs, decoder=dec)
 
@@ -224,15 +251,14 @@ def main():
                 total_switches = sum(switches.values())
                 return total_switches / len(states_list)  # average per vector
 
-            switches = run_and_count(vecs)
-            print(f"Total AND switches: {switches}")
+            # switches = run_and_count(vecs)
+            # print(f"Average AND switches: {switches}")
 
-            sigmas = list(range(1, 9))
             switches = []
             for sigma in sigmas:
                 _, _, vecs, _ = builder_f(n_bits, tb_sigma=sigma, n_vecs=n_vecs)
                 switches.append(run_and_count(vecs))
-                print(f"Total AND switches (sigma={sigma}): {switches[-1]}")
+                print(f"Average AND switches (sigma={sigma}): {switches[-1]}")
 
             print("Sigma vs AND switches:")
             for sigma, change in zip(sigmas, switches):
@@ -241,17 +267,15 @@ def main():
             t_end = time.time()
             print(f"Time: {t_end - t0:.2f} seconds")
 
-
-            
             results[m.name] = (sigmas, switches)
-            
+
         # plot
         plt.figure(figsize=(8, 6))
         for m_name, (sigmas, switches) in results.items():       
             plt.plot(sigmas, switches, marker="o", label=m_name)
         plt.legend()
         plt.xlabel("Input sigma")
-        plt.ylabel("Total AND switches")
+        plt.ylabel("Average AND switches")
         plt.title(f"AND switches in {m.name} vs input sigma")
         plt.grid()
         plt.savefig(f"switches_all_{n_bits}.png")
