@@ -127,7 +127,7 @@ def run_vectors_io(
                 if decoder and oname == "y":
                     print(f"PASS {name}: {oname}=0x{got:0X} ({decoder(got):.8g})")
                 else:
-                    print(f"PASS {name}: {oname}=0x{got:0X}")
+                    print(f"PASS {name}: {oname}=0x{got:0X} ({got})")
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
@@ -252,7 +252,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
     aag_lines, aig_exp = sprout_to_aig_via_exporter(m)
 
     # optional agi to sprout module
-    #m2 = roundtrip_aiger_back_to_sprout(aag_lines, name=m.name+"_exp")
+    # m2 = roundtrip_aiger_back_to_sprout(aag_lines, name=m.name+"_exp")
 
     # 3) Verilog → Pyosys → AIGER → AIG
     vpath = write_temp_verilog(m, top_name=m.name)
@@ -262,7 +262,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
     aig_pyo = read_aag_into_aig(aag_path)
 
     aag_pyo_lines = file_to_lines(aag_path)
-    
+
     # after you produced aag_path with yosys:
     aag_back_lines = file_to_lines(aag_path)
     m_back_raw = AigerImporter(aag_back_lines).get_sprout_module("BackRaw")    
@@ -270,7 +270,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
     aag_from_raw, aig_from_raw = sprout_to_aig_via_exporter(m_back_raw)    
     # yosys AIG
     aig_yosys = read_aag_into_aig(aag_path)
-        
+
     assert equivalence_checking(aig_from_raw, aig_yosys), \
         "Importer produced a non-equivalent Sprout netlist BEFORE regrouping"
 
@@ -288,7 +288,8 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
 
     # 5) AAG (with symbols) → Sprout
     aag_back = file_to_lines(aag_path)
-    m_back = roundtrip_aiger_back_to_sprout(aag_back, name=m.name + "_back")
+    m_back = AigerImporter(aag_back).get_sprout_module(m.name + "_back")
+    # m_back = roundtrip_aiger_back_to_sprout(aag_back, name=m.name + "_back")
 
     # 6) Regroup I/Os to match original port widths
     IOCollector().group(m_back, spec)
@@ -298,6 +299,17 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
     run_vectors_io(m_back, vectors, decoder=decoder)
 
 
+def gen_m_case(i:int) -> Tuple[Module, Dict[str, UInt], List, Callable | None]:
+    reset_shared_cache()
+    if i==0:
+        return build_logic3() + (None,)
+    elif i==1:
+        return build_adder(8) + (None,)
+    elif i==2:
+        return build_fp_mul_case(5,3,subnormals=False)
+    elif i==3:
+        return build_fp_mul_case(5,10,subnormals=False)
+
 # -----------------------------
 # Main: build a list and run
 # -----------------------------
@@ -305,38 +317,6 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
 
 def test_run():
     random.seed(123)
-
-    # cases: List[Tuple[Module, Dict[str, UInt], List, Callable | None]] = []
-
-    # # Simple combinational
-    # # m, spec, vecs = build_logic3()
-    # # cases.append((m, spec, vecs, None))
-
-    # # m, spec, vecs = build_adder(8)
-    # # cases.append((m, spec, vecs, None))
-
-    # # PickProbe (if you included its builder)
-    # try:
-    #     m, spec, vecs = build_pick_probe(11)
-    #     cases.append((m, spec, vecs, None))
-    # except Exception as e:
-    #     print("Skip PickProbe (builder not available):", e)
-
-    # # FP multipliers (a couple of small formats)
-    # for EW, FW, SN in [(5, 3, False), (5, 10, False)]:  # add more as you wish
-    #     m, spec, vecs, dec = build_fp_mul_case(EW, FW, subnormals=SN)
-    #     cases.append((m, spec, vecs, dec))
-
-    def gen_m_case(i:int) -> Tuple[Module, Dict[str, UInt], List, Callable | None]:
-        reset_shared_cache()
-        if i==0:
-            return build_logic3() + (None,)
-        elif i==1:
-            return build_adder(8) + (None,)
-        elif i==2:
-            return build_fp_mul_case(5,3,subnormals=False)
-        elif i==3:
-            return build_fp_mul_case(5,10,subnormals=False)
 
     # Run everything
     n_cases = 4

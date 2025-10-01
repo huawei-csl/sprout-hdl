@@ -22,6 +22,10 @@ class Simulator:
 
         self._by_name = {s.name: s for s in self.m._signals}
 
+        self._cache_expr: dict[int, int] = {}
+        self._cache_sig: dict[int, int] = {}
+        self._time_steps = 0
+
         # Use ids instead of Signal objects
         self._in: dict[int, int] = {_sid(i): 0 for i in self.inputs}
         self._reg: dict[int, int] = {}
@@ -37,10 +41,6 @@ class Simulator:
             self._in[_sid(self.m.rst)] = 0
         if self.m.with_clock:
             self._in[_sid(self.m.clk)] = 0
-
-        self._cache_expr: dict[int, int] = {}
-        self._cache_sig: dict[int, int] = {}
-        self._time_steps = 0
 
     # -----------------------------
     # Public API
@@ -70,6 +70,7 @@ class Simulator:
         # Evaluate all outputs once to populate errors early.
         for y in self.outputs:
             _ = self._eval_signal_bits(y)
+        self._capture_watches()
         return self
 
     def step(self, n: int = 1):
@@ -83,6 +84,7 @@ class Simulator:
                 self._in[_sid(self.m.clk)] = 1
                 self._in[_sid(self.m.clk)] = 0
             self._time_steps += 1
+            self._capture_watches()
             self._invalidate()
         return self
 
@@ -146,7 +148,7 @@ class Simulator:
                 if r._next is None:
                     raise ValueError(f"Register '{r.name}' has no next-state assignment. Set r.next = ...")
                 nxt_bits = self._eval_expr_bits(r._next)
-                res[r] = _resize_bits(nxt_bits, r._next.typ.width, r.typ.width, r._next.typ.signed)
+                res[_sid(r)] = _resize_bits(nxt_bits, r._next.typ.width, r.typ.width, r._next.typ.signed)
         return res
 
     # ------- Expression evaluation (to bit patterns) -------
@@ -217,7 +219,7 @@ class Simulator:
                     bits = _to_bits(av | bv, tw)
                 else:
                     bits = _to_bits(av ^ bv, tw)
-                    
+
             elif op == "nand": # experimental feature
                 # Bitwise NAND: inputs are already Resize'd by op_bit() to match widths
                 av = self._eval_expr_bits(e.a, _visiting)
@@ -318,28 +320,34 @@ class Simulator:
 
         self._cache_expr[eid] = bits
         return bits
-    
-    
-    # peek logic not teste yet
-    
+
+    # peek logic not teste yet -> not really working
+    # sprouthdl_simulator.py (patched parts)
 
     # --- helpers to convert ---
-    def _bits_to_int(self, bits: list[int]) -> int:
+    def _bits_to_int(self, bits):
+        """Convert either an int or a list of 0/1 bits (LSB first) to Python int."""
+        if isinstance(bits, int):
+            return bits
         v = 0
         for i, b in enumerate(bits):
             if b & 1:
-                v |= (1 << i)
+                v |= 1 << i
         return v
 
     def _resolve_expr(self, what):
-        """Accept str name, Signal, or Expr; return an Expr to evaluate."""
+        """Resolve string or Signal/Expr into an Expr. Avoid equality tests."""
         from sprouthdl.sprouthdl import Signal, Expr
+
+        if isinstance(what, Signal):
+            return what
         if isinstance(what, str):
-            s = next((s for s in self.m._signals if s.name == what), None)
-            if s is None:
-                raise KeyError(f"No signal named '{what}' in module {self.m.name}.")
-            return s
-        # duck-type: if it has .to_verilog it's an Expr-ish
+            # find by name via identity (no __eq__)
+            for s in self.m._signals:
+                if s.name == what:
+                    return s
+            raise KeyError(f"No signal named '{what}' in module {self.m.name}.")
+        # treat any Expr-like object (duck-typed)
         if hasattr(what, "to_verilog"):
             return what
         raise TypeError(f"peek/watch expects signal name or Expr, got {type(what)}")
@@ -349,27 +357,35 @@ class Simulator:
         """All signal names (inputs, outputs, wires, regs)."""
         return [s.name for s in self.m._signals]
 
-    def peek(self, what) -> int:
-        """Evaluate current value of an internal Signal/Expr."""
+    def peek(self, what): # not converted to sign
+        """Return current integer value of a Signal or Expr."""
         e = self._resolve_expr(what)
-        # If it's a reg, read the stored state; else evaluate driver cone
         from sprouthdl.sprouthdl import Signal
+
         if isinstance(e, Signal) and e.kind == "reg":
-            bits = self._state_bits[id(e)]  # use your reg state store
+            bits = self._reg[_sid(e)]  # use the register state
         else:
             bits = self._eval_signal_bits(e) if isinstance(e, Signal) else self._eval_expr_bits(e)
         return self._bits_to_int(bits)
 
-    def peek_next(self, reg_name: str) -> int:
-        """Evaluate a register's next-state expression (combinational)."""
+    def peek_next(self, reg_name):
+        """Compute a register's next-state value."""
         from sprouthdl.sprouthdl import Signal
-        s = next((s for s in self.m._signals if s.name == reg_name), None)
-        if s is None or s.kind != "reg":
-            raise KeyError(f"'{reg_name}' is not a register in {self.m.name}.")
-        if s._next is None:
+
+        # find reg by name using identity
+        reg = None
+        for s in self.m._signals:
+            if s.name == reg_name and s.kind == "reg":
+                reg = s
+                break
+        if reg is None:
+            raise KeyError(f"{reg_name} is not a register.")
+        if reg._next is None:
             raise ValueError(f"Register '{reg_name}' has no next-state.")
-        bits = self._eval_expr_bits(s._next)
-        return self._bits_to_int(self._fit_bits(bits, s.typ.width, signed=s.typ.signed))
+        # evaluate next expression and resize to reg width
+        nxt_bits = self._eval_expr_bits(reg._next)
+        nxt_bits = _resize_bits(nxt_bits, reg._next.typ.width, reg.typ.width, reg._next.typ.signed)
+        return self._bits_to_int(nxt_bits)
 
     def watch(self, what, alias: str | None = None):
         """Register a probe; value captured at each eval()/tick()."""
@@ -401,21 +417,25 @@ class Simulator:
             return
         out = {}
         for name, e in self._watches.items():
-            from sprouthdl.sprouthdl import Signal
-            if isinstance(e, Signal) and e.kind == "reg":
-                bits = self._state_bits[id(e)]
+            #from sprouthdl.sprouthdl import Signal
+            #if isinstance(e, Signal) and e.kind == "reg":
+            # if is input
+            if isinstance(e, Signal) and e.kind == "input":
+                bits = self._in[_sid(e)]
+            elif isinstance(e, Signal) and e.kind == "reg":
+                bits = self._reg[_sid(e)]  # use the register state
+            elif isinstance(e, Signal):
+                bits = self._cache_sig[id(e)]
             else:
                 bits = self._eval_signal_bits(e) if isinstance(e, Signal) else self._eval_expr_bits(e)
             out[name] = self._bits_to_int(bits)
         self._watch_values = out
-
-    # Call _capture_watches() at the end of eval() and also at the end of tick()/cycle():
-    # def eval(self):
-    #     ... existing eval work ...
-    #     self._capture_watches()
-    #     return self
-    #
-    # def tick(self):
-    #     ... advance regs ...
-    #     self._capture_watches()
-    #     return self
+        
+        
+    # logging
+    def log_expression_states(self, expr_list):
+        values = []
+        for e in expr_list:
+            v_bits = self._eval_expr_bits(e)
+            values.append((e, self._bits_to_int(v_bits)))
+        return values

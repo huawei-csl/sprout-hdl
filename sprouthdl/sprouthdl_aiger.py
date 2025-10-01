@@ -233,6 +233,85 @@ class _AIG:
             acc, _ = self.bv_add(acc, self._extend(row, len(acc)), w_out=len(acc))
         return acc[:w_out]
 
+    def bv_mul_signed(self, a: List[int], b: List[int],
+                      w_out: int,
+                      signed_a: bool = False,
+                      signed_b: bool = False) -> List[int]:
+        """
+        Multiply two bit-vectors `a` and `b`, each LSB-first.
+        If `signed_a`/`signed_b` are True, the corresponding operand is treated
+        as a two's-complement signed value; otherwise as unsigned.
+        The result is truncated to `w_out` bits (LSB-first).
+        """
+        wa = len(a)
+        wb = len(b)
+        # Result of multiplying wa- and wb-bit numbers has at most wa+wb bits
+        full_width = wa + wb
+        # Sign-extend each operand to full_width if signed; zero-extend if unsigned
+        a_ext = self._sext(a, full_width) if signed_a else self._zext(a, full_width)
+        b_ext = self._sext(b, full_width) if signed_b else self._zext(b, full_width)
+        # Use your existing unsigned multiplier on the extended operands
+        prod_full = self.bv_mul(a_ext, b_ext, full_width)
+        # Return the least-significant w_out bits
+        return prod_full[:w_out]
+
+
+    def bv_mul_baugh_wooley(self, a: List[int], b: List[int], w_out: int) -> List[int]:
+        """
+        Two's-complement multiplication without sign extension (Baugh–Wooley).
+        a, b: LSB-first bit-vectors; MSB is the sign bit (a[wa-1], b[wb-1]).
+        Returns LSB-first product truncated to w_out bits.
+
+        Matrix rules:
+        - i < wa-1, j < wb-1:        add  (a_i & b_j)              at weight i+j
+        - i = wa-1, j < wb-1:        add ~(a_msb & b_j)            at weight wa-1+j
+        - i < wa-1, j = wb-1:        add ~(a_i   & b_msb)          at weight i+wb-1
+        - i = wa-1, j = wb-1:        add  (a_msb & b_msb)          at weight wa+wb-2
+        - corrections (once each):   +1 at weights (wa-1), (wb-1), and (wa+wb-1)
+        """
+        wa, wb = len(a), len(b)
+        W = wa + wb  # full product width
+        acc = self.bv_zero(W)  # accumulator (LSB-first)
+
+        def add_bit_at(bit_lit: int, k: int):
+            if not (0 <= k < W):
+                return
+            vec = [lit_const0()] * W
+            vec[k] = bit_lit
+            nonlocal acc
+            acc, _ = self.bv_add(acc, vec, w_out=W)
+
+        def add_one_at(k: int):  # single +1 at column k
+            add_bit_at(lit_const1(), k)
+
+        # 1) Ordinary partial products (no sign bits)
+        for i in range(wa - 1):
+            for j in range(wb - 1):
+                pp = self.mk_and(a[i], b[j])
+                add_bit_at(pp, i + j)
+
+        # 2) Sign row (i = wa-1), invert and place once each column
+        for j in range(wb - 1):
+            pp = self.mk_and(a[wa - 1], b[j])
+            add_bit_at(lit_not(pp), (wa - 1) + j)
+
+        # 3) Sign column (j = wb-1), invert and place once each column
+        for i in range(wa - 1):
+            pp = self.mk_and(a[i], b[wb - 1])
+            add_bit_at(lit_not(pp), i + (wb - 1))
+
+        # 4) MSB * MSB as-is
+        pp_msb = self.mk_and(a[wa - 1], b[wb - 1])
+        add_bit_at(pp_msb, wa + wb - 2)
+
+        # 5) SINGLE corrections (not per-column):
+        add_one_at(wa - 1)  # compensate sign-row inversion
+        add_one_at(wb - 1)  # compensate sign-column inversion
+        add_one_at(wa + wb - 1)  # top correction
+
+        # Truncate to desired width
+        return acc[:w_out]
+
     # internal helpers
     def _extend(self, v: List[int], w: int) -> List[int]:
         if len(v) >= w:
@@ -424,7 +503,12 @@ class AigerExporter:
             elif op == "-":
                 bits, _ = self.aig.bv_sub(a, b, w_out=w_out)
             elif op == "*":
-                bits = self.aig.bv_mul(a, b, w_out=w_out)
+                signed_a = getattr(e.a.typ, "signed", False)
+                signed_b = getattr(e.b.typ, "signed", False)
+                if signed_a or signed_b:
+                    bits = self.aig.bv_mul_baugh_wooley(a, b, w_out=w_out)  # not working
+                else:
+                    bits = self.aig.bv_mul_signed(a, b, w_out=w_out, signed_a=signed_a, signed_b=signed_b)
             elif op == "<<":
                 sh = b  # variable shift
                 bits = self.aig.bv_shift_left(a, sh, w_out=w_out)

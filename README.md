@@ -62,6 +62,8 @@ print(m.to_verilog())
 - parse wires and regs from graph
 - test peek / watch logic
 - add better hierarchy capablities / all in graph.  m.wire / m.reg not necessary.
+- type conversions: sint, uint, etc
+- Uint(value), optional length bit?
 
 ## License
 

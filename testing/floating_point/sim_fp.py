@@ -1,0 +1,251 @@
+import random
+import time
+from typing import Callable, Dict, List, Optional, Tuple
+
+from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
+import numpy as np
+from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
+from sprouthdl.sprouthdl import Concat, Const, Expr, Op2, SInt, UInt
+from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
+from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator import Simulator
+from testing.test_different_logic import gen_m_case, run_vectors_io
+
+
+def run_vectors_io_log(
+    m: Module, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
+    decoder: Callable[[int], float] | None = None, exprs: List[Expr] = []
+) -> None:
+    """
+    Generic runner:
+      vectors: list of (label, inputs{name->int}, expected{name->int})
+    Prints mismatches; raises AssertionError at the end if any failed.
+    """
+
+    states_list = []
+
+    sim = Simulator(m)
+    fails = 0
+    for name, ins, outs in vectors:
+        for k, v in ins.items():
+            sim.set(k, v)
+        sim.eval()
+        bad = []
+        for oname, exp in outs.items():
+            got = sim.get(oname)
+            if got != exp:
+                if decoder and oname == "y":
+                    bad.append(f"{oname}: got=0x{got:0X} ({decoder(got):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
+                else:
+                    bad.append(f"{oname}: got=0x{got:0X}  exp=0x{exp:0X}")
+            else:
+                if decoder and oname == "y":
+                    # print(f"PASS {name}: {oname}=0x{got:0X} ({decoder(got):.8g})")
+                    pass
+                else:
+                    # print(f"PASS {name}: {oname}=0x{got:0X} ({got})")
+                    pass
+        if bad:
+            fails += 1
+            print(f"FAIL  {name}:  " + " | ".join(bad))
+        state = sim.log_expression_states(exprs)
+        # convert expr to id
+        state = [(id(e), v) for e, v in state]
+        # and convert to dict for easy comparison
+        state = dict(state)
+        states_list.append(state)
+    if fails:
+        raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
+
+    print(f"Number of vectors: {len(vectors)}, {fails} failures")
+
+    return states_list
+
+
+def build_multiplier(W: int = 8, tb_sigma: Optional[float] = None, n_vecs: int = 64) -> Tuple[Module, Dict[str, UInt], List]:
+    m = Module(f"Mul{W}", with_clock=False, with_reset=False)
+    a = m.input(UInt(W), "a")
+    b = m.input(UInt(W), "b")
+    y = m.output(UInt(2*W), "y")
+    y <<= a * b
+    vecs = []
+    for _ in range(n_vecs):
+        va = random.getrandbits(W)
+        vb = random.getrandbits(W)
+        vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": (va * vb) & ((1 << (2*W)) - 1)}))
+    spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
+    return m, spec, vecs, None
+
+
+def build_signed_multiplier(W: int = 8, tb_sigma: Optional[float]= None, n_vecs: int = 64) -> Tuple[Module, Dict[str, UInt], List]:
+    m = Module(f"SMul{W}", with_clock=False, with_reset=False)
+    a = m.input(SInt(W), "a")
+    b = m.input(SInt(W), "b")
+    y = m.output(SInt(2*W), "y")
+    y <<= a * b
+    vecs = []
+    for _ in range(n_vecs):
+        if tb_sigma is not None:
+            va = int(np.random.normal(0, tb_sigma))
+            vb = int(np.random.normal(0, tb_sigma))
+            # clamp to range
+            va = max(min(va, (1 << (W-1)) - 1), -(1 << (W-1)))
+            vb = max(min(vb, (1 << (W-1)) - 1), -(1 << (W-1)))
+        else:
+            va = random.getrandbits(W) - (1 << (W-1))
+            vb = random.getrandbits(W) - (1 << (W-1))
+        vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": va * vb}))
+    spec = {"a": SInt(W), "b": SInt(W), "y": SInt(2*W)}
+    decoder = None
+    return m, spec, vecs, decoder
+
+
+# input in sign magnitude, output in two's complement
+def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float] = None, n_vecs: int = 64) -> Tuple[Module, Dict[str, UInt], List]:
+    m = Module(f"SMulSM{W}", with_clock=False, with_reset=False)
+    a = m.input(UInt(W), "a")  # sign-magnitude
+    b = m.input(UInt(W), "b")  # sign-magnitude
+    y = m.output(UInt(2*W), "y") # two's complement
+    sa = a[W-1]
+    sb = b[W-1]
+    mag_a = a[W-2:0]  # make magnitude unsigned
+    mag_b = b[W-2:0]  # make magnitude unsigned
+    mag_y = mag_a * mag_b
+    sy = sa ^ sb
+    y <<= Concat([sy, mag_y[2*W-2:0]])  # sign + magnitude (drop overflow bit)
+    vecs = []
+    for _ in range(n_vecs):
+        if tb_sigma is not None:
+            va = int(np.random.normal(0, tb_sigma))
+            vb = int(np.random.normal(0, tb_sigma))
+            # clamp to range
+            va = max(min(va, (1 << (W - 1)) - 1), -(1 << (W - 1)))
+            vb = max(min(vb, (1 << (W - 1)) - 1), -(1 << (W - 1)))
+        else:
+            va = random.getrandbits(W) - (1 << (W - 1))
+            vb = random.getrandbits(W) - (1 << (W - 1))
+            
+        sa = (va >> (W-1)) & 1
+        sb = (vb >> (W-1)) & 1
+        mag_a = va & ((1 << (W-1)) - 1)
+        mag_b = vb & ((1 << (W-1)) - 1)
+        sy = sa ^ sb
+        mag_y = mag_a * mag_b
+        vy = (sy << (2*W-1)) | (mag_y & ((1 << (2*W-1)) - 1))
+        vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": vy}))
+    spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
+    return m, spec, vecs, None
+
+def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
+
+    # aag to aig
+    aig = conv_aag_into_aig(aag_lines)
+
+    for i in range(n_iter_optimizations):
+        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
+            optimization(aig)
+
+    # aig back to aag
+    aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
+
+    #aag_sym = _get_aag_sym(aag_lines)
+    # In your flow you did: aag[:-2] + aag_sym
+    # Keep that exact trick to preserve symbols
+    #aag_optimized = aag_optimized[:-2] + aag_sym
+
+    return aag_optimized
+
+
+def main():
+
+    optim=False
+
+    t0 = time.time()
+
+    # m, spec, vecs, dec = gen_m_case(3)
+
+    #builder_f = build_multiplier
+    builder_f = build_signed_multiplier
+    #builder_f = build_signed_multiplier_sign_magnitude
+
+    # m, spec, vecs, dec = build_multiplier(4)
+    m, spec, vecs, dec = builder_f(4)
+
+    print(f"\n=== {m.name} ===")
+
+    # 1) Original sim
+    print("Sim (original) …")
+    run_vectors_io(m, vecs, decoder=dec)
+
+    # get AIG
+    aag = AigerExporter(m).get_aag()
+    if optim:
+        aag = optimize_aag(aag, n_iter_optimizations=10)
+    m_aig = AigerImporter(aag).get_sprout_module()
+    IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
+
+    # AIG network sim
+    print("Sim (AIG) …")
+    run_vectors_io(m_aig, vecs, decoder=dec)
+
+    exprs = m_aig.all_exprs()
+
+    all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
+
+    def run_and_count(vecs_run) -> int:
+
+        # if vecs_diff is not None:
+        #    vecs = vecs_diff
+
+        states_list = run_vectors_io_log(m_aig, vecs_run, decoder=dec, exprs=all_ands)
+
+        # get all ids from step 0
+        ids = set(states_list[0].keys())
+        # count number of switches per id
+        switches = {i: 0 for i in ids}
+        for i in ids:
+            last = states_list[0][i]
+            for s in states_list[1:]:
+                if s[i] != last:
+                    switches[i] += 1
+                    last = s[i]
+
+        # sum up all switches
+        total_switches = sum(switches.values())
+        return total_switches / len(states_list)  # average per vector
+
+    switches = run_and_count(vecs)
+    print(f"Total AND switches: {switches}")
+
+    n_vecs = 10000
+
+    sigmas = list(range(1, 9))
+    switches = []
+    for sigma in sigmas:
+        _, _, vecs, _ = builder_f(4, tb_sigma=sigma, n_vecs=n_vecs)
+        switches.append(run_and_count(vecs))
+        print(f"Total AND switches (sigma={sigma}): {switches[-1]}")
+
+    print("Sigma vs AND switches:")
+    for sigma, change in zip(sigmas, switches):
+        print(f"{sigma:.2f} {change}")
+
+    t_end = time.time()
+    print(f"Time: {t_end - t0:.2f} seconds")
+
+    # plot
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(sigmas, switches, marker="o")
+    plt.xlabel("Input sigma")
+    plt.ylabel("Total AND switches")
+    plt.title(f"AND switches in {m.name} vs input sigma")
+    plt.grid()
+    plt.savefig(f"fp_and_switches_{m.name}.png")
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()

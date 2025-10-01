@@ -1,4 +1,4 @@
-from sprouthdl.sprouthdl import Bool, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
+from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
 
 
 from typing import List, Optional
@@ -146,3 +146,37 @@ class Module:
           - Const: depth=0
         """
         return _Analyzer(include_wiring, include_consts, include_reg_cones).run(self)
+    
+    
+    def all_exprs(self) -> List[Expr]:
+        """Depth-first traversal of every expression in the module."""
+        seen = set()
+        exprs = []
+    
+        def visit(e: Expr):
+            if id(e) in seen:
+                return
+            seen.add(id(e))
+            exprs.append(e)
+            # Recurse through children
+            if hasattr(e, "a"):
+                visit(e.a)
+            if hasattr(e, "b"):
+                visit(e.b)
+            if hasattr(e, "sel"):
+                visit(e.sel)
+            if hasattr(e, "parts"):
+                for p in e.parts:
+                    visit(p)
+            if hasattr(e, "_driver"):
+                if e._driver is not None:
+                    visit(e._driver)
+    
+        for s in self._signals:
+            if s._driver is not None:
+                visit(s._driver)
+            if s.kind == "reg" and s._next is not None:
+                visit(s._next)
+    
+        return exprs
+    
