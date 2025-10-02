@@ -15,10 +15,6 @@ class Component(abc.ABC):
     io : dataclass
 
     @abc.abstractmethod
-    def __init__(self):
-        pass
-
-    @abc.abstractmethod
     def elaborate(self):
         pass
 
@@ -45,7 +41,7 @@ class MultiplierCompressorTree(Component):
         base_typ_a = SInt if signed_a else UInt
         base_typ_b = SInt if signed_b else UInt
         base_type_y = SInt if (signed_a or signed_b) else UInt
-        
+
         self.io: IO = IO(
             a=Signal(name="a", typ=base_typ_a(self.n_bits), kind="input"),
             b=Signal(name="b", typ=base_typ_b(self.n_bits), kind="input"),
@@ -117,7 +113,6 @@ class MultiplierCompressorTree(Component):
                 s, c = half_adder(x, y)
                 sum_bits.append(s)
                 carry_bits.append(c)
-                pass
             elif len(bits) == 1:
                 sum_bits.append(bits[0])
             return sum_bits, carry_bits
@@ -143,13 +138,13 @@ class MultiplierCompressorTree(Component):
 
         # Final addition
         result_bits = []
-        carry = Const(False, Bool())
+        carry: Optional[Expr] = None
         for w in range(2 * self.n_bits):
             bits = cols.get(w, [])
             if carry is not None:
                 bits.append(carry)
             if len(bits) == 0:
-                s = Bool(False)
+                s = Const(False, Bool())
                 carry = None
             elif len(bits) == 1:
                 s = bits[0]
@@ -181,7 +176,7 @@ class MultiplierTestVectors:
         self.a_signed = signed_a
         self.b_signed = signed_b
         
-    def generate(self) -> List[Tuple[str, Dict[str, int], Dict[str, int]]]:
+    def generate(self) -> Tuple:
 
         vecs = []
         for _ in range(self.num_vectors):
@@ -236,7 +231,7 @@ def gen_spec(class_instance: Component) -> Dict[str, UInt]:
 
 def main():
     n_bits = 4
-    signed = True
+    signed = False
     mult = MultiplierCompressorTree(a_w=n_bits, b_w=n_bits, signed_a=signed, signed_b=signed)
     m = gen_sprout_module(mult)
     # get size in # t transistors
