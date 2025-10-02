@@ -4,6 +4,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
 import numpy as np
+from low_level_arithmetic.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
 from sprouthdl.sprouthdl import Concat, Const, Expr, Op2, SInt, UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
@@ -71,6 +72,29 @@ def build_multiplier(W: int = 8, tb_sigma: Optional[float] = None, n_vecs: int =
     b = m.input(UInt(W), "b")
     y = m.output(UInt(2*W), "y")
     y <<= a * b
+    vecs = []
+    for _ in range(n_vecs):
+        if tb_sigma is not None:
+            va = int(np.round((np.random.normal(1 << (W-1), tb_sigma))))
+            vb = int(np.round((np.random.normal(1 << (W-1), tb_sigma))))
+            # clamp to range
+            va = max(min(va, (1 << W) - 1), 0)
+            vb = max(min(vb, (1 << W) - 1), 0)
+        else:
+            va = random.getrandbits(W)
+            vb = random.getrandbits(W)
+        vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": (va * vb) & ((1 << (2*W)) - 1)}))
+    spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
+    return m, spec, vecs, None
+
+def build_multiplier_from_compressor_tree(W: int = 8, tb_sigma: Optional[float] = None, n_vecs: int = 64) -> Tuple[Module, Dict[str, UInt], List]:
+    #m = Module(f"Mul{W}", with_clock=False, with_reset=False)
+    #a = m.input(UInt(W), "a")
+    #b = m.input(UInt(W), "b")
+    #y = m.output(UInt(2*W), "y")
+    #y <<= a * b
+    #
+    g, m = gen_compressor_tree_graph_and_sprout_module(W, policy="wallace", name=f"Mul{W}_ct")
     vecs = []
     for _ in range(n_vecs):
         if tb_sigma is not None:
@@ -185,8 +209,7 @@ def main():
 
     sigma_factor = 0.5
     # sigmas = [1, 2]
-    #n_bits_vec = [4, 8, 16]
-    n_bits_vec = [4, 8, 12]
+    n_bits_vec = [4, 8, 12, 16]
 
     for n_bits in n_bits_vec:
 
@@ -197,7 +220,7 @@ def main():
         sigmas = np.linspace(sigma_start, sigma_max, n_steps)
         results = {}
 
-        for builder_f in [build_multiplier, build_signed_multiplier, build_signed_multiplier_sign_magnitude]:
+        for builder_f in [build_multiplier, build_multiplier_from_compressor_tree, build_signed_multiplier, build_signed_multiplier_sign_magnitude]:
 
             t0 = time.time()
 

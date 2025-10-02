@@ -29,12 +29,30 @@ class Module:
         self._signals.append(s)
         self._ports.append(s)
         return s
+    
+    def add_input(self, signal: Signal) -> None:
+        if signal.kind != "input":
+            # change to input
+            signal.kind = "input"
+        if id(signal) in [id(s) for s in self._signals]:
+            raise ValueError("Signal already exists in module.")
+        self._signals.append(signal)
+        self._ports.append(signal)
 
     def output(self, typ: HDLType, name: str) -> Signal:
         s = Signal(name, typ, "output") #, self)
         self._signals.append(s)
         self._ports.append(s)
         return s
+    
+    def add_output(self, signal: Signal) -> None:
+        if signal.kind != "output":
+            # change to output
+            signal.kind = "output"
+        if id(signal) in [id(s) for s in self._signals]:
+            raise ValueError("Signal already exists in module.")
+        self._signals.append(signal)
+        self._ports.append(signal)
 
     def wire(self, typ: HDLType, name: str) -> Signal:
         s = Signal(name, typ, "wire") #, self)

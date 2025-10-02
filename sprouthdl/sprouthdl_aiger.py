@@ -240,7 +240,7 @@ class _AIG:
         """
         Multiply two bit-vectors `a` and `b`, each LSB-first.
         If `signed_a`/`signed_b` are True, the corresponding operand is treated
-        as a two's-complement signed value; otherwise as unsigned.
+        as a two's-complement signed value and sign extended; otherwise as unsigned.
         The result is truncated to `w_out` bits (LSB-first).
         """
         wa = len(a)

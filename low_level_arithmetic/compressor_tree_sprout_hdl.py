@@ -1,6 +1,6 @@
 import random
 import time
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from aigverse import DepthAig, DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 import numpy as np
@@ -119,6 +119,7 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
                     # s1 = x ^ yb
                     # s_bit = s1 ^ z
                     # c_bit = (s1 & z) | (x & yb)
+                    
                 else:  # HA
                     if len(ins) != 2:
                         raise ValueError(f"HA at idx={nd.idx} does not have 2 signal inputs")
@@ -213,7 +214,7 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
     return m
 
 
-def gen_compressor_tree_graph_and_sprout_module(n_bits: int, policy: str = "dadda") -> Tuple[Graph, Module]:
+def gen_compressor_tree_graph_and_sprout_module(n_bits: int, policy: str = "dadda", name: Optional[str] = None) -> Tuple[Graph, Module]:
 
     """
     Convenience function to build a compressor-tree multiplier graph and
@@ -235,7 +236,7 @@ def gen_compressor_tree_graph_and_sprout_module(n_bits: int, policy: str = "dadd
         A, nodes = random_compressor_tree(n=N, seed=42, shrink_range=(0.6, 0.95), p_fa=0.65)
     else:
         raise ValueError(f"Unknown policy '{policy}'; must be 'dadda', 'wallace', or 'random'")
-    m = build_multiplier_from_compressor_graph(policy, A, nodes)
+    m = build_multiplier_from_compressor_graph(policy if name is None else name, A, nodes)
     return Graph(nodes, A), m
 
 def build_mul_verctor_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
@@ -277,20 +278,31 @@ def run_vectors(mod, vectors, *, label="") -> bool:
         raise ValueError("Some vectors failed!")
     return all_ok
 
+def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
+
+    # aag to aig
+    aig = conv_aag_into_aig(aag_lines)
+    
+    for i in range(n_iter_optimizations):
+        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
+            optimization(aig)
+            
+    # aig back to aag
+    aag_optimized = conv_aig_into_aag(aig)
+    return aag_optimized
+
+def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0) -> int:
+    aag_lines = AigerExporter(m).get_aag()
+
+    if n_iter_optimizations > 0:
+        aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
+
+    stat = extract_yosys_metrics(aag_lines)
+    return stat
+
 def main():
 
-    def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
 
-        # aag to aig
-        aig = conv_aag_into_aig(aag_lines)
-        
-        for i in range(n_iter_optimizations):
-            for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
-                optimization(aig)
-                
-        # aig back to aag
-        aag_optimized = conv_aig_into_aag(aig)
-        return aag_optimized
 
     def get_size_and_depth(name: str, m: Module):
         aag = AigerExporter(m).get_aag()
@@ -354,14 +366,7 @@ def main():
                 raise ValueError(f"Unknown operation type for transistor count estimation: {cls_op}")
         return total_transistor_count
 
-    def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0) -> int:
-        aag_lines = AigerExporter(m).get_aag()
 
-        if n_iter_optimizations > 0:
-            aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
-
-        stat = extract_yosys_metrics(aag_lines)
-        return stat
 
     transistor_count = get_transistor_count(c_n, n_bits)
     print(f"Node counts: {c_n}, estimated transistor count: {transistor_count}")
