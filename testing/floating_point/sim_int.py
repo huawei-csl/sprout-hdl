@@ -181,18 +181,20 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
 def main():
 
     optim=True
-    n_vecs = 50# 1000
+    n_vecs = 5000//5
 
     sigma_factor = 0.5
     # sigmas = [1, 2]
-    n_bits_vec = [4, 8, 16]
-    # n_bits_vec = [16]
+    #n_bits_vec = [4, 8, 16]
+    n_bits_vec = [4, 8, 12]
 
     for n_bits in n_bits_vec:
 
         #sigmas = list(range(1, 9))
+        n_steps = 8
         sigma_max = 2**n_bits * sigma_factor
-        sigmas = [sigma_max * (i / 8) + 1  for i in range(8)]  # 1 to sigma_max in 8 steps
+        sigma_start = sigma_max / n_steps
+        sigmas = np.linspace(sigma_start, sigma_max, n_steps)
         results = {}
 
         for builder_f in [build_multiplier, build_signed_multiplier, build_signed_multiplier_sign_magnitude]:

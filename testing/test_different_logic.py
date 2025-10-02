@@ -111,7 +111,7 @@ def run_vectors_io(
     
     sim = Simulator(m)
     fails = 0
-    for name, ins, outs in vectors:
+    for i_vec, (name, ins, outs) in enumerate(vectors):
         for k, v in ins.items():
             sim.set(k, v)
         sim.eval()

@@ -254,6 +254,75 @@ class _AIG:
         prod_full = self.bv_mul(a_ext, b_ext, full_width)
         # Return the least-significant w_out bits
         return prod_full[:w_out]
+        
+    def bv_mul_unsigned_pp(self, a: List[int], b: List[int], w_out: int) -> List[int]:
+        """
+        Unsigned multiplication by explicit partial-product accumulation.
+        a, b: LSB-first bit vectors (no sign).
+        Returns the LSB-first product truncated to w_out bits.
+    
+        Matrix rule (unsigned):
+          - for all i in [0..wa-1], j in [0..wb-1]:
+                add  (a_i & b_j) at column (i+j)
+    
+        This mirrors the style of the Baugh–Wooley routine: we accumulate column
+        contributions by adding a 1-bit vector at the target column each time.
+        """
+        wa, wb = len(a), len(b)
+        W = wa + wb                       # full product width
+        acc = self.bv_zero(W)             # accumulator (LSB-first)
+    
+        def add_bit_at(bit_lit: int, k: int):
+            if not (0 <= k < W):
+                return
+            vec = [lit_const0()] * W
+            vec[k] = bit_lit
+            nonlocal acc
+            acc, _ = self.bv_add(acc, vec, w_out=W)
+    
+        # Ordinary partial products (include MSB for unsigned)
+        for i in range(wa):
+            for j in range(wb):
+                pp = self.mk_and(a[i], b[j])
+                add_bit_at(pp, i + j)
+    
+        # Truncate to desired width
+        return acc[:w_out]
+    
+    
+    def bv_mul_unsigned_pp_vec(self, a: List[int], b: List[int], w_out: int) -> List[int]:
+        """
+        Unsigned multiplication via explicit partial products (AND matrix) + row additions.
+        a, b: LSB-first bit-vectors (no sign bits).
+        Returns LSB-first product truncated to w_out bits.
+    
+        Matrix:
+          pp[i,j] = a[i] & b[j] at weight (i + j)
+        Accumulation: add each b[j] row shifted by j into a W-bit accumulator.
+        """
+        wa, wb = len(a), len(b)
+        W = wa + wb                   # full product width
+        acc = self.bv_zero(W)         # LSB-first
+    
+        def add_vec(vec: List[int]):
+            nonlocal acc
+            acc, _ = self.bv_add(acc, vec, w_out=W)
+    
+        for j in range(wb):
+            # Build one row = a & b[j], length wa
+            row = [self.mk_and(a[i], b[j]) for i in range(wa)]     # LSB..MSB
+            # Shift the row by j positions (LSB shift → pad j zeros at LSB side)
+            shifted = [lit_const0()] * j + row
+            # Pad/truncate to W
+            if len(shifted) < W:
+                shifted += [lit_const0()] * (W - len(shifted))
+            else:
+                shifted = shifted[:W]
+            # Accumulate
+            add_vec(shifted)
+    
+        return acc[:w_out]
+    
 
 
     def bv_mul_baugh_wooley(self, a: List[int], b: List[int], w_out: int) -> List[int]:
@@ -358,7 +427,7 @@ class AigerExporter:
         """Builds AIG from module and writes an .aag file."""
         self._build_network(flatten_outputs=flatten_outputs)
         self._write_aag_file(path)
-        
+
     def get_aag(self) -> List[str]:
         """Builds AIG from module and returns the AIGER ASCII lines."""
         self._build_network(flatten_outputs=True)
@@ -506,7 +575,9 @@ class AigerExporter:
                 signed_a = getattr(e.a.typ, "signed", False)
                 signed_b = getattr(e.b.typ, "signed", False)
                 if signed_a or signed_b:
-                    bits = self.aig.bv_mul_baugh_wooley(a, b, w_out=w_out)  # not working
+                    bits = self.aig.bv_mul_baugh_wooley(a, b, w_out=w_out)
+                elif not signed_a and not signed_b:
+                    bits = self.aig.bv_mul_unsigned_pp(a, b, w_out=w_out)
                 else:
                     bits = self.aig.bv_mul_signed(a, b, w_out=w_out, signed_a=signed_a, signed_b=signed_b)
             elif op == "<<":
@@ -574,7 +645,7 @@ class AigerExporter:
         lines = self._get_aag_lines()
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
-            
+
     def _get_aag_lines(self) -> None:
         I = len(self.aig.inputs)
         L = len(self.aig.latches)
