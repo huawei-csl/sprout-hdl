@@ -2,6 +2,9 @@
 # A tiny, SpinalHDL-inspired EDSL for Python → Verilog
 from __future__ import annotations
 from dataclasses import dataclass, field
+import hashlib
+import random
+import time
 from typing import Optional, Union, Sequence
 
 
@@ -234,7 +237,7 @@ class Signal(Expr):
         self.name = name
         self.typ = typ
         self.kind = kind  # 'input' | 'output' | 'wire' | 'reg'
-        #self.module = module
+        # self.module = module
         self._driver: Optional[Expr] = None  # for wire/output
         self._next: Optional[Expr] = None  # for reg
         self._init: Optional[Expr] = None  # for reg
@@ -263,9 +266,19 @@ class Signal(Expr):
 
     def to_verilog(self) -> str:
         return self.name
-    
+
     def __repr__(self):
-          return f"Signal(name={self.name!r}, kind={self.kind}, typ=<{self.typ.width}{'s' if self.typ.signed else 'u'}>)"
+        return f"Signal(name={self.name!r}, kind={self.kind}, typ=<{self.typ.width}{'s' if self.typ.signed else 'u'}>)"
+
+# helper which generates signal for casting
+def cast(expr: ExprLike, to_type: HDLType) -> Signal:
+    """Create a new Signal with the same name but different type."""
+    random_string = str(random.random()) + str(time.time())
+    hash_object = hashlib.sha256(random_string.encode())
+    name = str(hash_object.hexdigest())
+    s = Signal(name, to_type, 'wire')
+    s <<= fit_width(as_expr(expr), to_type)
+    return s
 
 
 # -----------------------------

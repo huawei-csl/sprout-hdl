@@ -55,8 +55,8 @@ class MultiplierCompressorTree(Component):
 
         def generate_partial_products() -> defaultdict:
 
-            use_precompute = True
-            use_precompute_v2 = True # taken into account when use_precompute is True
+            use_precompute = False
+            use_precompute_v2 = False # taken into account when use_precompute is True
             if not use_precompute:
                 use_precompute_v2 = False
 
@@ -77,12 +77,14 @@ class MultiplierCompressorTree(Component):
             def bbit(k: int) -> Expr:
                 if 0 <= k < wb:
                     return b[k]
+                if k < 0:
+                    return Const(False, Bool())  # below LSB is 0
                 # beyond MSB uses sign bit if signed, else 0
                 return b[wb - 1] if b_signed else Const(False, Bool())
 
             # ---------- Precompute selectable versions of a ----------
             # |a| with 1-bit sign extension (for left-shift headroom)
-            mag1: List[Expr] = [a[i] for i in range(wa)] + [Const(False, Bool())]  # len = wa+1
+            mag1: List[Expr] = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]  # len = wa+1
             # |2a| = mag1 << 1
             mag2: List[Expr] = [Const(False, Bool())] + mag1[:-1]  # len = wa+2
 
@@ -105,7 +107,8 @@ class MultiplierCompressorTree(Component):
             a2_ext: List[Expr] = [Const(False, Bool())] + a_ext  # == (a_ext << 1), len = wa+2
 
             # Radix-4 Booth: one term per 2 multiplier bits
-            n_groups = (wb+2) //2 #np.ceil( (wb + 1) / 2).astype(int)  # ceil(wb/2)
+            extra_pp_lines = 0 if b_signed else 1
+            n_groups = (wb+1 + extra_pp_lines) //2 #np.ceil( (wb + 1) / 2).astype(int)  # ceil(wb/2)
             for i in range(n_groups):
                 x = bbit(2 * i - 1)  # low
                 y = bbit(2 * i)      # mid
@@ -150,36 +153,42 @@ class MultiplierCompressorTree(Component):
                 base_w = 2 * i
 
                 max_len = max(len(a_ext), len(a2_ext)) *2
+                extend_bit = None
                 for t in range(max_len):
 
-                    if t < wa+1: # actual booth decoded bits (without +1 correction)
+                    if t < wa+1: # actual booth decoded / booth selector bits (without +1 correction)
+                        
 
                         if use_precompute:
                             a_pos1 = mag1[t]
                             a_pos2 = mag2[t]
                             a_neg1 = mag1_inv[t]
                             a_neg2 = mag2_inv[t]
-                            
+
                             if use_precompute_v2:                            
                                 a_neg1 = mag1_invs_v[t]
                                 a_neg2 = mag2_invs_v[t]
-                                                        
+
                             emit_bit = (a_pos1 & sel_pos1) | (a_pos2 & sel_pos2) | (a_neg1 & sel_neg1) | (a_neg2 & sel_neg2)
                             # emit_bit = (a_pos1 & (use1 & ~neg)) | (a_pos2 & (use2 & ~neg)) | (a_neg1 & (use1 & neg)) | (a_neg2 & (use2 & neg))
-                            
+
                             # emit_bit = (a_ext[t] & (use1 & (~neg))) | (a2_ext[t] & (use2 & (~neg))) | ((~a_ext[t]) & (use1 & neg)) | ((~a2_ext[t]) & (use2 & neg))
-                            
-                            #mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
-                            #emit_bit = mux_if(neg, ~mag, mag)
-                            
-                            
+
+                            # mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
+                            # emit_bit = mux_if(neg, ~mag, mag)
+
                         else: 
                             mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
-                            emit_bit = (mag ^ neg)                 
+                            emit_bit = (mag ^ neg)
+
+                        extend_bit = ~emit_bit # save for sign extension # flip from  1 to 0 when MSB is 0
 
                     elif t == wa + 1:
-                        emit_bit = ~neg # S inverse                        
-                    elif t == wa + 1 + 1:
+                        if a_signed:
+                            emit_bit = extend_bit  # sign extend
+                        else:
+                            emit_bit = ~neg # S inverse                        
+                    elif t == wa + 1 + 1:                        
                         emit_bit = Const(True, Bool()) # constant 1
                     else:
                         emit_bit = None  # beyond this, all terms are zero
@@ -196,6 +205,7 @@ class MultiplierCompressorTree(Component):
                 # Correction
                 if i == 0:
                     cols[len(mag1)].append(Const(True, Bool()))
+                    
             return cols
 
         cols = generate_partial_products()
@@ -326,9 +336,13 @@ class MultiplierTestVectors:
                 va = clam_signed(va, self.a_w) if self.a_signed else clam_unsigned(va, self.a_w)
                 vb = clam_signed(vb, self.b_w) if self.b_signed else clam_unsigned(vb, self.b_w)
 
-            else:
+            else:                
                 va = random.getrandbits(self.a_w)
                 vb = random.getrandbits(self.b_w)
+                if self.a_signed:
+                    va = va - (1 << (self.a_w - 1))
+                if self.b_signed:
+                    vb = vb - (1 << (self.b_w - 1))
 
             # append test vector
             vecs.append((f"{va}*{vb}", {"a": va, "b": vb}, {"y": va * vb}))
@@ -357,7 +371,7 @@ def gen_spec(class_instance: Component) -> Dict[str, UInt]:
 
 def main():
     n_bits = 16
-    signed = False
+    signed = True
     mult = MultiplierCompressorTree(a_w=n_bits, b_w=n_bits, signed_a=signed, signed_b=signed)
     m = gen_sprout_module(mult)
     # get size in # t transistors

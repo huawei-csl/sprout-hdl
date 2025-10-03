@@ -108,7 +108,7 @@ def run_vectors_io(
       vectors: list of (label, inputs{name->int}, expected{name->int})
     Prints mismatches; raises AssertionError at the end if any failed.
     """
-    
+
     sim = Simulator(m)
     fails = 0
     for i_vec, (name, ins, outs) in enumerate(vectors):
@@ -117,23 +117,24 @@ def run_vectors_io(
         sim.eval()
         bad = []
         for oname, exp in outs.items():
+            got_raw = sim.peek(oname) #sim.get(oname)
             got = sim.get(oname)
             if got != exp:
                 if decoder and oname == "y":
-                    bad.append(f"{oname}: got=0x{got:0X} ({decoder(got):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
+                    bad.append(f"{oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
                 else:
-                    bad.append(f"{oname}: got=0x{got:0X}  exp=0x{exp:0X}")
+                    bad.append(f"{oname}: got=0x{got_raw:0X} ({got}) exp=0x{exp:0X} ({exp})")
             else:
                 if decoder and oname == "y":
-                    print(f"PASS {name}: {oname}=0x{got:0X} ({decoder(got):.8g})")
+                    print(f"PASS {name}: {oname}=0x{got_raw:0X} ({decoder(got_raw):.8g})")
                 else:
-                    print(f"PASS {name}: {oname}=0x{got:0X} ({got})")
+                    print(f"PASS {name}: {oname}=0x{got_raw:0X} ({got})")
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
     if fails:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
-        #print(f"{fails}/{len(vectors)} vectors failed")
+        # print(f"{fails}/{len(vectors)} vectors failed")
 
 # -----------------------------
 # Simple modules + vectors
