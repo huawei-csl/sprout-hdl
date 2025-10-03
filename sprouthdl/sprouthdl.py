@@ -487,6 +487,10 @@ def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
 def mux(sel: ExprLike, a: ExprLike, b: ExprLike) -> Expr:
     return Ternary(as_expr(sel), as_expr(a), as_expr(b))
 
+# alias
+def mux_if(if_cond: ExprLike, then_expr: ExprLike, else_expr: ExprLike) -> Expr:
+    return mux(if_cond, then_expr, else_expr)
+
 
 def cat(*parts: ExprLike) -> Expr:
     return Concat([as_expr(p) for p in parts])
