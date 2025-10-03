@@ -5,7 +5,7 @@ import random
 from typing import Dict, Literal, Optional, Tuple, List
 import numpy as np
 from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
-from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt, mux, mux_if
+from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt, fit_width, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
 
@@ -55,7 +55,10 @@ class MultiplierCompressorTree(Component):
 
         def generate_partial_products() -> defaultdict:
 
-            use_precomute = False
+            use_precompute = False
+            use_precompute_v2 = True # taken into account when use_precompute is True
+            if not use_precompute:
+                use_precompute_v2 = False
 
             cols: Dict[int, List[Expr]] = defaultdict(list)  # weight -> signal node indices
 
@@ -86,6 +89,15 @@ class MultiplierCompressorTree(Component):
             # Bitwise inverses for negative terms (two's complement done via +1 later)
             mag1_inv: List[Expr] = [~bit for bit in mag1]
             mag2_inv: List[Expr] = [~bit for bit in mag2]
+
+            if use_precompute_v2:
+                a_signedv = Signal('a_signed', SInt(wa+1), kind='wire')
+                a_signedv <<= a
+                mag1_invs = - a_signedv
+                mag2_invs = mag1_invs << 1
+
+                mag1_invs_v = [mag1_invs[i] for i in range(wa+1)]
+                mag2_invs_v = [mag2_invs[i] for i in range(wa+1)]
 
             # multiplicand extended by one sign bit for ±2a (shift-left) headroom
             a_ext: List[Expr] = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]  # len = wa+1
@@ -119,11 +131,12 @@ class MultiplierCompressorTree(Component):
                 use1 = pos1 | neg1         # select |a|
                 use2 = pos2 | neg2         # select |2a|
                 zero = eq000 | eq111        # zero term
-                
-                use1 = x ^ y # simplified logic
-                neg = z # simplified logic
 
-                if use_precomute:
+                if not use_precompute:
+                    use1 = x ^ y # simplified logic
+                    neg = z # simplified logic
+
+                if use_precompute:
                     sel0      = eq000 | eq111             # 0
                     sel_pos1  = eq001 | eq010             # +a
                     sel_pos2  = eq011                     # +2a
@@ -138,21 +151,34 @@ class MultiplierCompressorTree(Component):
                 max_len = max(len(a_ext), len(a2_ext)) *2
                 for t in range(max_len):
 
-                    if t < len(mag1): # actual booth decoded bits (without +1 correction)
+                    if t < wa+1: # actual booth decoded bits (without +1 correction)
 
-                        if use_precomute:
-                            b_pos1 = mag1[t]
-                            b_pos2 = mag2[t]
-                            b_neg1 = mag1_inv[t]
-                            b_neg2 = mag2_inv[t]                            
-                            emit_bit = (b_pos1 & sel_pos1) | (b_pos2 & sel_pos2) | (b_neg1 & sel_neg1) | (b_neg2 & sel_neg2)
+                        if use_precompute:
+                            a_pos1 = mag1[t]
+                            a_pos2 = mag2[t]
+                            a_neg1 = mag1_inv[t]
+                            a_neg2 = mag2_inv[t]
+                            
+                            if use_precompute_v2:                            
+                                a_neg1 = mag1_invs_v[t]
+                                a_neg2 = mag2_invs_v[t]
+                                                        
+                            emit_bit = (a_pos1 & sel_pos1) | (a_pos2 & sel_pos2) | (a_neg1 & sel_neg1) | (a_neg2 & sel_neg2)
+                            # emit_bit = (a_pos1 & (use1 & ~neg)) | (a_pos2 & (use2 & ~neg)) | (a_neg1 & (use1 & neg)) | (a_neg2 & (use2 & neg))
+                            
+                            # emit_bit = (a_ext[t] & (use1 & (~neg))) | (a2_ext[t] & (use2 & (~neg))) | ((~a_ext[t]) & (use1 & neg)) | ((~a2_ext[t]) & (use2 & neg))
+                            
+                            #mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
+                            #emit_bit = mux_if(neg, ~mag, mag)
+                            
+                            
                         else: 
-                            mag = (a_ext[t] & use1) | (a2_ext[t] & use2) 
+                            mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
                             emit_bit = (mag ^ neg)                 
 
-                    elif t == len(mag1):
-                        emit_bit = ~neg # S inverse
-                    elif t == len(mag1) + 1:
+                    elif t == wa + 1:
+                        emit_bit = ~neg # S inverse                        
+                    elif t == wa + 1 + 1:
                         emit_bit = Const(True, Bool()) # constant 1
                     else:
                         emit_bit = None  # beyond this, all terms are zero
@@ -162,8 +188,9 @@ class MultiplierCompressorTree(Component):
                         cols[w].append(emit_bit)  
 
                 # two's-complement +1 correction at the block’s LSB when neg
-                if base_w < out_bits:
-                    cols[base_w].append(neg)
+                if not use_precompute_v2:
+                    if base_w < out_bits:
+                        cols[base_w].append(neg)
 
                 # Correction
                 if i == 0:
@@ -333,7 +360,7 @@ def main():
     mult = MultiplierCompressorTree(a_w=n_bits, b_w=n_bits, signed_a=signed, signed_b=signed)
     m = gen_sprout_module(mult)
     # get size in # t transistors
-    print(m.to_verilog())
+    #print(m.to_verilog())
     
     tc = get_transistor_count_from_m_yosys(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")

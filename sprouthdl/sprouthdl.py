@@ -128,6 +128,9 @@ class Expr:
     def __rsub__(self, other: ExprLike) -> "Expr":
         return op_sub(as_expr(other), self)
 
+    def __neg__(self) -> "Expr":
+        return op_sub(as_expr(0), self)
+
     def __mul__(self, other: ExprLike) -> "Expr":
         return op_mul(self, as_expr(other))
 
@@ -198,7 +201,7 @@ class Expr:
 
     def to_verilog(self) -> str:
         raise NotImplementedError
-    
+
     def as_expr(self) -> "Expr":
         """
         Returns self, but may replace it by a shared wire once this
