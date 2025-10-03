@@ -53,114 +53,125 @@ class MultiplierCompressorTree(Component):
 
     def elaborate(self):
 
-        cols: Dict[int, List[Expr]] = defaultdict(list)  # weight -> signal node indices
+        def generate_partial_products() -> defaultdict:
 
-        a = self.io.a
-        b = self.io.b
-        n = self.n_bits
-        wa = a.typ.width
-        wb = b.typ.width
+            use_precomute = False
 
-        out_bits = a.typ.width + b.typ.width
+            cols: Dict[int, List[Expr]] = defaultdict(list)  # weight -> signal node indices
 
-        a_signed = a.typ.signed
-        b_signed = b.typ.signed
-        
-        # --- helper to get multiplier bits with proper out-of-range behavior
-        def bbit(k: int) -> Expr:
-            if 0 <= k < wb:
-                return b[k]
-            # beyond MSB uses sign bit if signed, else 0
-            return b[wb - 1] if b_signed else Const(False, Bool())
-        
-        # ---------- Precompute selectable versions of a ----------
-        # |a| with 1-bit sign extension (for left-shift headroom)
-        mag1: List[Expr] = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]  # len = wa+1
-        # |2a| = mag1 << 1
-        mag2: List[Expr] = [Const(False, Bool())] + mag1  # len = wa+2
-        
-        # Bitwise inverses for negative terms (two's complement done via +1 later)
-        mag1_inv: List[Expr] = [~bit for bit in mag1]
-        mag2_inv: List[Expr] = [~bit for bit in mag2]
-        
-        # Utility: sign-extend a vector "v" on reads beyond its length
-        def get_se(v: List[Expr], t: int) -> Expr:
-            return v[t] if t < len(v) else v[-1]  # extend with last (sign) bit
+            a = self.io.a
+            b = self.io.b
+            n = self.n_bits
+            wa = a.typ.width
+            wb = b.typ.width
 
-        
-        # multiplicand extended by one sign bit for ±2a (shift-left) headroom
-        a_ext: List[Expr] = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]  # len = wa+1
-        a2_ext: List[Expr] = [Const(False, Bool())] + a_ext  # == (a_ext << 1), len = wa+2
-        
-        # Radix-4 Booth: one term per 2 multiplier bits
-        n_groups = (wb+2) //2 #np.ceil( (wb + 1) / 2).astype(int)  # ceil(wb/2)
-        for i in range(n_groups):
-            x = bbit(2 * i - 1)  # low
-            y = bbit(2 * i)      # mid
-            z = bbit(2 * i + 1)  # high
-        
-            # Decode the 3-bit Booth code (z y x):
-            # 000/111 -> 0; 001/010 -> +1; 011 -> +2; 100 -> -2; 101/110 -> -1
-            nz, ny, nx = ~z, ~y, ~x
-        
-            eq000 = nz & ny & nx
-            eq001 = nz & ny &  x
-            eq010 = nz &  y & nx
-            eq011 = nz &  y &  x
-            eq100 =  z & ny & nx
-            eq101 =  z & ny &  x
-            eq110 =  z &  y & nx
-            eq111 =  z &  y &  x
-        
-            pos1 = eq001 | eq010
-            pos2 = eq011
-            neg1 = eq101 | eq110
-            neg2 = eq100
-            neg  = neg1 | neg2
-            use1 = pos1 | neg1         # select |a|
-            use2 = pos2 | neg2         # select |2a|
-            zero = eq000 | eq111        # zero term
-            
-            sel0      = eq000 | eq111             # 0
-            sel_pos1  = eq001 | eq010             # +a
-            sel_pos2  = eq011                     # +2a
-            sel_neg1  = eq101 | eq110             # -a
-            sel_neg2  = eq100                     # -2a
-        
-            # Emit magnitude bits (a_ext or a2_ext), conditionally inverted if neg
-            # Then add +1 correction at the block LSB when neg (two's complement).
-            # Place bits starting at column base_w = 2*i (radix-4 shift).
-            base_w = 2 * i
-        
-            # Use the longer of the two candidates to cover both |a| and |2a|.
-            max_len = max(len(a_ext), len(a2_ext)) *2
-            for t in range(max_len):
-                # pick bit t of |a| or |2a| guarded by enables; missing bits are 0
-                uses_precomute = False
-                if not uses_precomute:
-                    # do sign extension for out-of-range bits
-                    bit_a  = a_ext[t]  if t < len(a_ext)  else a_ext[-1]
-                    bit_2a = a2_ext[t] if t < len(a2_ext) else a2_ext[-1]
-                    mag    = (bit_a & use1) | (bit_2a & use2)  # selected magnitude bit
-            
-                    # conditional inversion for negative terms
-                    emit_bit = (mag ^ neg)  # zero term forces 0 output
-                else:
-                    b_pos1 = get_se(mag1, t)
-                    b_pos2 = get_se(mag2, t)
-                    b_neg1 = get_se(mag1_inv, t)
-                    b_neg2 = get_se(mag2_inv, t)
-    
-                    emit_bit = (b_pos1 & sel_pos1) | (b_pos2 & sel_pos2) | (b_neg1 & sel_neg1) | (b_neg2 & sel_neg2)
-                    
-        
-                w = base_w + t
-                if w < out_bits:      # discard columns beyond output width
-                    cols[w].append(emit_bit)
-        
-            # two's-complement +1 correction at the block’s LSB when neg
-            if base_w < out_bits:
-                cols[base_w].append(neg)
+            out_bits = a.typ.width + b.typ.width
+
+            a_signed = a.typ.signed
+            b_signed = b.typ.signed
+
+            # --- helper to get multiplier bits with proper out-of-range behavior
+            def bbit(k: int) -> Expr:
+                if 0 <= k < wb:
+                    return b[k]
+                # beyond MSB uses sign bit if signed, else 0
+                return b[wb - 1] if b_signed else Const(False, Bool())
+
+            # ---------- Precompute selectable versions of a ----------
+            # |a| with 1-bit sign extension (for left-shift headroom)
+            mag1: List[Expr] = [a[i] for i in range(wa)] + [Const(False, Bool())]  # len = wa+1
+            # |2a| = mag1 << 1
+            mag2: List[Expr] = [Const(False, Bool())] + mag1[:-1]  # len = wa+2
+
+            # Bitwise inverses for negative terms (two's complement done via +1 later)
+            mag1_inv: List[Expr] = [~bit for bit in mag1]
+            mag2_inv: List[Expr] = [~bit for bit in mag2]
+
+            # multiplicand extended by one sign bit for ±2a (shift-left) headroom
+            a_ext: List[Expr] = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]  # len = wa+1
+            a2_ext: List[Expr] = [Const(False, Bool())] + a_ext  # == (a_ext << 1), len = wa+2
+
+            # Radix-4 Booth: one term per 2 multiplier bits
+            n_groups = (wb+2) //2 #np.ceil( (wb + 1) / 2).astype(int)  # ceil(wb/2)
+            for i in range(n_groups):
+                x = bbit(2 * i - 1)  # low
+                y = bbit(2 * i)      # mid
+                z = bbit(2 * i + 1)  # high
+
+                # Decode the 3-bit Booth code (z y x):
+                # 000/111 -> 0; 001/010 -> +1; 011 -> +2; 100 -> -2; 101/110 -> -1
+                nz, ny, nx = ~z, ~y, ~x
+
+                eq000 = nz & ny & nx
+                eq001 = nz & ny &  x
+                eq010 = nz &  y & nx
+                eq011 = nz &  y &  x
+                eq100 =  z & ny & nx
+                eq101 =  z & ny &  x
+                eq110 =  z &  y & nx
+                eq111 =  z &  y &  x
+
+                pos1 = eq001 | eq010
+                pos2 = eq011
+                neg1 = eq101 | eq110
+                neg2 = eq100
+                neg  = neg1 | neg2
+                use1 = pos1 | neg1         # select |a|
+                use2 = pos2 | neg2         # select |2a|
+                zero = eq000 | eq111        # zero term
+                
+                use1 = x ^ y # simplified logic
+                neg = z # simplified logic
+
+                if use_precomute:
+                    sel0      = eq000 | eq111             # 0
+                    sel_pos1  = eq001 | eq010             # +a
+                    sel_pos2  = eq011                     # +2a
+                    sel_neg1  = eq101 | eq110             # -a
+                    sel_neg2  = eq100                     # -2a
+
+                # Emit magnitude bits (a_ext or a2_ext), conditionally inverted if neg
+                # Then add +1 correction at the block LSB when neg (two's complement).
+                # Place bits starting at column base_w = 2*i (radix-4 shift).
+                base_w = 2 * i
+
+                max_len = max(len(a_ext), len(a2_ext)) *2
+                for t in range(max_len):
+
+                    if t < len(mag1): # actual booth decoded bits (without +1 correction)
+
+                        if use_precomute:
+                            b_pos1 = mag1[t]
+                            b_pos2 = mag2[t]
+                            b_neg1 = mag1_inv[t]
+                            b_neg2 = mag2_inv[t]                            
+                            emit_bit = (b_pos1 & sel_pos1) | (b_pos2 & sel_pos2) | (b_neg1 & sel_neg1) | (b_neg2 & sel_neg2)
+                        else: 
+                            mag = (a_ext[t] & use1) | (a2_ext[t] & use2) 
+                            emit_bit = (mag ^ neg)                 
+
+                    elif t == len(mag1):
+                        emit_bit = ~neg # S inverse
+                    elif t == len(mag1) + 1:
+                        emit_bit = Const(True, Bool()) # constant 1
+                    else:
+                        emit_bit = None  # beyond this, all terms are zero
+
+                    w = base_w + t
+                    if w < out_bits and emit_bit is not None:      # discard columns beyond output width
+                        cols[w].append(emit_bit)  
+
+                # two's-complement +1 correction at the block’s LSB when neg
+                if base_w < out_bits:
+                    cols[base_w].append(neg)
+
+                # Correction
+                if i == 0:
+                    cols[len(mag1)].append(Const(True, Bool()))
+            return cols
+
+        cols = generate_partial_products()
+        print(f"Generated {sum(len(v) for v in cols.values())} partial product bits in {len(cols)} columns")
 
         def half_adder(x: Expr, y: Expr) -> Tuple[Expr, Expr]:
             return x ^ y, x & y  # sum, carry
@@ -197,6 +208,8 @@ class MultiplierCompressorTree(Component):
                 s, c = half_adder(x, y)
                 sum_bits.append(s)
                 carry_bits.append(c)
+                # or
+                # sum_bits.extend(bits)  # leave uncompressed
             elif len(bits) == 1:
                 sum_bits.append(bits[0])
             return sum_bits, carry_bits
@@ -245,7 +258,8 @@ class MultiplierCompressorTree(Component):
 
         # Assign to output
         self.io.y <<= Concat(reversed(result_bits[:2*self.n_bits]))
-        print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")
+        print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")        
+        print(f"Final result bits: {len(result_bits)}")
 
 
 class MultiplierTestVectors:
@@ -324,7 +338,7 @@ def main():
     tc = get_transistor_count_from_m_yosys(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")
 
-    specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=16, tb_sigma=5.0, signed_a=signed, signed_b=signed).generate()
+    specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=16, tb_sigma=None, signed_a=signed, signed_b=signed).generate()
     specs2 = gen_spec(mult)
     run_vectors_io(m, vecs, decoder=dec)
 

@@ -77,6 +77,8 @@ class MultiplierCompressorTree(Component):
                     continue  # ignore bits beyond output width, in case of sign extension
                 s = a[i] & b[j]
                 cols[w].append(s)
+                
+        print(f"Generated {sum(len(v) for v in cols.values())} partial product bits in {len(cols)} columns")
 
         def half_adder(x: Expr, y: Expr) -> Tuple[Expr, Expr]:
             return x ^ y, x & y  # sum, carry
@@ -161,7 +163,8 @@ class MultiplierCompressorTree(Component):
 
         # Assign to output
         self.io.y <<= Concat(reversed(result_bits[:2*self.n_bits]))
-        print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")
+        print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")        
+        print(f"Final result bits: {len(result_bits)}")
 
 
 class MultiplierTestVectors:
@@ -230,7 +233,7 @@ def gen_spec(class_instance: Component) -> Dict[str, UInt]:
     return spec
 
 def main():
-    n_bits = 4
+    n_bits = 16
     signed = False
     mult = MultiplierCompressorTree(a_w=n_bits, b_w=n_bits, signed_a=signed, signed_b=signed)
     m = gen_sprout_module(mult)
