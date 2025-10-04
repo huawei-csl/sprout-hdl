@@ -1,8 +1,13 @@
 """Demonstrate how to mix and match multiplier stages."""
 
-from typing import Dict, Tuple, Type
+from __future__ import annotations
 
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley import MultiplierTestVectors
+from enum import Enum
+from typing import Tuple
+
+from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley import (
+    MultiplierTestVectors,
+)
 from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley_stages import (
     BaughWooleyPartialProductGenerator,
 )
@@ -20,9 +25,6 @@ from low_level_arithmetic.compressor_tree_direct_sprout_hdl_booth_unoptim_stages
 )
 from low_level_arithmetic.multiplier_stage_core import (
     CompressorTreeAccumulator,
-    FinalStageAdderBase,
-    PartialProductAccumulatorBase,
-    PartialProductGeneratorBase,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
 )
@@ -35,110 +37,73 @@ from low_level_arithmetic.prefix_adder_stage import (
 from testing.test_different_logic import run_vectors_io
 
 
-PARTIAL_PRODUCT_GENERATORS: Dict[str, Type[PartialProductGeneratorBase]] = {
-    "basic": BasicUnsignedPartialProductGenerator,
-    "baugh_wooley": BaughWooleyPartialProductGenerator,
-    "booth_unoptimised": BoothUnoptimizedPartialProductGenerator,
-    "booth_optimised": BoothOptimizedPartialProductGenerator,
-    "booth_optimised_signed": BoothOptimizedSignedPartialProductGenerator,
-}
-
-PARTIAL_PRODUCT_ACCUMULATORS: Dict[str, Type[PartialProductAccumulatorBase]] = {
-    "compressor_tree": CompressorTreeAccumulator,
-}
-
-FINAL_STAGE_ADDERS: Dict[str, Type[FinalStageAdderBase]] = {
-    "ripple": RippleCarryFinalAdder,
-    "prefix_ks": PrefixAdderFinalStage,
-    "prefix_bk": BrentKungPrefixFinalStage,
-    "prefix_sklansky": SklanskyPrefixFinalStage,
-    "prefix_rca": RipplePrefixFinalStage,
-}
+class PPGOption(Enum):
+    BASIC = BasicUnsignedPartialProductGenerator
+    BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
+    BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
+    BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
+    BOOTH_OPTIMISED_SIGNED = BoothOptimizedSignedPartialProductGenerator
 
 
-def build_multiplier(
-    *,
-    a_width: int,
-    b_width: int,
-    ppg: str,
-    ppa: str = "compressor_tree",
-    fsa: str = "ripple",
-    signed_a: bool = False,
-    signed_b: bool = False,
-    optim_type: str = "area",
-) -> StageBasedMultiplier:
-    try:
-        ppg_cls = PARTIAL_PRODUCT_GENERATORS[ppg]
-    except KeyError as exc:  # pragma: no cover - defensive
-        raise ValueError(f"Unknown PPG '{ppg}'") from exc
+class PPAOption(Enum):
+    COMPRESSOR_TREE = CompressorTreeAccumulator
 
-    try:
-        ppa_cls = PARTIAL_PRODUCT_ACCUMULATORS[ppa]
-    except KeyError as exc:  # pragma: no cover - defensive
-        raise ValueError(f"Unknown PPA '{ppa}'") from exc
 
-    try:
-        fsa_cls = FINAL_STAGE_ADDERS[fsa]
-    except KeyError as exc:  # pragma: no cover - defensive
-        raise ValueError(f"Unknown FSA '{fsa}'") from exc
+class FSAOption(Enum):
+    RIPPLE = RippleCarryFinalAdder
+    PREFIX_KS = PrefixAdderFinalStage
+    PREFIX_BK = BrentKungPrefixFinalStage
+    PREFIX_SKLANSKY = SklanskyPrefixFinalStage
+    PREFIX_RCA = RipplePrefixFinalStage
 
-    return StageBasedMultiplier(
-        a_width,
-        b_width,
-        signed_a=signed_a,
-        signed_b=signed_b,
-        optim_type=optim_type,
-        ppg_cls=ppg_cls,
-        ppa_cls=ppa_cls,
-        fsa_cls=fsa_cls,
-    )
+
+
 
 
 def main() -> None:  # pragma: no cover - demonstration only
-    demos: Tuple[Tuple[str, str, str], ...] = (
-        ("basic", "compressor_tree", "prefix_ks"),
-        ("baugh_wooley", "compressor_tree", "ripple"),
-        ("booth_unoptimised", "compressor_tree", "ripple"),
-        ("booth_optimised", "compressor_tree", "ripple"),
-        ("booth_optimised_signed", "compressor_tree", "ripple"),
+    demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
+        (PPGOption.BASIC, PPAOption.COMPRESSOR_TREE, FSAOption.RIPPLE),
+        (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KS),
+        (PPGOption.BOOTH_UNOPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_RCA),
+        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BK),
+        (PPGOption.BOOTH_OPTIMISED_SIGNED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_SKLANSKY),
     )
 
-    wa = wb = 16
-    
-    demo_count_f = 0
+    width = 16
+    completed = 0
 
-    for i, (ppg_name, ppa_name, fsa_name) in enumerate(demos):
-            
-        for signed_inputs in PARTIAL_PRODUCT_GENERATORS[ppg_name].supported_signatures:
-            multiplier = build_multiplier(
-                a_width=wa,
-                b_width=wb,
-                ppg=ppg_name,
-                ppa=ppa_name,
-                fsa=fsa_name,
-                signed_a=signed_inputs[0],
-                signed_b=signed_inputs[1],
+    for ppg_opt, ppa_opt, fsa_opt in demos:
+        for signed_a, signed_b in ppg_opt.value.supported_signatures or ((False, False),):
+            multiplier = StageBasedMultiplier(
+                a_w=width,
+                b_w=width,
+                signed_a=signed_a,
+                signed_b=signed_b,
+                ppg_cls=ppg_opt.value,
+                ppa_cls=ppa_opt.value,
+                fsa_cls=fsa_opt.value,
+                optim_type="area",
             )
             module = multiplier.to_module(
-                f"demo_{ppg_name}{signed_inputs}"
+                f"demo_{ppg_opt.name.lower()}_{signed_a}_{signed_b}_{fsa_opt.name.lower()}"
             )
             print(
-                f"Built module '{module.name}' using PPG={ppg_name}, PPA={ppa_name}, FSA={fsa_name}"
+                f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}"
             )
 
             specs, vecs, decoder = MultiplierTestVectors(
-                a_w=wa,
-                b_w=wb,
-                num_vectors=16,
+                a_w=width,
+                b_w=width,
+                num_vectors=8,
                 tb_sigma=None,
-                signed_a=signed_inputs[0],
-                signed_b=signed_inputs[1],
+                signed_a=signed_a,
+                signed_b=signed_b,
             ).generate()
-            
+            _ = specs
             run_vectors_io(module, vecs, decoder=decoder)
-            
-            demo_count_f += 1
-            print(f"Completed {demo_count_f} multiplier demos.")
+
+            completed += 1
+            print(f"Completed {completed} multiplier demos.")
 
 
 if __name__ == "__main__":
