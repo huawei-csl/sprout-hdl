@@ -26,6 +26,12 @@ from low_level_arithmetic.multiplier_stage_core import (
     RippleCarryFinalAdder,
     StageBasedMultiplier,
 )
+from low_level_arithmetic.prefix_adder_stage import (
+    BrentKungPrefixFinalStage,
+    PrefixAdderFinalStage,
+    RipplePrefixFinalStage,
+    SklanskyPrefixFinalStage,
+)
 from testing.test_different_logic import run_vectors_io
 
 
@@ -43,6 +49,10 @@ PARTIAL_PRODUCT_ACCUMULATORS: Dict[str, Type[PartialProductAccumulatorBase]] = {
 
 FINAL_STAGE_ADDERS: Dict[str, Type[FinalStageAdderBase]] = {
     "ripple": RippleCarryFinalAdder,
+    "prefix_ks": PrefixAdderFinalStage,
+    "prefix_bk": BrentKungPrefixFinalStage,
+    "prefix_sklansky": SklanskyPrefixFinalStage,
+    "prefix_rca": RipplePrefixFinalStage,
 }
 
 
@@ -86,7 +96,7 @@ def build_multiplier(
 
 def main() -> None:  # pragma: no cover - demonstration only
     demos: Tuple[Tuple[str, str, str], ...] = (
-        ("basic", "compressor_tree", "ripple"),
+        ("basic", "compressor_tree", "prefix_ks"),
         ("baugh_wooley", "compressor_tree", "ripple"),
         ("booth_unoptimised", "compressor_tree", "ripple"),
         ("booth_optimised", "compressor_tree", "ripple"),
