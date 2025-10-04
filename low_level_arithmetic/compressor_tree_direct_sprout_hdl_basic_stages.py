@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import DefaultDict, Dict, List
+from typing import DefaultDict, List
 
 from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
 from low_level_arithmetic.multiplier_stage_core import (
@@ -11,47 +11,44 @@ from low_level_arithmetic.multiplier_stage_core import (
     RippleCarryFinalAdder,
     StageBasedMultiplier,
 )
-from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt
+from sprouthdl.sprouthdl import Concat, Expr
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
 
 
-class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
-    supported_signatures = ((True, True),)
+class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
+    supported_signatures = (
+        (False, False),
+        (True, False),
+    )
 
     def generate_columns(self) -> DefaultDict[int, List[Expr]]:
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
 
         a = self.core.io.a
         b = self.core.io.b
-        wa = a.typ.width
-        wb = b.typ.width
+        a_vec: Expr = a
+        b_vec: Expr = b
+
+        if a.typ.signed:
+            sign_bit = a[a.typ.width - 1]
+            a_vec = Concat([sign_bit] * a.typ.width + [a])
+        if b.typ.signed:
+            sign_bit = b[b.typ.width - 1]
+            b_vec = Concat([sign_bit] * b.typ.width + [b])
+
         out_bits = self.core.io.y.typ.width
 
-        for i in range(wa - 1):
-            for j in range(wb - 1):
+        for i in range(a_vec.typ.width):
+            for j in range(b_vec.typ.width):
                 weight = i + j
                 if weight >= out_bits:
                     continue
-                cols[weight].append(a[i] & b[j])
-
-        i = wa - 1
-        for j in range(wb - 1):
-            cols[i + j].append(~(a[i] & b[j]))
-
-        j = wb - 1
-        for i in range(wa - 1):
-            cols[i + j].append(~(a[i] & b[j]))
-
-        cols[wa - 1 + wb - 1].append(a[wa - 1] & b[wb - 1])
-
-        cols[wa - 1 + wb - 1 + 1].append(Const(True, Bool()))
-        cols[wa - 1].append(Const(True, Bool()))
-        cols[wb - 1].append(Const(True, Bool()))
+                cols[weight].append(a_vec[i] & b_vec[j])
 
         total_bits = sum(len(v) for v in cols.values())
         print(
-            f"PPG (Baugh-Wooley): generated {total_bits} bits across {len(cols)} columns"
+            f"PPG (Basic): generated {total_bits} bits across {len(cols)} columns"
         )
         return cols
 
@@ -65,7 +62,7 @@ class MultiplierCompressorTree(StageBasedMultiplier):
         signed_a: bool = False,
         signed_b: bool = False,
         optim_type: str = "area",
-        ppg_cls: type[PartialProductGeneratorBase] = BaughWooleyPartialProductGenerator,
+        ppg_cls: type[PartialProductGeneratorBase] = BasicUnsignedPartialProductGenerator,
         ppa_cls: type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
@@ -84,13 +81,12 @@ class MultiplierCompressorTree(StageBasedMultiplier):
         super().elaborate()
         cfg = self.config
         print(
-            f"MultiplierCompressorTree: {cfg.a_width}x{cfg.b_width} -> {cfg.out_width} bits"
+            f"MultiplierCompressorTree (Basic): {cfg.a_width}x{cfg.b_width} -> {cfg.out_width} bits"
         )
 
 
-
 def gen_sprout_module(mult: MultiplierCompressorTree) -> Module:
-    return mult.to_module(f"Mul{mult.config.a_width}_ct")
+    return mult.to_module(f"Mul{mult.config.a_width}_ct_basic")
 
 
 def main() -> None:
