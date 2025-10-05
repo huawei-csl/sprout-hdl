@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Tuple
 
-from low_level_arithmetic.compressor_tree_accumulator_stages import (
+from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
     DaddaTreeAccumulator,
     FourTwoCompressorAccumulator,
@@ -15,19 +15,19 @@ from low_level_arithmetic.test_vector_generation import (
     MultiplierTestVectors,
     to_format,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley_stages import (
+from low_level_arithmetic.ppg_baugh_wooley_stages import (
     BaughWooleyPartialProductGenerator,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_basic_stages import (
+from low_level_arithmetic.ppg_basic_stages import (
     BasicUnsignedPartialProductGenerator,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_booth_optim_signed_stages import (
+from low_level_arithmetic.ppg_booth_optim_signed_stages import (
     BoothOptimizedSignedPartialProductGenerator,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_booth_optim_stages import (
+from low_level_arithmetic.ppg_booth_optim_stages import (
     BoothOptimizedPartialProductGenerator,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_booth_unoptim_stages import (
+from low_level_arithmetic.ppg_booth_unoptim_stages import (
     BoothUnoptimizedPartialProductGenerator,
 )
 from low_level_arithmetic.multiplier_stage_core import (
@@ -35,7 +35,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     RippleCarryFinalAdder,
     StageBasedMultiplier,
 )
-from low_level_arithmetic.prefix_adder_stage import (
+from low_level_arithmetic.fsa_stages import (
     BrentKungPrefixFinalStage,
     PrefixAdderFinalStage,
     RipplePrefixFinalStage,
