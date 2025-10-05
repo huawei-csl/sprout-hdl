@@ -6,11 +6,14 @@ from enum import Enum
 from typing import Tuple
 
 from low_level_arithmetic.compressor_tree_accumulator_stages import (
+    CarrySaveAccumulator,
     DaddaTreeAccumulator,
+    FourTwoCompressorAccumulator,
     WallaceTreeAccumulator,
 )
-from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley import (
+from low_level_arithmetic.test_vector_generation import (
     MultiplierTestVectors,
+    to_format,
 )
 from low_level_arithmetic.compressor_tree_direct_sprout_hdl_baugh_wooley_stages import (
     BaughWooleyPartialProductGenerator,
@@ -38,6 +41,7 @@ from low_level_arithmetic.prefix_adder_stage import (
     RipplePrefixFinalStage,
     SklanskyPrefixFinalStage,
 )
+from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
 
 # Options for each stage
@@ -54,6 +58,8 @@ class PPAOption(Enum):
     COMPRESSOR_TREE = CompressorTreeAccumulator
     WALLACE_TREE = WallaceTreeAccumulator
     DADDA_TREE = DaddaTreeAccumulator
+    CARRY_SAVE_TREE = CarrySaveAccumulator
+    FOUR_TWO_COMPRESSOR = FourTwoCompressorAccumulator
 
 
 class FSAOption(Enum):
@@ -64,10 +70,12 @@ class FSAOption(Enum):
     PREFIX_RCA = RipplePrefixFinalStage
 
 def main() -> None:  # pragma: no cover - demonstration only
-    
+
     # define some demo combinations to try
     demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
         (PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+        (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KS),
+        (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BK),
         (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KS),
         (PPGOption.BOOTH_UNOPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_RCA),
         (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BK),
@@ -75,14 +83,15 @@ def main() -> None:  # pragma: no cover - demonstration only
     )
 
     width = 16
-    
+
     completed_demo_runs = 0
-    
+
     for width in (4, 8, 16):
 
         for ppg_opt, ppa_opt, fsa_opt in demos:
             for signed_a, signed_b in ppg_opt.value.supported_signatures or ((False, False),):
                 print(f"Building multiplier with width={width}, signed_a={signed_a}, signed_b={signed_b}, PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
+                reset_shared_cache()
                 multiplier = StageBasedMultiplier(
                     a_w=width,
                     b_w=width,
@@ -105,14 +114,16 @@ def main() -> None:  # pragma: no cover - demonstration only
                     b_w=width,
                     num_vectors=8,
                     tb_sigma=None,
-                    signed_a=signed_a,
-                    signed_b=signed_b,
+                    format_a=to_format(signed_a),
+                    format_b=to_format(signed_b),
                 ).generate()
                 _ = specs
                 run_vectors_io(module, vecs, decoder=decoder)
 
                 completed_demo_runs += 1
                 print(f"Completed {completed_demo_runs} multiplier demos.")
+                gr = module.module_analyze()
+                print(f"Graph report: {gr}")
 
 
 if __name__ == "__main__":

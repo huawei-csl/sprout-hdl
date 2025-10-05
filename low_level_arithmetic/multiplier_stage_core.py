@@ -227,6 +227,34 @@ class StageBasedMultiplier(Component):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         return module
+    
+class StageBasedSignMagnitudeMultiplier(StageBasedMultiplier):
+    def __init__(
+        self,
+        a_w: int,
+        b_w: int,
+        *,
+        signed_a: bool = False,
+        signed_b: bool = False,
+        optim_type: Literal["area", "speed"] = "area",
+        ppg_cls: Type[PartialProductGeneratorBase],
+        ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
+        fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
+    ) -> None:
+        if signed_a or signed_b:
+            raise ValueError("StageBasedSignMagnitudeMultiplier only supports unsigned inputs")
+        super().__init__(
+            a_w,
+            b_w,
+            signed_a=False,
+            signed_b=False,
+            optim_type=optim_type,
+            ppg_cls=ppg_cls,
+            ppa_cls=ppa_cls,
+            fsa_cls=fsa_cls,
+        )
+        base_type_y = SInt if (signed_a or signed_b) else UInt
+        self.io.y = Signal(name="y", typ=base_type_y(self.config.out_width), kind="output")
 
 
 def gen_spec(component: Component) -> Dict[str, UInt]:

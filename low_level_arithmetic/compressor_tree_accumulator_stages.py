@@ -10,7 +10,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     full_adder_fast,
     full_adder_low_area,
 )
-from sprouthdl.sprouthdl import Expr
+from sprouthdl.sprouthdl import Bool, Const, Expr
 
 
 if TYPE_CHECKING:
@@ -124,3 +124,99 @@ class DaddaTreeAccumulator(PartialProductAccumulatorBase):
                 carries.append(c)
 
         return working, carries
+
+
+class CarrySaveAccumulator(PartialProductAccumulatorBase):
+    """Iterative carry-save reduction using only full adders."""
+
+    def __init__(self, core: "StageBasedMultiplier") -> None:
+        super().__init__(core)
+        self._full_adder = (
+            full_adder_low_area
+            if self.core.config.optim_type == "area"
+            else full_adder_fast
+        )
+
+    def accumulate(self, columns: Dict[int, List[Expr]]) -> DefaultDict[int, List[Expr]]:
+        cols: DefaultDict[int, List[Expr]] = defaultdict(list)
+        for weight, bits in columns.items():
+            cols[weight].extend(bits)
+
+        while True:
+            next_cols: DefaultDict[int, List[Expr]] = defaultdict(list)
+            progress = False
+
+            for weight in sorted(cols.keys()):
+                bits = list(cols[weight])
+                while len(bits) >= 3:
+                    x, y, z = bits.pop(), bits.pop(), bits.pop()
+                    s, c = self._full_adder(x, y, z)
+                    next_cols[weight].append(s)
+                    next_cols[weight + 1].append(c)
+                    progress = True
+                if bits:
+                    next_cols[weight].extend(bits)
+
+            if not progress:
+                return cols
+
+            cols = next_cols
+
+
+class FourTwoCompressorAccumulator(PartialProductAccumulatorBase):
+    """Reduction based on 4:2 compressors backed by chained full adders."""
+
+    def __init__(self, core: "StageBasedMultiplier") -> None:
+        super().__init__(core)
+        self._full_adder = (
+            full_adder_low_area
+            if self.core.config.optim_type == "area"
+            else full_adder_fast
+        )
+        self._zero = Const(False, Bool())
+
+    def accumulate(self, columns: Dict[int, List[Expr]]) -> DefaultDict[int, List[Expr]]:
+        cols: DefaultDict[int, List[Expr]] = defaultdict(list)
+        for weight, bits in columns.items():
+            cols[weight].extend(bits)
+
+        while True:
+            next_cols: DefaultDict[int, List[Expr]] = defaultdict(list)
+            progress = False
+
+            for weight in sorted(cols.keys()):
+                bits = list(cols[weight])
+
+                while len(bits) >= 4:
+                    a = bits.pop()
+                    b = bits.pop()
+                    c = bits.pop()
+                    d = bits.pop()
+                    sum_bit, carry_low, carry_high = self._compress_4_2(a, b, c, d)
+                    next_cols[weight].append(sum_bit)
+                    next_cols[weight + 1].extend((carry_low, carry_high))
+                    progress = True
+
+                if len(bits) == 3:
+                    x, y, z = bits.pop(), bits.pop(), bits.pop()
+                    s, c = self._full_adder(x, y, z)
+                    next_cols[weight].append(s)
+                    next_cols[weight + 1].append(c)
+                    progress = True
+                elif len(bits) == 2:
+                    s, c = half_adder(bits.pop(), bits.pop())
+                    next_cols[weight].append(s)
+                    next_cols[weight + 1].append(c)
+                    progress = True
+                elif len(bits) == 1:
+                    next_cols[weight].append(bits.pop())
+
+            if not progress:
+                return cols
+
+            cols = next_cols
+
+    def _compress_4_2(self, a: Expr, b: Expr, c: Expr, d: Expr) -> Tuple[Expr, Expr, Expr]:
+        s1, c1 = self._full_adder(a, b, c)
+        s2, c2 = self._full_adder(s1, d, self._zero)
+        return s2, c1, c2

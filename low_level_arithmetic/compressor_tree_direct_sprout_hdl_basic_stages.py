@@ -19,7 +19,7 @@ from testing.test_different_logic import run_vectors_io
 class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = (
         (False, False),
-        (True, False),
+        (True, True),
     )
 
     def generate_columns(self) -> DefaultDict[int, List[Expr]]:
@@ -53,7 +53,7 @@ class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
         return cols
 
 
-class MultiplierCompressorTree(StageBasedMultiplier):
+class ConfiguredMultiplier(StageBasedMultiplier):
     def __init__(
         self,
         a_w: int,
@@ -85,7 +85,7 @@ class MultiplierCompressorTree(StageBasedMultiplier):
         )
 
 
-def gen_sprout_module(mult: MultiplierCompressorTree) -> Module:
+def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
     return mult.to_module(f"Mul{mult.config.a_width}_ct_basic")
 
 
@@ -93,7 +93,7 @@ def main() -> None:
     n_bits = 16
     signed = True
 
-    mult = MultiplierCompressorTree(
+    mult = ConfiguredMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         signed_a=signed,
