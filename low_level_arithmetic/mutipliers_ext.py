@@ -26,8 +26,8 @@ class StageBasedExtMultiplier(Component):
         fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
 
-        self.format_a = a_format
-        self.format_b = b_format
+        self.a_format = a_format
+        self.b_format = b_format
         self.aw = a_w
         self.bw = b_w
         self.optim_type = optim_type  
@@ -41,7 +41,7 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.format_a == Encoding.sign_magnitude and self.format_b == Encoding.sign_magnitude, "Only sign-magnitude format is supported"
+        assert self.a_format == Encoding.sign_magnitude and self.b_format == Encoding.sign_magnitude, "Only sign-magnitude format is supported"
 
         self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=UInt(self.aw), kind="input"),
@@ -95,7 +95,7 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.format_a == Encoding.sign_magnitude_ext and self.format_b == Encoding.sign_magnitude_ext, "Only sign-magnitude extended format is supported"
+        assert self.a_format == Encoding.sign_magnitude_ext and self.b_format == Encoding.sign_magnitude_ext, "Only sign-magnitude extended format is supported"
 
         self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=UInt(self.aw), kind="input"),

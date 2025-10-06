@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Tuple
+from typing import NamedTuple, Tuple, Type
 
 from low_level_arithmetic.multiplier_stage_options_demo import FSAOption, PPAOption, PPGOption
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeMultiplier
@@ -49,9 +49,16 @@ from testing.test_different_logic import run_vectors_io
 
 
 def main() -> None:  # pragma: no cover - demonstration only
+    
+    class Demo(NamedTuple):
+        multiplier_cls: Type[StageBasedExtMultiplier]
+        encoding: Encoding
+        ppg_opt: PPGOption
+        ppa_opt: PPAOption
+        fsa_opt: FSAOption
 
     # define some demo combinations to try
-    demos: Tuple[Tuple[StageBasedExtMultiplier, Encoding, PPGOption, PPAOption, FSAOption], ...] = (
+    demos: Tuple[Demo, ...] = (
         (StageBasedSignMagnitudeMultiplier, Encoding.sign_magnitude, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         (StageBasedSignMagnitudeExtMultiplier, Encoding.sign_magnitude_ext, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         # (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KS),
@@ -75,11 +82,11 @@ def main() -> None:  # pragma: no cover - demonstration only
 
             reset_shared_cache()
 
-            multiplier: StageBasedExtMultiplier = multiplier_cls(
+            multiplier = multiplier_cls(
                 a_w=width,
                 b_w=width,
-                format_a=format,
-                format_b=format,
+                a_format=format,
+                b_format=format,
                 ppg_cls=ppg_opt.value,
                 ppa_cls=ppa_opt.value,
                 fsa_cls=fsa_opt.value,
