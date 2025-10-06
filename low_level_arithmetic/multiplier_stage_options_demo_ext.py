@@ -14,7 +14,7 @@ from low_level_arithmetic.ppa_stages import (
     WallaceTreeAccumulator,
 )
 from low_level_arithmetic.test_vector_generation import (
-    Format,
+    Encoding,
     MultiplierTestVectors,
     to_format,
 )
@@ -51,9 +51,9 @@ from testing.test_different_logic import run_vectors_io
 def main() -> None:  # pragma: no cover - demonstration only
 
     # define some demo combinations to try
-    demos: Tuple[Tuple[StageBasedExtMultiplier, Format, PPGOption, PPAOption, FSAOption], ...] = (
-        (StageBasedSignMagnitudeMultiplier, Format.sign_magnitude, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (StageBasedSignMagnitudeExtMultiplier, Format.sign_magnitude_ext, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+    demos: Tuple[Tuple[StageBasedExtMultiplier, Encoding, PPGOption, PPAOption, FSAOption], ...] = (
+        (StageBasedSignMagnitudeMultiplier, Encoding.sign_magnitude, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+        (StageBasedSignMagnitudeExtMultiplier, Encoding.sign_magnitude_ext, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         # (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KS),
         # (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BK),
         # (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KS),
@@ -95,8 +95,9 @@ def main() -> None:  # pragma: no cover - demonstration only
                 y_w=multiplier.io.y.typ.width,
                 num_vectors=num_vectors,
                 tb_sigma=None,
-                format_a=format,
-                format_b=format,  # to_format(signed_b),
+                a_format=format,
+                b_format=format,
+                y_format=format,
             ).generate()
 
             run_vectors_io(module, vecs, decoder=decoder)

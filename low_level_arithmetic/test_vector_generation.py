@@ -10,7 +10,7 @@ from sprouthdl.sprouthdl import UInt
 # enum for
 
 
-class Format(Enum):
+class Encoding(Enum):
     twos_complement = "twos_complement"
     twos_complement_symmetric = "twos_complement_symmetric"
     sign_magnitude = "sign_magnitude"
@@ -19,19 +19,19 @@ class Format(Enum):
     unsigned = "unsigned"
     onehot = "onehot"
 
-def to_format(signed: bool | Format) -> Format:
-    if isinstance(signed, Format):
+def to_format(signed: bool | Encoding) -> Encoding:
+    if isinstance(signed, Encoding):
         return signed
-    return Format.twos_complement if signed else Format.unsigned
+    return Encoding.twos_complement if signed else Encoding.unsigned
 
 
 class MultiplierTestVectors:
 
     _SIGNED_FORMATS = {
-        Format.twos_complement,
-        Format.twos_complement_symmetric,
-        Format.sign_magnitude,
-        Format.sign_magnitude_ext,
+        Encoding.twos_complement,
+        Encoding.twos_complement_symmetric,
+        Encoding.sign_magnitude,
+        Encoding.sign_magnitude_ext,
     }
 
     def __init__(
@@ -41,32 +41,34 @@ class MultiplierTestVectors:
         y_w: Optional[int] = None,
         num_vectors: int = 64,
         tb_sigma: Optional[float] = None,
-        format_a: Format = Format.unsigned,
-        format_b: Format = Format.unsigned,
+        a_format: Encoding = Encoding.unsigned,
+        b_format: Encoding = Encoding.unsigned,
+        y_format: Encoding = Encoding.unsigned,
     ):
         self.a_w = a_w
         self.b_w = b_w
         self.y_w = a_w + b_w if y_w is None else y_w
         self.num_vectors = num_vectors
         self.tb_sigma = tb_sigma
-        self.a_format = format_a
-        self.b_format = format_b
+        self.a_format = a_format
+        self.b_format = b_format
+        self.y_format = y_format
 
     @classmethod
-    def _is_signed(cls, fmt: Format) -> bool:
+    def _is_signed(cls, fmt: Encoding) -> bool:
         return fmt in cls._SIGNED_FORMATS
 
     @staticmethod
-    def _value_range(fmt: Format, width: int) -> Tuple[int, int]:
-        if fmt in [Format.twos_complement, Format.sign_magnitude_ext]:
+    def _value_range(fmt: Encoding, width: int) -> Tuple[int, int]:
+        if fmt in [Encoding.twos_complement, Encoding.sign_magnitude_ext]:
             return (-(1 << (width - 1)), (1 << (width - 1)) - 1)
-        if fmt == Format.twos_complement_symmetric:
+        if fmt == Encoding.twos_complement_symmetric:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
-        if fmt in [Format.sign_magnitude]:
+        if fmt in [Encoding.sign_magnitude]:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
-        if fmt == Format.onehot:
+        if fmt == Encoding.onehot:
             return (0, max(width - 1, 0))
         # unsigned-like formats (unsigned, gray)
         return (0, (1 << width) - 1)
@@ -76,23 +78,23 @@ class MultiplierTestVectors:
         return max(min(value, hi), lo)
 
     @staticmethod
-    def _encode_value(fmt: Format, value: int, width: int) -> int:
+    def _encode_value(fmt: Encoding, value: int, width: int) -> int:
         # to be sure lets clamp
         clamped = MultiplierTestVectors._clamp(value, *MultiplierTestVectors._value_range(fmt, width))
-        if fmt == Format.onehot:
+        if fmt == Encoding.onehot:
             return 1 << clamped
-        if fmt == Format.gray:            
+        if fmt == Encoding.gray:            
             return clamped ^ (clamped >> 1)
-        if fmt in [Format.sign_magnitude, Format.sign_magnitude_ext]:
+        if fmt in [Encoding.sign_magnitude, Encoding.sign_magnitude_ext]:
             sign_bit = 1 if clamped < 0 else 0
             magnitude = abs(clamped)
             magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
             return (sign_bit << (width - 1)) | magnitude
         return value
 
-    def get_normal_sample(self, fmt: Format, width: int) -> int:
+    def get_normal_sample(self, fmt: Encoding, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
-        if fmt == Format.onehot:
+        if fmt == Encoding.onehot:
             center = (width - 1) / 2 if width > 0 else 0
             raw_value = int(np.round(np.random.normal(center, self.tb_sigma)))
             raw_value = self._clamp(raw_value, lo, hi)
@@ -103,9 +105,9 @@ class MultiplierTestVectors:
         raw_value = self._clamp(raw_value, lo, hi)
         return raw_value
 
-    def get_uniform_sample(self, fmt: Format, width: int) -> int:
+    def get_uniform_sample(self, fmt: Encoding, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
-        if fmt == Format.onehot:
+        if fmt == Encoding.onehot:
             if width <= 0:
                 return 0
             raw_value = random.randrange(width)
@@ -129,7 +131,7 @@ class MultiplierTestVectors:
             vb_encoded = self._encode_value(self.b_format, vb_value, self.b_w)
 
             y_value = va_value * vb_value
-            y_encoded = self._encode_value(self.a_format, y_value, self.y_w)
+            y_encoded = self._encode_value(self.y_format, y_value, self.y_w)
 
             # append test vector
             vecs.append(

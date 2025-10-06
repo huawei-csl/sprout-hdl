@@ -12,7 +12,7 @@ from low_level_arithmetic.ppa_stages import (
     WallaceTreeAccumulator,
 )
 from low_level_arithmetic.test_vector_generation import (
-    Format,
+    Encoding,
     MultiplierTestVectors,
     to_format,
 )
@@ -117,8 +117,8 @@ def main() -> None:  # pragma: no cover - demonstration only
                     b_w=width,
                     num_vectors=8,
                     tb_sigma=None,
-                    format_a=to_format(signed_a),
-                    format_b=to_format(signed_b),
+                    a_format=to_format(signed_a),
+                    b_format=to_format(signed_b),
                 ).generate()
                 _ = specs
                 run_vectors_io(module, vecs, decoder=decoder)

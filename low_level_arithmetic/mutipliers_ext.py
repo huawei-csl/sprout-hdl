@@ -6,7 +6,7 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 import numpy as np
 
 from low_level_arithmetic.multiplier_stage_core import Component, CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
-from low_level_arithmetic.test_vector_generation import Format
+from low_level_arithmetic.test_vector_generation import Encoding
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 
@@ -18,16 +18,16 @@ class StageBasedExtMultiplier(Component):
         a_w: int,
         b_w: int,
         *,
-        format_a: Format = Format.unsigned,
-        format_b: Format = Format.unsigned,
+        a_format: Encoding = Encoding.unsigned,
+        b_format: Encoding = Encoding.unsigned,
         optim_type: Literal["area", "speed"] = "area",
         ppg_cls: Type[PartialProductGeneratorBase],
         ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
 
-        self.format_a = format_a
-        self.format_b = format_b
+        self.format_a = a_format
+        self.format_b = b_format
         self.aw = a_w
         self.bw = b_w
         self.optim_type = optim_type  
@@ -41,7 +41,7 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.format_a == Format.sign_magnitude and self.format_b == Format.sign_magnitude, "Only sign-magnitude format is supported"
+        assert self.format_a == Encoding.sign_magnitude and self.format_b == Encoding.sign_magnitude, "Only sign-magnitude format is supported"
 
         self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=UInt(self.aw), kind="input"),
@@ -95,7 +95,7 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.format_a == Format.sign_magnitude_ext and self.format_b == Format.sign_magnitude_ext, "Only sign-magnitude extended format is supported"
+        assert self.format_a == Encoding.sign_magnitude_ext and self.format_b == Encoding.sign_magnitude_ext, "Only sign-magnitude extended format is supported"
 
         self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=UInt(self.aw), kind="input"),

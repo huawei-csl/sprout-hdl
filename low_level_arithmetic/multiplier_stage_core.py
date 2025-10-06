@@ -7,7 +7,7 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 
 import numpy as np
 
-from low_level_arithmetic.test_vector_generation import Format
+from low_level_arithmetic.test_vector_generation import Encoding
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux
 from sprouthdl.sprouthdl_module import Module
 
