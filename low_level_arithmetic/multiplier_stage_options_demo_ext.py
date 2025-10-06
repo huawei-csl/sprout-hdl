@@ -52,7 +52,7 @@ def main() -> None:  # pragma: no cover - demonstration only
 
     # define some demo combinations to try
     demos: Tuple[Tuple[StageBasedExtMultiplier, Format, PPGOption, PPAOption, FSAOption], ...] = (
-        #(StageBasedSignMagnitudeMultiplier, Format.sign_magnitude, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+        (StageBasedSignMagnitudeMultiplier, Format.sign_magnitude, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         (StageBasedSignMagnitudeExtMultiplier, Format.sign_magnitude_ext, PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         # (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KS),
         # (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BK),
@@ -68,7 +68,6 @@ def main() -> None:  # pragma: no cover - demonstration only
 
     num_vectors = 1000
     bitwidths = [4, 8, 16]
-    bitwidths = [4]
 
     for width in bitwidths:
 

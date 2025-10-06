@@ -1,8 +1,9 @@
+from enum import Enum
 import random
 from typing import Optional, Tuple, Union
 
 import numpy as np
-from tables import Enum
+
 
 from sprouthdl.sprouthdl import UInt
 
@@ -57,12 +58,12 @@ class MultiplierTestVectors:
 
     @staticmethod
     def _value_range(fmt: Format, width: int) -> Tuple[int, int]:
-        if fmt in (Format.twos_complement, Format.sign_magnitude_ext):
+        if fmt in [Format.twos_complement, Format.sign_magnitude_ext]:
             return (-(1 << (width - 1)), (1 << (width - 1)) - 1)
         if fmt == Format.twos_complement_symmetric:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
-        if fmt in (Format.sign_magnitude):
+        if fmt in [Format.sign_magnitude]:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
         if fmt == Format.onehot:
@@ -82,7 +83,7 @@ class MultiplierTestVectors:
             return 1 << clamped
         if fmt == Format.gray:            
             return clamped ^ (clamped >> 1)
-        if fmt in (Format.sign_magnitude, Format.sign_magnitude_ext):
+        if fmt in [Format.sign_magnitude, Format.sign_magnitude_ext]:
             sign_bit = 1 if clamped < 0 else 0
             magnitude = abs(clamped)
             magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
