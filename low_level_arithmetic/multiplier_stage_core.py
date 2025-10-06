@@ -37,6 +37,33 @@ class Component(abc.ABC):
     @abc.abstractmethod
     def elaborate(self) -> None:  # pragma: no cover - structural hook
         raise NotImplementedError
+    
+    # convenience helpers -------------------------------------------------------
+    
+    def to_module(self, name: Optional[str] = None) -> Module:
+        module = Module(
+            name or f"Mul{self.config.a_width}x{self.config.b_width}_ct",
+            with_clock=False,
+            with_reset=False,
+        )
+        for sig in self.io.__dict__.values():
+            if sig.kind == "input":
+                module.add_input(sig)
+            elif sig.kind == "output":
+                module.add_output(sig)
+            else:
+                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
+        module.component = self # can be used for debugging
+        return module
+    
+    def make_internal(self) -> 'Component':
+        # go through all signals in io and change to 'wire'
+        for sig in self.io.__dict__.values():
+            if sig.kind in ('input', 'output'):
+                sig.kind = 'wire'
+            else:
+                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
+        return self
 
 
 @dataclass(frozen=True)
@@ -207,23 +234,6 @@ class StageBasedMultiplier(Component):
         self.fsa = fsa_cls(self.config)
         
         self.elaborate()
-        
-    # convenience helpers -------------------------------------------------------
-    
-    def to_module(self, name: Optional[str] = None) -> Module:
-        module = Module(
-            name or f"Mul{self.config.a_width}x{self.config.b_width}_ct",
-            with_clock=False,
-            with_reset=False,
-        )
-        for sig in self.io.__dict__.values():
-            if sig.kind == "input":
-                module.add_input(sig)
-            elif sig.kind == "output":
-                module.add_output(sig)
-            else:
-                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
-        return module
 
     def elaborate(self) -> None:
         columns = self.ppg.generate_columns(self.io)
@@ -231,74 +241,10 @@ class StageBasedMultiplier(Component):
         result_bits = self.fsa.resolve(reduced_columns)
         expected_width = self.io.y.typ.width
         self.io.y <<= Concat(reversed(result_bits[:expected_width]))
-
-
-class StageBasedSignMagnitudeMultiplier(Component):
-
-    def __init__(
-        self,
-        a_w: int,
-        b_w: int,
-        *,
-        format_a: Format = Format.unsigned,
-        format_b: Format = Format.unsigned,
-        optim_type: Literal["area", "speed"] = "area",
-        ppg_cls: Type[PartialProductGeneratorBase],
-        ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
-        fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
-    ) -> None:
         
-        self.format_a = format_a
-        self.format_b = format_b
-        self.aw = a_w
-        self.bw = b_w
-        self.optim_type = optim_type  
-        self.ppg_cls = ppg_cls
-        self.ppa_cls = ppa_cls
-        self.fsa_cls = fsa_cls
-
-        assert self.format_a == Format.sign_magnitude and self.format_b == Format.sign_magnitude, "Only sign-magnitude format is supported"
-
-        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
-            a=Signal(name="a", typ=UInt(a_w), kind="input"),
-            b=Signal(name="b", typ=UInt(b_w), kind="input"),
-            y=Signal(name="y", typ=UInt(a_w + b_w), kind="output"),
-        )
-
-        self.elaborate()
-
-    def elaborate(self) -> None:
-
-        # instantiate an unsigned multiplier for the magnitudes
-        mult = StageBasedMultiplier(signed_a=False, signed_b=False,
-                                    a_w=self.aw - 1, b_w=self.bw - 1,
-                                    ppg_cls=self.ppg_cls, ppa_cls=self.ppa_cls,
-                                    fsa_cls=self.fsa_cls, optim_type=self.optim_type)
-        mult.elaborate()
-
-        W = self.aw  # assume square for now
-
-        sa = self.io.a[W - 1]
-        sb = self.io.b[W - 1]
-        mag_a = self.io.a[W - 2 : 0]  # make magnitude unsigned
-        mag_b = self.io.b[W - 2 : 0]  # make magnitude unsigned
-
-        mag_y = mag_a * mag_b
-
-        # or
-        # mult.io.a <<= mag_a
-        # mult.io.b <<= mag_b
-        # mag_y = mult.io.y
-
-        # sign
-        sy = sa ^ sb
-
-        # make sure sign is positive if value is zero
-        is_zero = mux(mag_y == 0, Const(True, Bool()), Const(False, Bool()))
-        sy = mux(is_zero, Const(False, Bool()), sy)
-
-        self.io.y <<= Concat([sy, mag_y[2*W-2:0]])  # sign + magnitude (drop overflow bit)
-
+        # debugging
+        self.colums = columns
+        self.reduced_columns = reduced_columns
 
 def gen_spec(component: Component) -> Dict[str, UInt]:
     spec: Dict[str, UInt] = {}

@@ -37,6 +37,7 @@ class MultiplierTestVectors:
         self,
         a_w: int,
         b_w: int,
+        y_w: Optional[int] = None,
         num_vectors: int = 64,
         tb_sigma: Optional[float] = None,
         format_a: Format = Format.unsigned,
@@ -44,7 +45,7 @@ class MultiplierTestVectors:
     ):
         self.a_w = a_w
         self.b_w = b_w
-        self.y_w = a_w + b_w
+        self.y_w = a_w + b_w if y_w is None else y_w
         self.num_vectors = num_vectors
         self.tb_sigma = tb_sigma
         self.a_format = format_a
@@ -84,6 +85,7 @@ class MultiplierTestVectors:
         if fmt in (Format.sign_magnitude, Format.sign_magnitude_ext):
             sign_bit = 1 if clamped < 0 else 0
             magnitude = abs(clamped)
+            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
             return (sign_bit << (width - 1)) | magnitude
         return value
 
@@ -110,24 +112,6 @@ class MultiplierTestVectors:
         raw_value = random.randint(lo, hi)
         return raw_value
 
-    def _decode_value(self, fmt: Format, encoded: int, width: int) -> int:
-        if fmt == Format.onehot:
-            if width <= 0 or encoded == 0:
-                return 0
-            lowest_bit = encoded & -encoded
-            return lowest_bit.bit_length() - 1
-        if fmt == Format.gray:
-            value = encoded
-            temp = encoded
-            while temp:
-                temp >>= 1
-                value ^= temp
-            return value
-        if fmt in (Format.sign_magnitude, Format.sign_magnitude_ext):
-            sign_bit = (encoded >> (width - 1)) & 1
-            magnitude = encoded & ((1 << (width - 1)) - 1)
-            return -magnitude if sign_bit else magnitude
-        return encoded
 
     def generate(self) -> Tuple:
 
@@ -139,15 +123,11 @@ class MultiplierTestVectors:
             else:
                 va_value = self.get_uniform_sample(self.a_format, self.a_w)
                 vb_value = self.get_uniform_sample(self.b_format, self.b_w)
-
+            
             va_encoded = self._encode_value(self.a_format, va_value, self.a_w)
             vb_encoded = self._encode_value(self.b_format, vb_value, self.b_w)
 
-            # decode encodings to compute expected arithmetic results
-            va_value_dec = self._decode_value(self.a_format, va_encoded, self.a_w)
-            vb_value_dec = self._decode_value(self.b_format, vb_encoded, self.b_w)
-
-            y_value = va_value_dec * vb_value_dec
+            y_value = va_value * vb_value
             y_encoded = self._encode_value(self.a_format, y_value, self.y_w)
 
             # append test vector

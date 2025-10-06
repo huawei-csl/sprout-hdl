@@ -1,3 +1,4 @@
+
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
 
 
@@ -22,6 +23,7 @@ class Module:
             self.rst = self.input(Bool(), "rst")
         else:
             self.rst = None
+        self.component : Optional["Component"] = None
 
     # Signal constructors
     def input(self, typ: HDLType, name: str) -> Signal:

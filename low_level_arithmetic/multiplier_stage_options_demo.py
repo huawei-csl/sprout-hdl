@@ -35,7 +35,6 @@ from low_level_arithmetic.multiplier_stage_core import (
     CompressorTreeAccumulator,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
-    StageBasedSignMagnitudeMultiplier,
 )
 from low_level_arithmetic.fsa_stages import (
     BrentKungPrefixFinalStage,

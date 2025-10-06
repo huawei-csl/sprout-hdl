@@ -356,7 +356,7 @@ def gen_spec(class_instance: Component) -> Dict[str, UInt]:
     return spec
 
 def main():
-    n_bits = 16
+    n_bits = 4
     signed = False
     mult = MultiplierCompressorTree(a_w=n_bits, b_w=n_bits, signed_a=signed, signed_b=signed)
     m = gen_sprout_module(mult)

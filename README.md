@@ -64,6 +64,7 @@ print(m.to_verilog())
 - add better hierarchy capablities / all in graph.  m.wire / m.reg not necessary.
 - type conversions: sint, uint, etc
 - Uint(value), optional length bit?
+- simulation: get any signal in graph wich is there implicitly, run simulation just on function and after setting starting nodes to a value
 
 ## License
 
