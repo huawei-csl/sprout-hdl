@@ -13,21 +13,27 @@ from sprouthdl.sprouthdl import UInt
 class Encoding(Enum):
     twos_complement = "twos_complement"
     twos_complement_symmetric = "twos_complement_symmetric"
+    twos_complement_upper = "twos_complement_upper"
     sign_magnitude = "sign_magnitude"
     sign_magnitude_ext = "sign_magnitude_ext"
     gray = "gray"
     unsigned = "unsigned"
     onehot = "onehot"
+    sign_magnitude_ext_up = "sign_magnitude_ext_up"
 
-def to_format(signed: bool | Encoding) -> Encoding:
+def to_encoding(signed: bool | Encoding) -> Encoding:
     if isinstance(signed, Encoding):
         return signed
     return Encoding.twos_complement if signed else Encoding.unsigned
 
+def from_encoding(fmt: Encoding) -> bool:
+    assert fmt in {Encoding.twos_complement, Encoding.unsigned}, f"Cannot convert encoding {fmt} to bool"
+    return fmt == Encoding.twos_complement
+
 
 class MultiplierTestVectors:
 
-    _SIGNED_FORMATS = {
+    _SIGNED_encodings = {
         Encoding.twos_complement,
         Encoding.twos_complement_symmetric,
         Encoding.sign_magnitude,
@@ -41,22 +47,22 @@ class MultiplierTestVectors:
         y_w: Optional[int] = None,
         num_vectors: int = 64,
         tb_sigma: Optional[float] = None,
-        a_format: Encoding = Encoding.unsigned,
-        b_format: Encoding = Encoding.unsigned,
-        y_format: Encoding = Encoding.unsigned,
+        a_encoding: Encoding = Encoding.unsigned,
+        b_encoding: Encoding = Encoding.unsigned,
+        y_encoding: Encoding = Encoding.unsigned,
     ):
         self.a_w = a_w
         self.b_w = b_w
         self.y_w = a_w + b_w if y_w is None else y_w
         self.num_vectors = num_vectors
         self.tb_sigma = tb_sigma
-        self.a_format = a_format
-        self.b_format = b_format
-        self.y_format = y_format
+        self.a_encoding = a_encoding
+        self.b_encoding = b_encoding
+        self.y_encoding = y_encoding
 
     @classmethod
     def _is_signed(cls, fmt: Encoding) -> bool:
-        return fmt in cls._SIGNED_FORMATS
+        return fmt in cls._SIGNED_encodings
 
     @staticmethod
     def _value_range(fmt: Encoding, width: int) -> Tuple[int, int]:
@@ -65,12 +71,16 @@ class MultiplierTestVectors:
         if fmt == Encoding.twos_complement_symmetric:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
+        if fmt == Encoding.twos_complement_upper: # extend on the upper side
+            return (-(1 << (width - 1))+1, (1 << (width - 1)))
         if fmt in [Encoding.sign_magnitude]:
             limit = (1 << (width - 1)) - 1
             return (-limit, limit)
+        if fmt== Encoding.sign_magnitude_ext_up: # extend on the upper side
+            return (-(1 << (width - 1) + 1), (1 << (width - 1)))
         if fmt == Encoding.onehot:
             return (0, max(width - 1, 0))
-        # unsigned-like formats (unsigned, gray)
+        # unsigned-like encodings (unsigned, gray)
         return (0, (1 << width) - 1)
 
     @staticmethod
@@ -90,6 +100,18 @@ class MultiplierTestVectors:
             magnitude = abs(clamped)
             magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
             return (sign_bit << (width - 1)) | magnitude
+        if fmt == Encoding.sign_magnitude_ext_up:
+            sign_bit = 1 if clamped < 0 else 0
+            magnitude = abs(clamped)
+            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
+            if clamped == (1 << (width - 1)):
+                sign_bit = 1 # 100..0 represents the upper limit
+            return (sign_bit << (width - 1)) | magnitude
+        if fmt in [Encoding.twos_complement, Encoding.twos_complement_symmetric, Encoding.twos_complement_upper]:
+            if clamped < 0:
+                return (1 << width) + clamped  # two's complement representation
+            else:
+                return clamped
         return value
 
     def get_normal_sample(self, fmt: Encoding, width: int) -> int:
@@ -115,23 +137,22 @@ class MultiplierTestVectors:
         raw_value = random.randint(lo, hi)
         return raw_value
 
-
     def generate(self) -> Tuple:
 
         vecs = []
         for _ in range(self.num_vectors):
             if self.tb_sigma is not None:
-                va_value = self.get_normal_sample(self.a_format, self.a_w)
-                vb_value = self.get_normal_sample(self.b_format, self.b_w)
+                va_value = self.get_normal_sample(self.a_encoding, self.a_w)
+                vb_value = self.get_normal_sample(self.b_encoding, self.b_w)
             else:
-                va_value = self.get_uniform_sample(self.a_format, self.a_w)
-                vb_value = self.get_uniform_sample(self.b_format, self.b_w)
-            
-            va_encoded = self._encode_value(self.a_format, va_value, self.a_w)
-            vb_encoded = self._encode_value(self.b_format, vb_value, self.b_w)
+                va_value = self.get_uniform_sample(self.a_encoding, self.a_w)
+                vb_value = self.get_uniform_sample(self.b_encoding, self.b_w)
+
+            va_encoded = self._encode_value(self.a_encoding, va_value, self.a_w)
+            vb_encoded = self._encode_value(self.b_encoding, vb_value, self.b_w)
 
             y_value = va_value * vb_value
-            y_encoded = self._encode_value(self.y_format, y_value, self.y_w)
+            y_encoded = self._encode_value(self.y_encoding, y_value, self.y_w)
 
             # append test vector
             vecs.append(

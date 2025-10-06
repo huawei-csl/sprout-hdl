@@ -115,6 +115,7 @@ def run_vectors_io(
         for k, v in ins.items():
             sim.set(k, v)
         sim.eval()
+
         bad = []
         for oname, exp in outs.items():
             got_raw = sim.peek(oname) #sim.get(oname)

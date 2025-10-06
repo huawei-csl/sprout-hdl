@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, Type
+from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Self, Tuple, Type
 
 import numpy as np
 
@@ -56,7 +56,7 @@ class Component(abc.ABC):
         module.component = self # can be used for debugging
         return module
     
-    def make_internal(self) -> 'Component':
+    def make_internal(self) -> Self:
         # go through all signals in io and change to 'wire'
         for sig in self.io.__dict__.values():
             if sig.kind in ('input', 'output'):

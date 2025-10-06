@@ -14,7 +14,7 @@ from low_level_arithmetic.ppa_stages import (
 from low_level_arithmetic.test_vector_generation import (
     Encoding,
     MultiplierTestVectors,
-    to_format,
+    to_encoding,
 )
 from low_level_arithmetic.ppg_baugh_wooley_stages import (
     BaughWooleyPartialProductGenerator,
@@ -117,8 +117,8 @@ def main() -> None:  # pragma: no cover - demonstration only
                     b_w=width,
                     num_vectors=8,
                     tb_sigma=None,
-                    a_format=to_format(signed_a),
-                    b_format=to_format(signed_b),
+                    a_encoding=to_encoding(signed_a),
+                    b_encoding=to_encoding(signed_b),
                 ).generate()
                 _ = specs
                 run_vectors_io(module, vecs, decoder=decoder)
