@@ -10,6 +10,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     PartialProductGeneratorBase,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
+    StageBasedMultiplierIO,
 )
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Module
@@ -19,14 +20,16 @@ from testing.test_different_logic import run_vectors_io
 class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = ((True, True),)
 
-    def generate_columns(self) -> DefaultDict[int, List[Expr]]:
+    def generate_columns(
+        self, io: StageBasedMultiplierIO
+    ) -> DefaultDict[int, List[Expr]]:
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
 
-        a = self.core.io.a
-        b = self.core.io.b
+        a = io.a
+        b = io.b
         wa = a.typ.width
         wb = b.typ.width
-        out_bits = self.core.io.y.typ.width
+        out_bits = io.y.typ.width
 
         for i in range(wa - 1):
             for j in range(wb - 1):

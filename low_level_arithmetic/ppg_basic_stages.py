@@ -10,6 +10,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     PartialProductGeneratorBase,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
+    StageBasedMultiplierIO,
 )
 from sprouthdl.sprouthdl import Concat, Expr
 from sprouthdl.sprouthdl_module import Module
@@ -20,13 +21,17 @@ class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = (
         (False, False),
         (True, True),
+        (True, False),
+        (False, True),
     )
 
-    def generate_columns(self) -> DefaultDict[int, List[Expr]]:
+    def generate_columns(
+        self, io: StageBasedMultiplierIO
+    ) -> DefaultDict[int, List[Expr]]:
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
 
-        a = self.core.io.a
-        b = self.core.io.b
+        a = io.a
+        b = io.b
         a_vec: Expr = a
         b_vec: Expr = b
 
@@ -37,7 +42,7 @@ class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
             sign_bit = b[b.typ.width - 1]
             b_vec = Concat([sign_bit] * b.typ.width + [b])
 
-        out_bits = self.core.io.y.typ.width
+        out_bits = io.y.typ.width
 
         for i in range(a_vec.typ.width):
             for j in range(b_vec.typ.width):

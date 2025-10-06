@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from math import floor
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Tuple
+from typing import DefaultDict, Dict, List, Tuple
 
 from low_level_arithmetic.multiplier_stage_core import (
+    MultiplierConfig,
     PartialProductAccumulatorBase,
     half_adder,
     full_adder_fast,
@@ -13,18 +14,14 @@ from low_level_arithmetic.multiplier_stage_core import (
 from sprouthdl.sprouthdl import Bool, Const, Expr
 
 
-if TYPE_CHECKING:
-    from low_level_arithmetic.multiplier_stage_core import StageBasedMultiplier
-
-
 class WallaceTreeAccumulator(PartialProductAccumulatorBase):
     """Classic Wallace tree reduction of partial-product columns."""
 
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        super().__init__(core)
+    def __init__(self, config: MultiplierConfig) -> None:
+        super().__init__(config)
         self._full_adder = (
             full_adder_low_area
-            if self.core.config.optim_type == "area"
+            if self.config.optim_type == "area"
             else full_adder_fast
         )
 
@@ -64,11 +61,11 @@ class WallaceTreeAccumulator(PartialProductAccumulatorBase):
 class DaddaTreeAccumulator(PartialProductAccumulatorBase):
     """Dadda tree reduction using progressively tighter column height thresholds."""
 
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        super().__init__(core)
+    def __init__(self, config: MultiplierConfig) -> None:
+        super().__init__(config)
         self._full_adder = (
             full_adder_low_area
-            if self.core.config.optim_type == "area"
+            if self.config.optim_type == "area"
             else full_adder_fast
         )
 
@@ -129,11 +126,11 @@ class DaddaTreeAccumulator(PartialProductAccumulatorBase):
 class CarrySaveAccumulator(PartialProductAccumulatorBase):
     """Iterative carry-save reduction using only full adders."""
 
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        super().__init__(core)
+    def __init__(self, config: MultiplierConfig) -> None:
+        super().__init__(config)
         self._full_adder = (
             full_adder_low_area
-            if self.core.config.optim_type == "area"
+            if self.config.optim_type == "area"
             else full_adder_fast
         )
 
@@ -166,11 +163,11 @@ class CarrySaveAccumulator(PartialProductAccumulatorBase):
 class FourTwoCompressorAccumulator(PartialProductAccumulatorBase):
     """Reduction based on 4:2 compressors backed by chained full adders."""
 
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        super().__init__(core)
+    def __init__(self, config: MultiplierConfig) -> None:
+        super().__init__(config)
         self._full_adder = (
             full_adder_low_area
-            if self.core.config.optim_type == "area"
+            if self.config.optim_type == "area"
             else full_adder_fast
         )
         self._zero = Const(False, Bool())

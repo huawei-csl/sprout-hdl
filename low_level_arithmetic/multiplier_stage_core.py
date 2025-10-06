@@ -7,7 +7,8 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 
 import numpy as np
 
-from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt
+from low_level_arithmetic.test_vector_generation import Format
+from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux
 from sprouthdl.sprouthdl_module import Module
 
 
@@ -52,15 +53,16 @@ class MultiplierConfig:
 
 
 class StageBase(abc.ABC):
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        self.core = core
+    def __init__(self, config: MultiplierConfig) -> None:
+        self.config = config
+        self.multiplier_config = config
 
 
 class PartialProductGeneratorBase(StageBase, abc.ABC):
     supported_signatures: ClassVar[Optional[Tuple[Tuple[bool, bool], ...]]] = None
 
     @abc.abstractmethod
-    def generate_columns(self) -> DefaultDict[int, List[Expr]]:
+    def generate_columns(self, io: "StageBasedMultiplierIO") -> DefaultDict[int, List[Expr]]:
         raise NotImplementedError
 
 
@@ -77,11 +79,11 @@ class FinalStageAdderBase(StageBase, abc.ABC):
 
 
 class CompressorTreeAccumulator(PartialProductAccumulatorBase):
-    def __init__(self, core: "StageBasedMultiplier") -> None:
-        super().__init__(core)
+    def __init__(self, config: MultiplierConfig) -> None:
+        super().__init__(config)
         self._full_adder = (
             full_adder_low_area
-            if self.core.config.optim_type == "area"
+            if self.config.optim_type == "area"
             else full_adder_fast
         )
 
@@ -129,7 +131,7 @@ class CompressorTreeAccumulator(PartialProductAccumulatorBase):
 
 class RippleCarryFinalAdder(FinalStageAdderBase):
     def resolve(self, columns: Dict[int, List[Expr]]) -> List[Expr]:
-        max_weight = self.core.io.y.typ.width
+        max_weight = self.config.out_width
         result_bits: List[Expr] = []
         carry: Optional[Expr] = None
 
@@ -161,7 +163,15 @@ class RippleCarryFinalAdder(FinalStageAdderBase):
         return result_bits
 
 
+@dataclass
+class StageBasedMultiplierIO:
+    a: Signal
+    b: Signal
+    y: Signal
+
+
 class StageBasedMultiplier(Component):
+
     def __init__(
         self,
         a_w: int,
@@ -182,37 +192,24 @@ class StageBasedMultiplier(Component):
                 f"{ppg_cls.__name__} does not support signed_a={signed_a}, signed_b={signed_b}"
             )
 
-        @dataclass
-        class IO:
-            a: Signal
-            b: Signal
-            y: Signal
-
         base_typ_a = SInt if signed_a else UInt
         base_typ_b = SInt if signed_b else UInt
         base_type_y = SInt if (signed_a or signed_b) else UInt
 
-        self.io: IO = IO(
+        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=base_typ_a(a_w), kind="input"),
             b=Signal(name="b", typ=base_typ_b(b_w), kind="input"),
             y=Signal(name="y", typ=base_type_y(self.config.out_width), kind="output"),
         )
-
-        self.ppg = ppg_cls(self)
-        self.ppa = ppa_cls(self)
-        self.fsa = fsa_cls(self)
-
+        
+        self.ppg = ppg_cls(self.config)
+        self.ppa = ppa_cls(self.config)
+        self.fsa = fsa_cls(self.config)
+        
         self.elaborate()
-
-    def elaborate(self) -> None:
-        columns = self.ppg.generate_columns()
-        reduced_columns = self.ppa.accumulate(columns)
-        result_bits = self.fsa.resolve(reduced_columns)
-        expected_width = self.io.y.typ.width
-        self.io.y <<= Concat(reversed(result_bits[:expected_width]))
-
+        
     # convenience helpers -------------------------------------------------------
-
+    
     def to_module(self, name: Optional[str] = None) -> Module:
         module = Module(
             name or f"Mul{self.config.a_width}x{self.config.b_width}_ct",
@@ -227,34 +224,80 @@ class StageBasedMultiplier(Component):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         return module
-    
-class StageBasedSignMagnitudeMultiplier(StageBasedMultiplier):
+
+    def elaborate(self) -> None:
+        columns = self.ppg.generate_columns(self.io)
+        reduced_columns = self.ppa.accumulate(columns)
+        result_bits = self.fsa.resolve(reduced_columns)
+        expected_width = self.io.y.typ.width
+        self.io.y <<= Concat(reversed(result_bits[:expected_width]))
+
+
+class StageBasedSignMagnitudeMultiplier(Component):
+
     def __init__(
         self,
         a_w: int,
         b_w: int,
         *,
-        signed_a: bool = False,
-        signed_b: bool = False,
+        format_a: Format = Format.unsigned,
+        format_b: Format = Format.unsigned,
         optim_type: Literal["area", "speed"] = "area",
         ppg_cls: Type[PartialProductGeneratorBase],
         ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
-        if signed_a or signed_b:
-            raise ValueError("StageBasedSignMagnitudeMultiplier only supports unsigned inputs")
-        super().__init__(
-            a_w,
-            b_w,
-            signed_a=False,
-            signed_b=False,
-            optim_type=optim_type,
-            ppg_cls=ppg_cls,
-            ppa_cls=ppa_cls,
-            fsa_cls=fsa_cls,
+        
+        self.format_a = format_a
+        self.format_b = format_b
+        self.aw = a_w
+        self.bw = b_w
+        self.optim_type = optim_type  
+        self.ppg_cls = ppg_cls
+        self.ppa_cls = ppa_cls
+        self.fsa_cls = fsa_cls
+
+        assert self.format_a == Format.sign_magnitude and self.format_b == Format.sign_magnitude, "Only sign-magnitude format is supported"
+
+        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=UInt(a_w), kind="input"),
+            b=Signal(name="b", typ=UInt(b_w), kind="input"),
+            y=Signal(name="y", typ=UInt(a_w + b_w), kind="output"),
         )
-        base_type_y = SInt if (signed_a or signed_b) else UInt
-        self.io.y = Signal(name="y", typ=base_type_y(self.config.out_width), kind="output")
+
+        self.elaborate()
+
+    def elaborate(self) -> None:
+
+        # instantiate an unsigned multiplier for the magnitudes
+        mult = StageBasedMultiplier(signed_a=False, signed_b=False,
+                                    a_w=self.aw - 1, b_w=self.bw - 1,
+                                    ppg_cls=self.ppg_cls, ppa_cls=self.ppa_cls,
+                                    fsa_cls=self.fsa_cls, optim_type=self.optim_type)
+        mult.elaborate()
+
+        W = self.aw  # assume square for now
+
+        sa = self.io.a[W - 1]
+        sb = self.io.b[W - 1]
+        mag_a = self.io.a[W - 2 : 0]  # make magnitude unsigned
+        mag_b = self.io.b[W - 2 : 0]  # make magnitude unsigned
+
+        mag_y = mag_a * mag_b
+
+        # or
+        # mult.io.a <<= mag_a
+        # mult.io.b <<= mag_b
+        # mag_y = mult.io.y
+
+        # sign
+        sy = sa ^ sb
+
+        # make sure sign is positive if value is zero
+        is_zero = mux(mag_y == 0, Const(True, Bool()), Const(False, Bool()))
+        sy = mux(is_zero, Const(False, Bool()), sy)
+
+        self.io.y <<= Concat([sy, mag_y[2*W-2:0]])  # sign + magnitude (drop overflow bit)
 
 
 def gen_spec(component: Component) -> Dict[str, UInt]:

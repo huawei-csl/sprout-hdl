@@ -35,7 +35,7 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
     depth_optimize: ClassVar[bool] = True
 
     def resolve(self, columns: Dict[int, List[Expr]]) -> List[Expr]:
-        width = self.core.io.y.typ.width
+        width = self.config.out_width
         max_col = max(columns.keys(), default=width - 1)
         working_width = max(width, max_col + 1)
 

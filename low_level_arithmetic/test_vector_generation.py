@@ -17,8 +17,10 @@ class Format(Enum):
     gray = "gray"
     unsigned = "unsigned"
     onehot = "onehot"
-    
-def to_format(signed: bool) -> Format:
+
+def to_format(signed: bool | Format) -> Format:
+    if isinstance(signed, Format):
+        return signed
     return Format.twos_complement if signed else Format.unsigned
 
 
@@ -91,12 +93,12 @@ class MultiplierTestVectors:
             center = (width - 1) / 2 if width > 0 else 0
             raw_value = int(np.round(np.random.normal(center, self.tb_sigma)))
             raw_value = self._clamp(raw_value, lo, hi)
-            return self._encode_value(fmt, raw_value, width)
+            return raw_value
 
         mean = 0 if self._is_signed(fmt) else (lo + hi) / 2
         raw_value = int(np.round(np.random.normal(mean, self.tb_sigma)))
         raw_value = self._clamp(raw_value, lo, hi)
-        return self._encode_value(fmt, raw_value, width)
+        return raw_value
 
     def get_uniform_sample(self, fmt: Format, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
@@ -104,9 +106,9 @@ class MultiplierTestVectors:
             if width <= 0:
                 return 0
             raw_value = random.randrange(width)
-            return self._encode_value(fmt, raw_value, width)
+            return raw_value
         raw_value = random.randint(lo, hi)
-        return self._encode_value(fmt, raw_value, width)
+        return raw_value
 
     def _decode_value(self, fmt: Format, encoded: int, width: int) -> int:
         if fmt == Format.onehot:
@@ -132,19 +134,25 @@ class MultiplierTestVectors:
         vecs = []
         for _ in range(self.num_vectors):
             if self.tb_sigma is not None:
-                va_encoded = self.get_normal_sample(self.a_format, self.a_w)
-                vb_encoded = self.get_normal_sample(self.b_format, self.b_w)
+                va_value = self.get_normal_sample(self.a_format, self.a_w)
+                vb_value = self.get_normal_sample(self.b_format, self.b_w)
             else:
-                va_encoded = self.get_uniform_sample(self.a_format, self.a_w)
-                vb_encoded = self.get_uniform_sample(self.b_format, self.b_w)
+                va_value = self.get_uniform_sample(self.a_format, self.a_w)
+                vb_value = self.get_uniform_sample(self.b_format, self.b_w)
+
+            va_encoded = self._encode_value(self.a_format, va_value, self.a_w)
+            vb_encoded = self._encode_value(self.b_format, vb_value, self.b_w)
 
             # decode encodings to compute expected arithmetic results
-            va_value = self._decode_value(self.a_format, va_encoded, self.a_w)
-            vb_value = self._decode_value(self.b_format, vb_encoded, self.b_w)
+            va_value_dec = self._decode_value(self.a_format, va_encoded, self.a_w)
+            vb_value_dec = self._decode_value(self.b_format, vb_encoded, self.b_w)
+
+            y_value = va_value_dec * vb_value_dec
+            y_encoded = self._encode_value(self.a_format, y_value, self.y_w)
 
             # append test vector
             vecs.append(
-                (f"{va_value}*{vb_value}", {"a": va_encoded, "b": vb_encoded}, {"y": va_value * vb_value})
+                (f"{va_value}*{vb_value}", {"a": va_encoded, "b": vb_encoded}, {"y": y_encoded})
             )
 
         spec = {"a": UInt(self.a_w), "b": UInt(self.b_w), "y": UInt(self.y_w)}

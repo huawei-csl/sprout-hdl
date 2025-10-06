@@ -10,6 +10,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     PartialProductGeneratorBase,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
+    StageBasedMultiplierIO,
 )
 from sprouthdl.sprouthdl import Bool, Const, Expr
 from sprouthdl.sprouthdl_module import Module
@@ -21,17 +22,19 @@ class BoothUnoptimizedPartialProductGenerator(PartialProductGeneratorBase):
         (False, False),
     )
 
-    def generate_columns(self) -> DefaultDict[int, List[Expr]]:
+    def generate_columns(
+        self, io: StageBasedMultiplierIO
+    ) -> DefaultDict[int, List[Expr]]:
 
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)  # weight -> signal node indices
 
-        a = self.core.io.a
-        b = self.core.io.b
+        a = io.a
+        b = io.b
         wa = a.typ.width
         wb = b.typ.width
-        out_bits = self.core.io.y.typ.width
+        out_bits = io.y.typ.width
         b_signed = b.typ.signed
-        a_signed = a.typ.signed      
+        a_signed = a.typ.signed
 
         # --- helper to get multiplier bits with proper out-of-range behavior
         def bbit(k: int) -> Expr:

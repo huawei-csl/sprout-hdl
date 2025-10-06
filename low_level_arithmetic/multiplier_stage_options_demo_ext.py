@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Tuple
 
+from low_level_arithmetic.multiplier_stage_options_demo import FSAOption, PPAOption, PPGOption
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
     DaddaTreeAccumulator,
@@ -46,30 +47,7 @@ from low_level_arithmetic.fsa_stages import (
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
 
-# Options for each stage
 
-class PPGOption(Enum):
-    BASIC = BasicUnsignedPartialProductGenerator
-    BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
-    BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
-    BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
-    BOOTH_OPTIMISED_SIGNED = BoothOptimizedSignedPartialProductGenerator
-
-
-class PPAOption(Enum):
-    COMPRESSOR_TREE = CompressorTreeAccumulator
-    WALLACE_TREE = WallaceTreeAccumulator
-    DADDA_TREE = DaddaTreeAccumulator
-    CARRY_SAVE_TREE = CarrySaveAccumulator
-    FOUR_TWO_COMPRESSOR = FourTwoCompressorAccumulator
-
-
-class FSAOption(Enum):
-    RIPPLE = RippleCarryFinalAdder
-    PREFIX_KS = PrefixAdderFinalStage
-    PREFIX_BK = BrentKungPrefixFinalStage
-    PREFIX_SKLANSKY = SklanskyPrefixFinalStage
-    PREFIX_RCA = RipplePrefixFinalStage
 
 def main() -> None:  # pragma: no cover - demonstration only
 
@@ -91,20 +69,39 @@ def main() -> None:  # pragma: no cover - demonstration only
     for width in (4, 8, 16):
 
         for ppg_opt, ppa_opt, fsa_opt in demos:
-            for signed_a, signed_b in ppg_opt.value.supported_signatures or ((False, False),):
-                print(f"Building multiplier with width={width}, signed_a={signed_a}, signed_b={signed_b}, PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
+            
+            for fromat in (Format.unsigned, Format.sign_magnitude_ext):
+            #for signed_a, signed_b in ppg_opt.value.supported_signatures or ((False, False),):
+                #print(f"Building multiplier with width={width}, signed_a={signed_a}, signed_b={signed_b}, PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
                 reset_shared_cache()
 
-                multiplier = StageBasedMultiplier(
+                # multiplier = StageBasedMultiplier(
+                #     a_w=width,
+                #     b_w=width,
+                #     signed_a=signed_a,
+                #     signed_b=signed_b,
+                #     ppg_cls=ppg_opt.value,
+                #     ppa_cls=ppa_opt.value,
+                #     fsa_cls=fsa_opt.value,
+                #     optim_type="area",
+                # )
+                
+                if (signed_a, signed_b) != (True, True):
+                    print("Skipping non-signed Baugh-Wooley configuration")
+                    continue
+                
+                multiplier = StageBasedSignMagnitudeMultiplier(
                     a_w=width,
                     b_w=width,
-                    signed_a=signed_a,
-                    signed_b=signed_b,
+                    signed_a=False,
+                    signed_b=False,
                     ppg_cls=ppg_opt.value,
                     ppa_cls=ppa_opt.value,
                     fsa_cls=fsa_opt.value,
                     optim_type="area",
                 )
+                format_a = Format.sign_magnitude
+                format_b = Format.sign_magnitude
                 
                 module = multiplier.to_module(
                     f"demo_{ppg_opt.name.lower()}_{signed_a}_{signed_b}_{fsa_opt.name.lower()}"
@@ -118,8 +115,8 @@ def main() -> None:  # pragma: no cover - demonstration only
                     b_w=width,
                     num_vectors=8,
                     tb_sigma=None,
-                    format_a=to_format(signed_a),
-                    format_b=to_format(signed_b),
+                    format_a=Format.sign_magnitude, #to_format(signed_a),
+                    format_b=Format.sign_magnitude,#to_format(signed_b),
                 ).generate()
                 _ = specs
                 run_vectors_io(module, vecs, decoder=decoder)

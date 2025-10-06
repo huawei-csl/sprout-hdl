@@ -10,6 +10,7 @@ from low_level_arithmetic.multiplier_stage_core import (
     PartialProductGeneratorBase,
     RippleCarryFinalAdder,
     StageBasedMultiplier,
+    StageBasedMultiplierIO,
 )
 from sprouthdl.sprouthdl import Bool, Const, Expr, SInt, cast
 from sprouthdl.sprouthdl_module import Module
@@ -21,14 +22,16 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
         (False, False),
     )
 
-    def generate_columns(self) -> DefaultDict[int, List[Expr]]:
+    def generate_columns(
+        self, io: StageBasedMultiplierIO
+    ) -> DefaultDict[int, List[Expr]]:
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
 
-        a = self.core.io.a
-        b = self.core.io.b
+        a = io.a
+        b = io.b
         wa = a.typ.width
         wb = b.typ.width
-        out_bits = self.core.io.y.typ.width
+        out_bits = io.y.typ.width
         b_signed = b.typ.signed
 
         mag1 = [a[i] for i in range(wa)] + [Const(False, Bool())]
