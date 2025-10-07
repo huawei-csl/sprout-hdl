@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
-from networkx import nodes
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
