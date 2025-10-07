@@ -97,7 +97,7 @@ def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
 
 
 def main() -> None:
-    n_bits = 16
+    n_bits = 4
     signed = True
 
     mult = ConfiguredMultiplier(
@@ -109,7 +109,7 @@ def main() -> None:
     )
 
     module = gen_sprout_module(mult)
-    transistor_count = get_transistor_count_from_m_yosys(module, n_iter_optimizations=10)
+    transistor_count = get_transistor_count_from_m_yosys(module, n_iter_optimizations=10, deepsyn=False)
     print(f"Yosys-reported transistor count: {transistor_count}")
 
     specs, vecs, decoder = MultiplierTestVectors(

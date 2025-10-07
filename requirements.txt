@@ -1,5 +1,4 @@
 aigverse==0.0.24
-attr
 numpy
 pyosys==0.57.7
 tqdm

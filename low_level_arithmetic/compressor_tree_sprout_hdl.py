@@ -291,13 +291,13 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
     aag_optimized = conv_aig_into_aag(aig)
     return aag_optimized
 
-def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0) -> int:
+def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0, deepsyn=False) -> int:
     aag_lines = AigerExporter(m).get_aag()
 
     if n_iter_optimizations > 0:
         aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
 
-    stat = extract_yosys_metrics(aag_lines)
+    stat = extract_yosys_metrics(aag_lines, deepsyn=deepsyn)
     return stat
 
 def main():
