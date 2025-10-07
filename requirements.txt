@@ -3,3 +3,5 @@ attr
 numpy
 pyosys==0.57.7
 tqdm
+pandas
+matplotlib
