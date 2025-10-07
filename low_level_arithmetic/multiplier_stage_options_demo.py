@@ -70,7 +70,7 @@ class FSAOption(Enum):
     PREFIX_SKLANSKY = SklanskyPrefixFinalStage
     PREFIX_RCA = RipplePrefixFinalStage
 
-def main() -> None:  # pragma: no cover - demonstration only
+def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration only
 
     # define some demo combinations to try
     demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
@@ -130,4 +130,4 @@ def main() -> None:  # pragma: no cover - demonstration only
 
 
 if __name__ == "__main__":
-    main()
+    run_stage_multiplier_demo()

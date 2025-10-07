@@ -49,7 +49,7 @@ from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
 
 
-def main() -> None:  # pragma: no cover - demonstration only
+def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration only
 
     class MultiplierEncodings(NamedTuple):
         a: Encoding
@@ -78,37 +78,6 @@ def main() -> None:  # pragma: no cover - demonstration only
         ppg_opt: PPGOption
         ppa_opt: PPAOption
         fsa_opt: FSAOption
-
-    # class MultiplierFormat(NamedTuple):
-    #     a: Encoding
-    #     b: Encoding
-    #     y: Encoding
-    #     a_w: int
-    #     b_w: int
-    #     y_w: int
-
-    #     def with_(self, **changes) -> Self:
-    #         return self._replace(**changes)
-
-    #     def set_all_encodings(self, enc: Encoding) -> Self:
-    #         return self.with_(a=enc, b=enc, y=enc)
-
-    #     def set_input_widths(self, input_w: int) -> Self:
-    #         return self.with_(a_w=input_w, b_w=input_w)
-
-    #     def set_output_width(self, output_w: int) -> Self:
-    #         return self.with_(y_w=output_w)
-
-    #     @classmethod
-    #     def default(cls, input_w: int) -> Self:
-    #         return cls(
-    #             a=Encoding.unsigned,
-    #             b=Encoding.unsigned,
-    #             y=Encoding.unsigned,
-    #             a_w=input_w,
-    #             b_w=input_w,
-    #             y_w=input_w * 2,
-    #         )
 
     # define some demo combinations to try
     demos: Tuple[Demo, ...] = (
@@ -205,4 +174,4 @@ def main() -> None:  # pragma: no cover - demonstration only
 
 
 if __name__ == "__main__":
-    main()
+    run_multiplier_demo()

@@ -54,11 +54,11 @@ class MultiplierCompressorTree(Component):
     def elaborate(self):
 
         def generate_partial_products() -> defaultdict:
-
+            use_diff_placement = False
             use_precompute = True
-            use_precompute_v2 = True # taken into account when use_precompute is True
+            use_precompute_v2 = False  # # done use, doesnt work, taken into account when use_precompute is True
             if not use_precompute:
-                use_precompute_v2 = False
+                use_precompute_v2 = False 
 
             cols: Dict[int, List[Expr]] = defaultdict(list)  # weight -> signal node indices
 
@@ -159,28 +159,38 @@ class MultiplierCompressorTree(Component):
                             a_pos2 = mag2[t]
                             a_neg1 = mag1_inv[t]
                             a_neg2 = mag2_inv[t]
-                            
+
                             if use_precompute_v2:                            
                                 a_neg1 = mag1_invs_v[t]
                                 a_neg2 = mag2_invs_v[t]
-                                                        
+
                             emit_bit = (a_pos1 & sel_pos1) | (a_pos2 & sel_pos2) | (a_neg1 & sel_neg1) | (a_neg2 & sel_neg2)
                             # emit_bit = (a_pos1 & (use1 & ~neg)) | (a_pos2 & (use2 & ~neg)) | (a_neg1 & (use1 & neg)) | (a_neg2 & (use2 & neg))
-                            
+
                             # emit_bit = (a_ext[t] & (use1 & (~neg))) | (a2_ext[t] & (use2 & (~neg))) | ((~a_ext[t]) & (use1 & neg)) | ((~a2_ext[t]) & (use2 & neg))
-                            
-                            #mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
-                            #emit_bit = mux_if(neg, ~mag, mag)
-                            
-                            
+
+                            # mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
+                            # emit_bit = mux_if(neg, ~mag, mag)
+
                         else: 
                             mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
                             emit_bit = (mag ^ neg)                 
 
                     elif t == wa + 1:
-                        emit_bit = ~neg # S inverse                        
+                        if i == 0 and use_diff_placement:
+                            emit_bit = neg
+                        else:
+                            emit_bit = ~neg # S inverse
                     elif t == wa + 1 + 1:
-                        emit_bit = Const(True, Bool()) # constant 1
+                        if i == 0 and use_diff_placement:
+                            emit_bit = neg
+                        else:
+                            emit_bit = Const(True, Bool()) # constant 1
+                    elif t == wa + 1 + 2:
+                        if i == 0 and use_diff_placement:
+                            emit_bit = ~neg
+                        else:
+                            emit_bit = None
                     else:
                         emit_bit = None  # beyond this, all terms are zero
 
@@ -190,15 +200,17 @@ class MultiplierCompressorTree(Component):
 
                 # two's-complement +1 correction at the block’s LSB when neg
                 if not use_precompute_v2:
-                    if base_w < out_bits:
-                        cols[base_w].append(neg)
+                        if base_w < out_bits:
+                            cols[base_w].append(neg)
 
                 # Correction
                 if i == 0:
-                    cols[len(mag1)].append(Const(True, Bool()))
+                    if not use_diff_placement:
+                        cols[len(mag1)].append(Const(True, Bool()))
             return cols
 
         cols = generate_partial_products()
+        self.cols = cols
         print(f"Generated {sum(len(v) for v in cols.values())} partial product bits in {len(cols)} columns")
 
         def half_adder(x: Expr, y: Expr) -> Tuple[Expr, Expr]:
@@ -339,6 +351,7 @@ class MultiplierTestVectors:
 
 def gen_sprout_module(class_instance: MultiplierCompressorTree) -> Module:
     m = Module(f"Mul{class_instance.n_bits}_ct", with_clock=False, with_reset=False)
+    m.component = class_instance
     for sig in class_instance.io.__dict__.values():
         if sig.kind == "input":
             m.add_input(sig)
@@ -362,13 +375,13 @@ def main():
     m = gen_sprout_module(mult)
     # get size in # t transistors
     #print(m.to_verilog())
+
+    specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=1600, tb_sigma=None, signed_a=signed, signed_b=signed).generate()
+    specs2 = gen_spec(mult)
+    run_vectors_io(m, vecs, decoder=dec)
     
     tc = get_transistor_count_from_m_yosys(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")
-
-    specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=16, tb_sigma=None, signed_a=signed, signed_b=signed).generate()
-    specs2 = gen_spec(mult)
-    run_vectors_io(m, vecs, decoder=dec)
 
 
 if __name__ == "__main__":
