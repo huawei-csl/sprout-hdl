@@ -53,6 +53,7 @@ class PPGOption(Enum):
     BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
     BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
     BOOTH_OPTIMISED_SIGNED = BoothOptimizedSignedPartialProductGenerator
+    NONE = None
 
 
 class PPAOption(Enum):
@@ -61,6 +62,7 @@ class PPAOption(Enum):
     DADDA_TREE = DaddaTreeAccumulator
     CARRY_SAVE_TREE = CarrySaveAccumulator
     FOUR_TWO_COMPRESSOR = FourTwoCompressorAccumulator
+    NONE = None
 
 
 class FSAOption(Enum):
@@ -69,6 +71,7 @@ class FSAOption(Enum):
     PREFIX_BK = BrentKungPrefixFinalStage
     PREFIX_SKLANSKY = SklanskyPrefixFinalStage
     PREFIX_RCA = RipplePrefixFinalStage
+    NONE = None
 
 def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration only
 
@@ -92,6 +95,9 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
             for signed_a, signed_b in ppg_opt.value.supported_signatures or ((False, False),):
                 print(f"Building multiplier with width={width}, signed_a={signed_a}, signed_b={signed_b}, PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
                 reset_shared_cache()
+                
+                if not signed_a:
+                    continue # debug only
 
                 multiplier = StageBasedMultiplier(
                     a_w=width,
@@ -110,17 +116,19 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
                 print(
                     f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}"
                 )
+                
 
-                specs, vecs, decoder = MultiplierTestVectors(
+                vecs = MultiplierTestVectors(
                     a_w=width,
                     b_w=width,
                     num_vectors=num_vectors,
                     tb_sigma=None,
                     a_encoding=to_encoding(signed_a),
                     b_encoding=to_encoding(signed_b),
+                    y_encoding=to_encoding(signed_a or signed_b),
                 ).generate()
-                _ = specs
-                run_vectors_io(module, vecs, decoder=decoder)
+
+                run_vectors_io(module, vecs)
 
                 completed_demo_runs += 1
                 print(f"Completed {completed_demo_runs} multiplier demos.")

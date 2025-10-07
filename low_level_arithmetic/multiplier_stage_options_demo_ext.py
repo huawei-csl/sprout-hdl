@@ -7,7 +7,7 @@ from typing import NamedTuple, Self, Tuple, Type
 
 
 from low_level_arithmetic.multiplier_stage_options_demo import FSAOption, PPAOption, PPGOption
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier
+from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarSignedMultiplier, StartUnsignedMultiplier
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
     DaddaTreeAccumulator,
@@ -109,25 +109,37 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
             MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
             PPGOption.BASIC,
             PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE
+            FSAOption.RIPPLE,
         ),
         (
-             StageBasedSignMagnitudeExtToTwosComplementMultiplier,
-             MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
-             PPGOption.BASIC,
-             PPAOption.WALLACE_TREE,
-             FSAOption.RIPPLE
-         ),
+            StageBasedSignMagnitudeExtToTwosComplementMultiplier,
+            MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
+            PPGOption.BASIC,
+            PPAOption.WALLACE_TREE,
+            FSAOption.RIPPLE,
+        ),
         (
             StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier,
             MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
             PPGOption.BASIC,
             PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE
+            FSAOption.RIPPLE,
         ),
-    
+        (
+            StarSignedMultiplier,
+            MultiplierEncodings.with_enc(Encoding.twos_complement),
+            PPGOption.NONE,
+            PPAOption.NONE,
+            FSAOption.NONE,
+        ),
+        (
+            StartUnsignedMultiplier,
+            MultiplierEncodings.with_enc(Encoding.unsigned),
+            PPGOption.NONE,
+            PPAOption.NONE,
+            FSAOption.NONE,
+        ),
     )
-
 
     completed_demo_runs = 0
 
@@ -154,7 +166,7 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
             module = multiplier.to_module(f"demo_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
             print(f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
 
-            specs, vecs, decoder = MultiplierTestVectors(
+            vecs = MultiplierTestVectors(
                 a_w=width,
                 b_w=width,
                 y_w=multiplier.io.y.typ.width,
@@ -165,7 +177,7 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
                 y_encoding=encodings.y,
             ).generate()
 
-            run_vectors_io(module, vecs, decoder=decoder)
+            run_vectors_io(module, vecs)
 
             completed_demo_runs += 1
             print(f"Completed {completed_demo_runs} multiplier demos.")

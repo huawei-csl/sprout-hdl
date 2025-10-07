@@ -159,5 +159,4 @@ class MultiplierTestVectors:
                 (f"{va_value}*{vb_value}", {"a": va_encoded, "b": vb_encoded}, {"y": y_encoded})
             )
 
-        spec = {"a": UInt(self.a_w), "b": UInt(self.b_w), "y": UInt(self.y_w)}
-        return spec, vecs, None
+        return vecs

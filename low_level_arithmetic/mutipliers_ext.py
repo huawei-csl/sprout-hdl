@@ -379,7 +379,7 @@ class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedExtMultiplier)
         self.io.y <<= enc.io.o
 
         self.enc = enc
-        
+
 class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -419,7 +419,7 @@ class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedExtMultipli
         self.io.y <<= enc.io.o
 
         self.enc = enc
-        
+
 class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -459,3 +459,37 @@ class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedExtMul
         self.io.y <<= enc.io.o
 
         self.enc = enc
+
+class StarSignedMultiplier(StageBasedExtMultiplier):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        assert self.a_encoding == Encoding.twos_complement or self.a_encoding == Encoding.twos_complement, "Only two's complement encoding is supported"
+
+        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=SInt(self.aw), kind="input"),
+            b=Signal(name="b", typ=SInt(self.bw), kind="input"),
+            y=Signal(name="y", typ=SInt(self.aw + self.bw), kind="output"),
+        )
+        self.elaborate()
+
+    def elaborate(self) -> None:
+        self.io.y <<= self.io.a * self.io.b
+        
+class StartUnsignedMultiplier(StageBasedExtMultiplier):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        assert self.a_encoding == Encoding.unsigned or self.a_encoding == Encoding.unsigned, "Only unsigned encoding is supported"
+
+        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=UInt(self.aw), kind="input"),
+            b=Signal(name="b", typ=UInt(self.bw), kind="input"),
+            y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
+        )
+        self.elaborate()
+
+    def elaborate(self) -> None:
+        self.io.y <<= self.io.a * self.io.b

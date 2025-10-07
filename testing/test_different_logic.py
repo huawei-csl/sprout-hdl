@@ -120,7 +120,7 @@ def run_vectors_io(
         for oname, exp in outs.items():
             got_raw = sim.peek(oname) #sim.get(oname)
             got = sim.get(oname)
-            if got != exp:
+            if got_raw != exp:
                 if decoder and oname == "y":
                     bad.append(f"{oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
                 else:
