@@ -1,9 +1,9 @@
 # sprout_prefix_adder.py
+from dataclasses import dataclass
 import random
 from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
-from attr import dataclass
 from matplotlib import pyplot as plt
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
