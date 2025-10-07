@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
+from networkx import nodes
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
@@ -303,6 +304,8 @@ def validate_legality(n: int, nodes: Set[Pair]) -> bool:
     def exists(i,j): return (i == j) or ((i,j) in nodes)
     for (i,j) in nodes:
         ok = False
+        if i==j:
+            continue # no split needed
         for k in range(j, i):  # look for a valid split
             if exists(i, k+1) and exists(k, j):
                 ok = True
@@ -315,10 +318,10 @@ def validate_legality(n: int, nodes: Set[Pair]) -> bool:
         print(f"Carry to bit 0 (node {(n-1,0)}) is not declared in P.")
         return False
     # check that all (i, 0) in nodes
-    for i in range(n):
-        if not (i, 0) in nodes:
-            print(f"Node {(i,0)} is not declared in P (carry to bit 0).")
-            return False
+    #for i in range(n):
+    #    if not (i, 0) in nodes:
+    #        print(f"Node {(i,0)} is not declared in P (carry to bit 0).")
+    #        return False
     return True
 
 
@@ -429,6 +432,108 @@ def P_brent_kung(n: int) -> Set[Pair]:
             j_at[i] = j
 
     return nodes
+
+def Handmade_8_a(n: int) -> Set[Pair]:
+    
+    assert n == 8
+
+    nodes: Set[Pair] = set()
+    
+    for i in range(1, n):        
+        nodes.add((i, 0))
+        
+    for i in range(0, n):
+        nodes.add((i, i))
+    
+    #nodes.add((1,0))
+    nodes.add((3,2))
+    nodes.add((5,4))
+    nodes.add((7,6))
+    #nodes.add((3, 0))
+    nodes.add((7, 4))
+
+    return nodes
+
+def Handmade_8_b(n: int) -> Set[Pair]:
+    
+    assert n == 8
+
+    nodes: Set[Pair] = set()
+    
+    for i in range(1, n):        
+        nodes.add((i, 0))
+        
+    for i in range(0, n):
+        nodes.add((i, i))    
+        
+    nodes.add((1,0))
+    #nodes.add((3,0))
+    nodes.add((4,3))
+    nodes.add((5,3))
+    nodes.add((7,6))
+    #nodes.add((5,0))
+    
+    return nodes
+
+def Handmade_16_a(n: int) -> Set[Pair]:
+    
+    assert n == 16
+
+    nodes: Set[Pair] = set()
+    
+    for i in range(1, n):        
+        nodes.add((i, 0))
+        
+    for i in range(0, n):
+        nodes.add((i, i))
+    
+    nodes.add((1,0))
+    nodes.add((3,2))
+    nodes.add((5,4))
+    nodes.add((7,6))
+    nodes.add((9,8))
+    nodes.add((11,10))
+    nodes.add((13,12))
+    nodes.add((15,14))
+
+    #nodes.add((3,0))
+    nodes.add((7,4))
+    nodes.add((11,8))
+    nodes.add((15,12))
+
+    #nodes.add((7,0))
+    #nodes.add((11,0))
+
+    return nodes
+
+def Handmade_16_b(n: int) -> Set[Pair]:
+    
+    assert n == 16
+
+    nodes: Set[Pair] = set()
+    
+    for i in range(1, n):        
+        nodes.add((i, 0))
+        
+    for i in range(0, n):
+        nodes.add((i, i))
+    
+    nodes.add((1,0))
+    nodes.add((3,0))
+    nodes.add((4,3))
+    nodes.add((5,3))
+    nodes.add((7,6))
+    nodes.add((8,6))
+    nodes.add((10,9))
+    nodes.add((11,9))
+    nodes.add((13,12))
+    nodes.add((14,12))
+    #nodes.add((5,0))
+    nodes.add((11,6))
+    #nodes.add((11,0))
+
+    return nodes
+
 
 # ------------------------- Test Vectors -------------------------
 
@@ -607,7 +712,8 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
 
 def main_test():
 
-    n = 16
+    n = 16 # number of bits
+    n_random = 100
 
     configs = [
         (P_ripple_carry(n), "Ripple Carry"),
@@ -615,72 +721,104 @@ def main_test():
         (P_sklansky(n), "Sklansky"),
         (P_brent_kung(n), "Brent-Kung"),
     ]
-    
-    configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(40)]
+
+    if n == 8:
+
+        assert validate_legality(n, Handmade_8_a(n))
+        assert validate_legality(n, Handmade_8_b(n))
+        configs += [(Handmade_8_a(n), "Handmade 8a")]  
+        configs += [(Handmade_8_b(n), "Handmade 8b")]
+
+    if n == 16:
+        assert validate_legality(n, Handmade_16_a(n))
+        assert validate_legality(n, Handmade_16_b(n))
+        configs += [(Handmade_16_a(n), "Handmade 16a")]
+        configs += [(Handmade_16_b(n), "Handmade 16b")]
+        
+
+    configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(n_random)]
 
     results: List[Tuple[str, GraphReport, AigReport]] = []
     for nodes, name in configs:
-        # if not validate_legality(n, nodes):
-        #    print(f"Invalid configuration for {name}. Skipping.")
-        #    continue
+        if not validate_legality(n, nodes):
+            print(f"Invalid configuration for {name}. Skipping.")
+            raise RuntimeError("Invalid configuration.")
         print(f"\nBuilding {name} prefix adder with n={n}...")
         graph_report, aig_report = get_stats(nodes, n, name)
         results.append((name, graph_report, aig_report))
 
-
     # plot results in scatter plot size vs depth, aig
     plt.figure(figsize=(6, 4))
-    first_gray = True
-    for name, graph_report, aig_report in results:
-        color = "gray" if "Random" in name else None
-        if "Random" in name:
-            label = 'Random (legal)' if first_gray else None
-            first_gray = False
-        else:
+
+    def plt_results(results_plot_list):
+        markers = ['s', '^', 'D', 'v', 'P', '*', 'X', 'H', '<', '>']
+        first_gray = True
+        i_not_gray = 0
+
+        x_rand = []
+        y_rand = []
+
+        for name, x, y in results_plot_list:
+            if "Random" not in name:
+                continue  # plot randoms only in second pass
+            x_rand.append(x)
+            y_rand.append(y)
+
+        plt.scatter(x_rand, y_rand, color="gray", label=f"Random ({n_random}x, legal)", marker="o", alpha=0.25)
+
+        for name, x, y in results_plot_list:
+            if "Random" in name:
+                continue  # plot randoms only in second pass
+
             label = name
-        plt.scatter(aig_report.size, aig_report.depth, color=color, label=label)
+            color = None
+            # take from palette
+            marker = markers[i_not_gray]
+            i_not_gray = (i_not_gray + 1) % len(markers)
+            alpha = 1.0
+            plt.scatter(x, y, color=color, label=label, marker=marker, alpha=alpha)
+
+    # transform results to
+
+    results_plot_list = []
+    for name, graph_report, aig_report in results:
+        results_plot_list.append((name, aig_report.size, aig_report.depth))
+    plt_results(results_plot_list)
+
     plt.title("Prefix Adder AIG Size vs Depth")
     plt.xlabel("AIG Size")
     plt.ylabel("AIG Depth")
     plt.legend()
     plt.grid()
-    plt.savefig("prefix_adder_aig_size_vs_depth.png")
+    plt.savefig(f"prefix_adder_aig_size_vs_depth_n{n}.png")
 
     # plot results in scatter plot size vs depth, optimized aig
     plt.figure(figsize=(6, 4))
-    first_gray = True
+
+    results_plot_list = []
     for name, graph_report, aig_report in results:
-        color = "gray" if "Random" in name else None
-        if "Random" in name:
-            label = "Random (legal)" if first_gray else None
-            first_gray = False
-        else:
-            label = name
-        plt.scatter(aig_report.optimized_size, aig_report.optimized_depth, color=color, label=label)
+        results_plot_list.append((name, aig_report.optimized_size, aig_report.optimized_depth))
+    plt_results(results_plot_list)
+
     plt.title("Prefix Adder Optimized AIG Size vs Depth")
     plt.xlabel("Optimized AIG Size")
     plt.ylabel("Optimized AIG Depth")
     plt.legend()
     plt.grid()
-    plt.savefig("prefix_adder_optimized_aig_size_vs_depth.png")
+    plt.savefig(f"prefix_adder_optimized_aig_size_vs_depth_n{n}.png")
 
-    # plot results in scatter plot size vs depth, graph
     plt.figure(figsize=(6, 4))
-    first_gray = True
+    results_plot_list = []
     for name, graph_report, aig_report in results:
-        color = 'gray' if 'Random' in name else None
-        if 'Random' in name:
-            label = "Random (legal)" if first_gray else None
-            first_gray = False
-        else:
-            label = name
-        plt.scatter(graph_report.op_nodes, graph_report.max_depth, color=color, label=label)
+        results_plot_list.append((name, graph_report.op_nodes, graph_report.max_depth))
+    plt_results(results_plot_list)
+
     plt.title("Prefix Adder Graph Size vs Depth")
     plt.xlabel("Graph Nodes")
     plt.ylabel("Graph Depth")
     plt.legend()
     plt.grid()
-    plt.savefig("prefix_adder_graph_size_vs_depth.png")
+    plt.savefig(f"prefix_adder_graph_size_vs_depth_n{n}.png")
 
 
 if __name__ == "__main__":
