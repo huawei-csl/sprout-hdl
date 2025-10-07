@@ -55,7 +55,7 @@ class MultiplierCompressorTree(Component):
 
         def generate_partial_products() -> defaultdict:
             use_diff_placement = False
-            use_precompute = True
+            use_precompute = False
             use_precompute_v2 = False  # # done use, doesnt work, taken into account when use_precompute is True
             if not use_precompute:
                 use_precompute_v2 = False 

@@ -83,8 +83,7 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
         (PPGOption.BOOTH_OPTIMISED_SIGNED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_SKLANSKY),
     )
 
-    width = 16
-
+    num_vectors = 100
     completed_demo_runs = 0
 
     for width in (4, 8, 16):
@@ -115,7 +114,7 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
                 specs, vecs, decoder = MultiplierTestVectors(
                     a_w=width,
                     b_w=width,
-                    num_vectors=8,
+                    num_vectors=num_vectors,
                     tb_sigma=None,
                     a_encoding=to_encoding(signed_a),
                     b_encoding=to_encoding(signed_b),

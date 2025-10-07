@@ -174,4 +174,4 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
 
 
 if __name__ == "__main__":
-    run_multiplier_demo()
+    run_stage_multiplier_ext_demo()

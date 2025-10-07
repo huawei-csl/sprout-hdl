@@ -27,11 +27,18 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
     ) -> DefaultDict[int, List[Expr]]:
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
 
+        use_diff_placement = False
+        use_precompute = False
+        use_precompute_v2 = False
+        if not use_precompute:
+            use_precompute_v2 = False
+
         a = io.a
         b = io.b
         wa = a.typ.width
         wb = b.typ.width
         out_bits = io.y.typ.width
+        a_signed = a.typ.signed
         b_signed = b.typ.signed
 
         mag1 = [a[i] for i in range(wa)] + [Const(False, Bool())]
@@ -42,11 +49,14 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
         mag1_neg = mag1_inv
         mag2_neg = mag2_inv
 
-        # improved pre-computed negatives via two's complement
-        mag1_invs = -cast(a, SInt(wa + 1))
-        mag2_invs = mag1_invs << 1
-        mag1_neg = [mag1_invs[i] for i in range(wa + 1)]
-        mag2_neg = [mag2_invs[i] for i in range(wa + 1)]
+        if use_precompute_v2:
+            mag1_invs = -cast(a, SInt(wa + 1))
+            mag2_invs = mag1_invs << 1
+            mag1_neg = [mag1_invs[i] for i in range(wa + 1)]
+            mag2_neg = [mag2_invs[i] for i in range(wa + 1)]
+
+        a_ext = [a[i] for i in range(wa)] + [a[wa - 1] if a_signed else Const(False, Bool())]
+        a2_ext = [Const(False, Bool())] + a_ext
 
         def bbit(k: int) -> Expr:
             if 0 <= k < wb:
@@ -69,32 +79,47 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
             eq110 = z & y & nx
             eq111 = z & y & x
 
-            sel_pos1 = eq001 | eq010
-            sel_pos2 = eq011
-            sel_neg1 = eq101 | eq110
-            sel_neg2 = eq100
+            pos1 = eq001 | eq010
+            pos2 = eq011
+            neg1 = eq101 | eq110
+            neg2 = eq100
+            neg = neg1 | neg2
+            use1 = pos1 | neg1
+            use2 = pos2 | neg2
 
-            neg = sel_neg1 | sel_neg2
+            if not use_precompute:
+                use1 = x ^ y
+                neg = z
 
             base_w = 2 * group
-            max_len = (wa + 1) + 2
+            max_len = max(len(a_ext), len(a2_ext)) * 2
             for t in range(max_len):
                 if t < wa + 1:
-                    a_pos1 = mag1[t]
-                    a_pos2 = mag2[t]
-                    a_neg1 = mag1_neg[t]
-                    a_neg2 = mag2_neg[t]
+                    if use_precompute:
+                        a_pos1 = mag1[t]
+                        a_pos2 = mag2[t]
+                        a_neg1 = mag1_neg[t]
+                        a_neg2 = mag2_neg[t]
 
-                    emit_bit = (
-                        (a_pos1 & sel_pos1)
-                        | (a_pos2 & sel_pos2)
-                        | (a_neg1 & sel_neg1)
-                        | (a_neg2 & sel_neg2)
-                    )
+                        emit_bit = (
+                            (a_pos1 & pos1)
+                            | (a_pos2 & pos2)
+                            | (a_neg1 & neg1)
+                            | (a_neg2 & neg2)
+                        )
+                    else:
+                        mag = (a_ext[t] & use1) | (a2_ext[t] & use2)
+                        emit_bit = mag ^ neg
                 elif t == wa + 1:
-                    emit_bit = ~neg
+                    if group == 0 and use_diff_placement:
+                        emit_bit = neg
+                    else:
+                        emit_bit = ~neg
                 elif t == wa + 2:
-                    emit_bit = Const(True, Bool())
+                    if group == 0 and use_diff_placement:
+                        emit_bit = neg
+                    else:
+                        emit_bit = Const(True, Bool())
                 else:
                     emit_bit = None
 
@@ -105,10 +130,14 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
                 if weight < out_bits:
                     cols[weight].append(emit_bit)
 
-            if group == 0:
+            if group == 0 and not use_diff_placement:
                 correction_col = len(mag1)
                 if correction_col < out_bits:
                     cols[correction_col].append(Const(True, Bool()))
+
+            if not use_precompute_v2:
+                if base_w < out_bits:
+                    cols[base_w].append(neg)
 
         total_bits = sum(len(v) for v in cols.values())
         print(
@@ -154,7 +183,8 @@ def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
 
 
 def main() -> None:
-    n_bits = 16
+    n_bits = 4
+    num_vectors = 10
     signed = False
 
     mult = ConfiguredMultiplier(
@@ -172,7 +202,7 @@ def main() -> None:
     specs, vecs, decoder = MultiplierTestVectors(
         a_w=n_bits,
         b_w=n_bits,
-        num_vectors=16,
+        num_vectors=num_vectors,
         tb_sigma=None,
         signed_a=signed,
         signed_b=signed,
