@@ -294,7 +294,7 @@ def build_prefix_adder_from_matrix(
 
     # sum bits
     s = [p[i] ^ c[i] for i in range(n)]
-    y <<= cat(*reversed(s))
+    y <<= cat(*s)
     if with_cout:
         cout <<= c[n]
     return m

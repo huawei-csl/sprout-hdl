@@ -23,25 +23,25 @@ def _sext_cat(msb, bits_expr, total_w):
     need = total_w - bits_expr.typ.width
     if need <= 0:
         return bits_expr
-    return cat(*([msb] * need), bits_expr)
+    return cat(bits_expr, *([msb] * need))
 
 def imm_i32(instr):
-    # I-immediate: [31:20], sign-extended to 32
-    imm12 = instr[31:20]
-    s = instr[31:31]
+    # I-immediate: instr[20:32], sign-extended to 32
+    imm12 = instr[20:32]
+    s = instr[31]
     return _sext_cat(s, imm12, 32)
 
 def imm_s32(instr):
-    # S-immediate: [31:25] | [11:7], sign-extended to 32
-    bits = cat(instr[31:25], instr[11:7])
-    s = instr[31:31]
+    # S-immediate: instr[7:12] (low) | instr[25:32] (high), sign-extended to 32
+    bits = cat(instr[7:12], instr[25:32])
+    s = instr[31]
     return _sext_cat(s, bits, 32)
 
 def imm_b32(instr):
     # B-immediate: imm[12|10:5|4:1|11|0]
-    #   12 = [31], 11 = [7], 10:5 = [30:25], 4:1 = [11:8], 0 = 0
-    s = instr[31:31]
-    bits13 = cat(instr[31:31], instr[7:7], instr[30:25], instr[11:8], Const(0, UInt(1)))
+    #   12 = instr[31], 11 = instr[7], 10:5 = instr[25:31], 4:1 = instr[8:12], 0 = 0
+    s = instr[31]
+    bits13 = cat(Const(0, UInt(1)), instr[8:12], instr[25:31], instr[7], instr[31])
     return _sext_cat(s, bits13, 32)
 
 
@@ -89,12 +89,12 @@ def build_rv32i_simple(name="RV32I_Simple"):
     regs = [m.reg(UInt(32), f"x{i}", init=0) for i in range(32)]
 
     # ---- Decode fields ----
-    opcode = instr[6:0]          # [6:0]
-    rd     = instr[11:7]         # [11:7]
-    funct3 = instr[14:12]        # [14:12]
-    rs1    = instr[19:15]        # [19:15]
-    rs2    = instr[24:20]        # [24:20]
-    funct7 = instr[31:25]        # [31:25]
+    opcode = instr[0:7]          # instr[0:7]
+    rd     = instr[7:12]         # instr[7:12]
+    funct3 = instr[12:15]        # instr[12:15]
+    rs1    = instr[15:20]        # instr[15:20]
+    rs2    = instr[20:25]        # instr[20:25]
+    funct7 = instr[25:32]        # instr[25:32]
 
     # Opcodes
     is_rtype  = (opcode == 0x33)

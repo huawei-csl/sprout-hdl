@@ -191,15 +191,25 @@ class Expr:
     # Indexing / slicing
     def __getitem__(self, sl: Union[int, slice]) -> "Expr":
         if isinstance(sl, int):
-            return Slice(self, sl, sl)  # single bit
+            if sl < 0:
+                raise ValueError("Bit index must be >= 0")
+            if sl >= self.typ.width:
+                raise ValueError("Bit index exceeds signal width")
+            return Slice(self, sl, sl + 1)
         if isinstance(sl, slice):
-            msb = sl.start
-            lsb = sl.stop
-            if msb is None or lsb is None:
-                raise ValueError("Slice must be [msb:lsb]")
-            if msb < lsb:
-                raise ValueError("Use descending slice [msb:lsb]")
-            return Slice(self, msb, lsb)
+            if sl.step not in (None, 1):
+                raise ValueError("Slice step must be 1")
+            start = 0 if sl.start is None else sl.start
+            stop = self.typ.width if sl.stop is None else sl.stop
+            if start is None or stop is None:
+                raise ValueError("Slice bounds must be specified")
+            if start < 0 or stop < 0:
+                raise ValueError("Slice bounds must be >= 0")
+            if stop <= start:
+                raise ValueError("Slice stop must be > start")
+            if stop > self.typ.width:
+                raise ValueError("Slice stop exceeds signal width")
+            return Slice(self, start, stop)
         raise TypeError("Unsupported index type")
 
     def to_verilog(self) -> str:
@@ -333,20 +343,29 @@ class Concat(Expr):
         self.typ = HDLType(w, signed=False, is_bool=False)
 
     def to_verilog(self) -> str:
-        inner = ", ".join(p.to_verilog() for p in self.parts)
+        inner = ", ".join(p.to_verilog() for p in reversed(self.parts))
         return f"{{{inner}}}"
 
 
 class Slice(Expr):
-    def __init__(self, a: Expr, msb: int, lsb: int):
-        if msb < lsb:
-            raise ValueError("Slice msb must be >= lsb")
+    def __init__(self, a: Expr, start: int, stop: int):
+        if start < 0 or stop < 0:
+            raise ValueError("Slice bounds must be >= 0")
+        if stop <= start:
+            raise ValueError("Slice stop must be > start")
         self.a = as_expr(a)
-        self.msb = msb
-        self.lsb = lsb
-        self.typ = HDLType(msb - lsb + 1, signed=False, is_bool=(msb == lsb))
+        if stop > self.a.typ.width:
+            raise ValueError("Slice stop exceeds signal width")
+        self.start = start
+        self.stop = stop
+        self.lsb = start
+        self.msb = stop - 1
+        width = stop - start
+        self.typ = HDLType(width, signed=False, is_bool=(width == 1))
 
     def to_verilog(self) -> str:
+        if self.typ.width == 1:
+            return f"{self.a.to_verilog()}[{self.lsb}]"
         return f"{self.a.to_verilog()}[{self.msb}:{self.lsb}]"
 
 

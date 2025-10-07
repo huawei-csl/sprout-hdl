@@ -18,7 +18,7 @@ hi = m.output(UInt(4), "hi")
 sum_ = x + y  # sum is 9-bit
 z <<= sum_  # auto-fit/truncate handled
 eq <<= x == y  # Bool
-hi <<= cat(x[7:6], y[7:6])  # concat 2+2 = 4 bits
+hi <<= cat(y[6:8], x[6:8])  # concat 2+2 = 4 bits
 
 # Mux on Bool
 w = m.output(UInt(8), "w")

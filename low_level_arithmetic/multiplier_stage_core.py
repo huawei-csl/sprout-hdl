@@ -240,7 +240,7 @@ class StageBasedMultiplier(Component):
         reduced_columns = self.ppa.accumulate(columns)
         result_bits = self.fsa.resolve(reduced_columns)
         expected_width = self.io.y.typ.width
-        self.io.y <<= Concat(reversed(result_bits[:expected_width]))
+        self.io.y <<= Concat(result_bits[:expected_width])
         
         # debugging
         self.colums = columns

@@ -37,10 +37,10 @@ class BasicUnsignedPartialProductGenerator(PartialProductGeneratorBase):
 
         if a.typ.signed:
             sign_bit = a[a.typ.width - 1]
-            a_vec = Concat([sign_bit] * a.typ.width + [a])
+            a_vec = Concat([a] + [sign_bit] * a.typ.width)
         if b.typ.signed:
             sign_bit = b[b.typ.width - 1]
-            b_vec = Concat([sign_bit] * b.typ.width + [b])
+            b_vec = Concat([b] + [sign_bit] * b.typ.width)
 
         out_bits = io.y.typ.width
 

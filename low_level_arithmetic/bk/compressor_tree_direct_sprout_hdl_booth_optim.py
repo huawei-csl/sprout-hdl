@@ -297,7 +297,7 @@ class MultiplierCompressorTree(Component):
             result_bits.append(carry)
 
         # Assign to output
-        self.io.y <<= Concat(reversed(result_bits[:2*self.n_bits]))
+        self.io.y <<= Concat(result_bits[: 2 * self.n_bits])
         print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")        
         print(f"Final result bits: {len(result_bits)}")
 

@@ -108,8 +108,8 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
 
         sa = self.io.a[W - 1]
         sb = self.io.b[W - 1]
-        mag_a = self.io.a[W - 2 : 0]  # make magnitude unsigned
-        mag_b = self.io.b[W - 2 : 0]  # make magnitude unsigned
+        mag_a = self.io.a[0 : W - 1]  # make magnitude unsigned
+        mag_b = self.io.b[0 : W - 1]  # make magnitude unsigned
 
         # mag_y = mag_a * mag_b
         # use the specified multiplier
@@ -124,7 +124,7 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
         is_zero = mux(mag_y == 0, Const(True, Bool()), Const(False, Bool()))
         sy = mux(is_zero, Const(False, Bool()), sy)
 
-        self.io.y <<= Concat([sy, mag_y[2*W-2-1:0]])  # sign + magnitude (drop overflow bit)
+        self.io.y <<= Concat([mag_y[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 
 class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
@@ -162,8 +162,8 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
 
         sa = self.io.a[W - 1]
         sb = self.io.b[W - 1]
-        mag_a = self.io.a[W - 2 : 0]  # make magnitude unsigned
-        mag_b = self.io.b[W - 2 : 0]  # make magnitude unsigned
+        mag_a = self.io.a[0 : W - 1]  # make magnitude unsigned
+        mag_b = self.io.b[0 : W - 1]  # make magnitude unsigned
 
         # assign sc_a = operand_a_sign & (operand_a_mag == {(N_IN-1){1'b0} }); // special case when input is -0 (-8), 1000
         sign_a = self.io.a[W - 1]
@@ -175,8 +175,8 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
         #        ? {1'b1, operand_a_mag[N_IN-3:0]}  // 100 -> 4 ,  operand_a_mag[N_IN-3:0] is 00 in this case
         #          : operand_a_mag;
 
-        mag_a_mod = mux(sc_a, Concat([Const(1, Bool()), mag_a[W - 3 : 0]]), mag_a)
-        mag_b_mod = mux(sc_b, Concat([Const(1, Bool()), mag_b[W - 3 : 0]]), mag_b)
+        mag_a_mod = mux(sc_a, Concat([mag_a[0 : W - 2], Const(1, Bool())]), mag_a)
+        mag_b_mod = mux(sc_b, Concat([mag_b[0 : W - 2], Const(1, Bool())]), mag_b)
 
         # mag_y = mag_a * mag_b
         # use the specified multiplier
@@ -184,15 +184,15 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
         mult.io.b <<= mag_b_mod
         mag_y = mult.io.y
 
-        sel_crit = Concat([sc_a, sc_b])
+        sel_crit = Concat([sc_b, sc_a])
 
         # assign mag_y_mod, shift one up
         mag_y_mod = mux_if(
             if_cond=((sel_crit == Const(0b10, UInt(2))) | (sel_crit == Const(0b01, UInt(2)))),
             then_expr=Concat(
                 [
-                    mag_y[2 * W - 3 : 0],
                     Const(0, Bool()),
+                    mag_y[0 : 2 * W - 2],
                 ]
             ),
             else_expr=mux_if(
@@ -215,7 +215,7 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
         is_zero = mux(mag_y == 0, Const(True, Bool()), Const(False, Bool()))
         sy = mux(is_zero, Const(False, Bool()), sy)
 
-        self.io.y <<= Concat([sy, h, mag_y_mod[2 * W - 3 : 0]])  # sign + magnitude (drop overflow bit)
+        self.io.y <<= Concat([mag_y_mod[0 : 2 * W - 2], h, sy])  # sign + magnitude (drop overflow bit)
 
 class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
 
@@ -252,8 +252,8 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
 
         sa = self.io.a[W - 1]
         sb = self.io.b[W - 1]
-        mag_a = self.io.a[W - 2 : 0]  # make magnitude unsigned
-        mag_b = self.io.b[W - 2 : 0]  # make magnitude unsigned
+        mag_a = self.io.a[0 : W - 1]  # make magnitude unsigned
+        mag_b = self.io.b[0 : W - 1]  # make magnitude unsigned
 
         # assign sc_a = operand_a_sign & (operand_a_mag == {(N_IN-1){1'b0} }); // special case when input is -0 (-8), 1000
         sign_a = self.io.a[W - 1]
@@ -265,8 +265,8 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
         #        ? {1'b1, operand_a_mag[N_IN-3:0]}  // 100 -> 4 ,  operand_a_mag[N_IN-3:0] is 00 in this case
         #          : operand_a_mag;
 
-        mag_a_mod = mux(sc_a, Concat([Const(1, Bool()), mag_a[W - 3 : 0]]), mag_a)
-        mag_b_mod = mux(sc_b, Concat([Const(1, Bool()), mag_b[W - 3 : 0]]), mag_b)
+        mag_a_mod = mux(sc_a, Concat([mag_a[0 : W - 2], Const(1, Bool())]), mag_a)
+        mag_b_mod = mux(sc_b, Concat([mag_b[0 : W - 2], Const(1, Bool())]), mag_b)
 
         # mag_y = mag_a * mag_b
         # use the specified multiplier
@@ -274,15 +274,15 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
         mult.io.b <<= mag_b_mod
         mag_y = mult.io.y
 
-        sel_crit = Concat([sc_a, sc_b])
+        sel_crit = Concat([sc_b, sc_a])
 
         # assign mag_y_mod, shift one up
         mag_y_mod = mux_if(
             if_cond=((sel_crit == Const(0b10, UInt(2))) | (sel_crit == Const(0b01, UInt(2)))),
             then_expr=Concat(
                 [
-                    mag_y[2 * W - 3 : 0],
                     Const(0, Bool()),
+                    mag_y[0 : 2 * W - 2],
                 ]
             ),
             else_expr=mux_if(
@@ -309,7 +309,7 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
         # make sure sign is negative if value is the upper limit
         sy = mux(h, Const(True, Bool()), sy)
 
-        self.io.y <<= Concat([sy, mag_y_mod[2 * W - 3 : 0]])  # sign + magnitude (drop overflow bit)
+        self.io.y <<= Concat([mag_y_mod[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 @dataclass
 class EncoderIO:
@@ -333,12 +333,12 @@ class SignMagnitudeToTwosComplementEncoder(Component):
         W = self.width
 
         sign = self.io.i[W - 1]
-        mag = self.io.i[W - 2 : 0]
+        mag = self.io.i[0 : W - 1]
 
         self.io.o <<= mux_if(
                 if_cond=(sign == 0),
-                then_expr=Concat([Const(0, Bool()), mag]),
-                else_expr=Concat([Const(1, Bool()), (~mag + 1)[W - 2 : 0]]),
+                then_expr=Concat([mag, Const(0, Bool())]),
+                else_expr=Concat([(~mag + 1)[0 : W - 1], Const(1, Bool())]),
             )
 
 class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedExtMultiplier):

@@ -14,7 +14,7 @@ from sprouthdl.sprouthdl_simulator import Simulator
 
 
 def _or_reduce_bits(vec_expr, hi: int, lo: int):
-    """OR-reduce bits vec_expr[hi:lo] (inclusive). If hi < lo, returns 0."""
+    """OR-reduce bits vec_expr[lo:hi+1] (inclusive). If hi < lo, returns 0."""
     if hi < lo:
         return 0
     acc = 0
@@ -40,11 +40,11 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     sA = a[W - 1]  # sign
     sB = b[W - 1]
 
-    eA = a[W - 2 : FW]  # exponent EW bits
-    eB = b[W - 2 : FW]
+    eA = a[FW : W - 1]  # exponent EW bits
+    eB = b[FW : W - 1]
 
-    fA = a[FW - 1 : 0]  # fraction FW bits
-    fB = b[FW - 1 : 0]
+    fA = a[0:FW]  # fraction FW bits
+    fB = b[0:FW]
 
     # ------------------
     # Classifiers
@@ -82,8 +82,8 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     # ------------------
     # Effective mantissas with hidden '1' (mask out when exp==0 → treat as 0)
     # ------------------
-    one_and_frac_A = cat(1, fA)  # width 1+FW
-    one_and_frac_B = cat(1, fB)
+    one_and_frac_A = cat(fA, 1)  # width 1+FW
+    one_and_frac_B = cat(fB, 1)
 
     mask_1pFW = (1 << (1 + FW)) - 1
     mskA = mux(is_eA_zero, 0, mask_1pFW)
@@ -110,8 +110,8 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     msb_high = prod[PROD_W - 1]  # 1 if product ≥ 2.0
 
     # Select normalized top (1+FW) bits (pre-round)
-    top_hi = prod[PROD_W - 1 : FW + 1]  # when msb_high=1 → [2*FW+1 : FW+1]
-    top_lo = prod[PROD_W - 2 : FW]  # when msb_high=0 → [2*FW   : FW  ]
+    top_hi = prod[FW + 1 : PROD_W]  # when msb_high=1 → [FW+1 : 2*FW+1]
+    top_lo = prod[FW : PROD_W - 1]  # when msb_high=0 → [FW : 2*FW]
     mant_pre = mux(msb_high, top_hi, top_lo)  # (1+FW) bits
 
     # Rounding bits
@@ -124,8 +124,8 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     guard_lo = prod[FW - 1]  # when msb_high=0 → bit FW-1
     guard = mux(msb_high, guard_hi, guard_lo)
 
-    sticky_hi = _or_reduce_bits(prod, FW - 1, 0)  # when msb_high=1 → [FW-1:0]
-    sticky_lo = _or_reduce_bits(prod, FW - 2, 0)  # when msb_high=0 → [FW-2:0]
+    sticky_hi = _or_reduce_bits(prod, FW - 1, 0)  # when msb_high=1 → [0:FW]
+    sticky_lo = _or_reduce_bits(prod, FW - 2, 0)  # when msb_high=0 → [0:FW-1]
     sticky = mux(msb_high, sticky_hi, sticky_lo)
 
     lsb = mant_pre[0]  # LSB of current mantissa
@@ -136,9 +136,9 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     # by shifting right one more and incrementing exponent again:
     mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1 = FW+2
     carry = mant_round[FW + 1]  # did rounding overflow?
-    mant_post = mux(carry, mant_round[FW + 1 : 1], mant_round[FW:0])  # (1+FW) bits
+    mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])  # (1+FW) bits
 
-    frac_norm = mant_post[FW - 1 : 0]  # drop hidden 1 → FW bits
+    frac_norm = mant_post[0:FW]  # drop hidden 1 → FW bits
 
     # ------------------
     # Exponent path (unsigned math)
@@ -158,7 +158,7 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
 
     # Normal exponent field (EW bits): exp = exp_sum_inc - BIAS
     exp_unbiased = exp_sum_inc - bias_const  # width EW+2
-    exp_norm = exp_unbiased[EW - 1 : 0]  # truncate to EW
+    exp_norm = exp_unbiased[0:EW]  # truncate to EW
 
     # ------------------
     # Special-case selection & packing
@@ -175,7 +175,7 @@ def build_fp_mul(name: str, EW: int, FW: int) -> Module:
     frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
     sign_field = mux(is_nan, 0, sY)  # sign is don't-care for NaN; choose 0
 
-    y <<= cat(sign_field, exp_field, frac_field)
+    y <<= cat(frac_field, exp_field, sign_field)
     return m
 
 

@@ -299,9 +299,12 @@ class Simulator:
 
         elif is_expr_instance(e, Concat):
             acc = 0
+            shift = 0
             for p in e.parts:
                 pv = self._eval_expr_bits(p, _visiting)
-                acc = (acc << p.typ.width) | _to_bits(pv, p.typ.width)
+                width = p.typ.width
+                acc |= _to_bits(pv, width) << shift
+                shift += width
             bits = _to_bits(acc, e.typ.width)
 
         elif is_expr_instance(e, Slice):

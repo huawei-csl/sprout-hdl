@@ -618,17 +618,17 @@ class AigerExporter:
             bits = self.aig.bv_mux(sel, a, b)
 
         elif k == "Concat":
-            # parts = [MSB ... LSB] ; our vectors are LSB-first
+            # parts are provided [LSB ... MSB]; our vectors are LSB-first
             vec: List[int] = []
-            for part in reversed(e.parts):
+            for part in e.parts:
                 pb = self._eval_expr_bits(part)
                 vec.extend(pb)
             bits = vec
 
         elif k == "Slice":
             base = self._eval_expr_bits(e.a)
-            # e.msb, e.lsb inclusive; our vectors LSB-first
-            bits = base[e.lsb : e.msb + 1]
+            # e.stop is exclusive upper bound; our vectors LSB-first
+            bits = base[e.lsb : e.stop]
 
         elif k == "Resize":
             a = self._eval_expr_bits(e.a)

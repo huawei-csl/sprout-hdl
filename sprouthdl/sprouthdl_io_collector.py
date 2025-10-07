@@ -83,7 +83,7 @@ class IOCollector:
         return agg
 
     def _create_agg_output_from_bits(self, m: Module, base: str, typ: Any, bits: List[Any]):
-        """Create 'output <typ> base' as concat of MSB..LSB of the (now internal) bit signals."""
+        """Create 'output <typ> base' as concat of LSB..MSB of the (now internal) bit signals."""
         if any(p.name == base for p in m._ports):
             raise ValueError(f"Port '{base}' already exists.")
         # Demote old bit-ports first (they already have drivers from the existing logic)
@@ -91,7 +91,7 @@ class IOCollector:
             self._demote_port_to_wire(m, b)
 
         agg = m.output(typ, base)
-        # Build y = cat(MSB ... LSB)
-        parts_msb_to_lsb = [bits[i] for i in reversed(range(typ.width))]
-        agg <<= cat(*parts_msb_to_lsb)
+        # Build y = cat(LSB ... MSB)
+        parts_lsb_to_msb = [bits[i] for i in range(typ.width)]
+        agg <<= cat(*parts_lsb_to_msb)
         return agg

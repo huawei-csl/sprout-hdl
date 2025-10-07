@@ -145,11 +145,11 @@ def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float]
     y = m.output(UInt(2*W), "y") # two's complement
     sa = a[W-1]
     sb = b[W-1]
-    mag_a = a[W-2:0]  # make magnitude unsigned
-    mag_b = b[W-2:0]  # make magnitude unsigned
+    mag_a = a[0:W-1]  # make magnitude unsigned
+    mag_b = b[0:W-1]  # make magnitude unsigned
     mag_y = mag_a * mag_b
     sy = sa ^ sb
-    y <<= Concat([sy, mag_y[2*W-2:0]])  # sign + magnitude (drop overflow bit)
+    y <<= Concat([mag_y[0:2 * W - 1], sy])  # sign + magnitude (drop overflow bit)
     vecs = []
     for _ in range(n_vecs):
         abs_max = (1 << (W - 1)) - 1

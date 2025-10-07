@@ -60,10 +60,10 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
     # Fields
     sA = a[W - 1]
     sB = b[W - 1]
-    eA = a[W - 2 : FW]
-    eB = b[W - 2 : FW]
-    fA = a[FW - 1 : 0]
-    fB = b[FW - 1 : 0]
+    eA = a[FW : W - 1]
+    eB = b[FW : W - 1]
+    fA = a[0:FW]
+    fB = b[0:FW]
 
     # Classify
     is_eA_zero = eA == 0
@@ -90,14 +90,14 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
     if subnormals:
         hiddenA = mux(is_eA_zero, 0, 1)
         hiddenB = mux(is_eB_zero, 0, 1)
-        mA_eff = cat(hiddenA, fA)  # (1+FW)
-        mB_eff = cat(hiddenB, fB)
+        mA_eff = cat(fA, hiddenA)  # (1+FW)
+        mB_eff = cat(fB, hiddenB)
         eA_eff = mux(is_eA_zero, 1, eA)  # so e_eff - BIAS = 1 - BIAS for subnormals
         eB_eff = mux(is_eB_zero, 1, eB)
     else:
         mask = (1 << (1 + FW)) - 1
-        mA_eff = (cat(1, fA)) & mux(is_eA_zero, 0, mask)
-        mB_eff = (cat(1, fB)) & mux(is_eB_zero, 0, mask)
+        mA_eff = (cat(fA, 1)) & mux(is_eA_zero, 0, mask)
+        mB_eff = (cat(fB, 1)) & mux(is_eB_zero, 0, mask)
         eA_eff = eA
         eB_eff = eB
 
@@ -112,7 +112,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
         if i == PROD_W - 1:
             upper_zero = 1  # True
         else:
-            upper_zero = prod[PROD_W - 1 : i + 1] == 0
+            upper_zero = prod[i + 1 : PROD_W] == 0
         msb_flags.append(upper_zero & prod[i])  # Bool
     # lz = number of zeros before first '1' from MSB side
     # Build as a chain of muxes over constants (unique one-hot)
@@ -133,7 +133,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
     shifted = mux(need_right, shifted_r, shifted_l)
 
     # Take normalized (1+FW) window (now leading 1 sits at bit FW)
-    mant_pre = shifted[FW:0]  # (1+FW) bits
+    mant_pre = shifted[0:FW + 1]  # (1+FW) bits
 
     # Rounding (GRS)
     # Right-shift path: guard = prod[sr-1], sticky = OR(prod[0 .. sr-2])
@@ -164,8 +164,8 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
 
     mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1
     carry = mant_round[FW + 1]
-    mant_post = mux(carry, mant_round[FW + 1 : 1], mant_round[FW:0])  # (1+FW)
-    frac_norm = mant_post[FW - 1 : 0]
+    mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])  # (1+FW)
+    frac_norm = mant_post[0:FW]
 
     # ---------- Exponent / range checks with lz ----------
     exp_sum = eA_eff + eB_eff  # EW+1
@@ -179,7 +179,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
 
     # Encoded exponent for normal case:
     e_norm = lhs - limit_under  # = (eA+eB+1+carry) - (BIAS+lz)
-    exp_field_norm = e_norm[EW - 1 : 0]
+    exp_field_norm = e_norm[0:EW]
 
     # ---------- Subnormal output path (if enabled and underflow) ----------
     if subnormals:
@@ -188,7 +188,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
 
         sig_pre = mant_post  # (1+FW)
         sig_shiftN = sig_pre >> shift_amt  # variable right shift
-        frac_trunc = sig_shiftN[FW - 1 : 0]  # FW bits
+        frac_trunc = sig_shiftN[0:FW]  # FW bits
 
         # guard_s = bit at (shift_amt - 1) of sig_pre; sticky_s = OR(sig_pre[0 .. shift_amt-2])
         pref_sig = _prefix_or_bits(sig_pre, FW + 1)
@@ -212,10 +212,10 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
         # lsb_s = 0 # reproduces the error
         round_up_s = guard_s & (sticky_s | lsb_s)
 
-        frac_trunc_zext = cat(0, frac_trunc)  # FW+1
+        frac_trunc_zext = cat(frac_trunc, 0)  # FW+1
         frac_sum = frac_trunc_zext + mux(round_up_s, 1, 0)
         carry_s = frac_sum[FW]  # if overflow → becomes min normal
-        frac_field_sub = frac_sum[FW - 1 : 0]
+        frac_field_sub = frac_sum[0:FW]
         exp_field_sub = mux(carry_s, 1, 0)
 
     # ---------- Pack with priority: NaN > Inf/overflow > Zero > Normal/Subnormal ----------
@@ -238,7 +238,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
         frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
 
     sign_field = mux(is_nan, 0, sY)
-    y <<= cat(sign_field, exp_field, frac_field)
+    y <<= cat(frac_field, exp_field, sign_field)
     return m
 
 

@@ -210,7 +210,7 @@ def build_multiplier_from_compressor_graph(name: str, A, nodes):
         carry = c_out
     # (product fits in W bits; overflow carry is discarded by design)
 
-    y <<= cat(*reversed(bits))
+    y <<= cat(*bits)
     return m
 
 

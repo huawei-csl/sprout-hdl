@@ -65,9 +65,9 @@ class MultiplierCompressorTree(Component):
         signed_b = b.typ.signed
 
         if signed_a:
-            a = Concat([a[n-1]]*n + [a])  # sign extend
+            a = Concat([a] + [a[n - 1]] * n)  # sign extend
         if signed_b:
-            b = Concat([b[n-1]]*n + [b])  # sign extend
+            b = Concat([b] + [b[n - 1]] * n)  # sign extend
 
         # partial products
         for i in range(a.typ.width):
@@ -162,7 +162,7 @@ class MultiplierCompressorTree(Component):
             result_bits.append(carry)
 
         # Assign to output
-        self.io.y <<= Concat(reversed(result_bits[:2*self.n_bits]))
+        self.io.y <<= Concat(result_bits[: 2 * self.n_bits])
         print(f"MultiplierCompressorTree: {self.n_bits}x{self.n_bits} -> {2*self.n_bits} bits")        
         print(f"Final result bits: {len(result_bits)}")
 
