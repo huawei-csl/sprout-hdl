@@ -357,7 +357,6 @@ class Slice(Expr):
         if stop > self.a.typ.width:
             raise ValueError("Slice stop exceeds signal width")
         self.start = start
-        self.stop = stop
         self.lsb = start
         self.msb = stop - 1
         width = stop - start

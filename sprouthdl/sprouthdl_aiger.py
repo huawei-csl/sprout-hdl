@@ -627,8 +627,8 @@ class AigerExporter:
 
         elif k == "Slice":
             base = self._eval_expr_bits(e.a)
-            # e.stop is exclusive upper bound; our vectors LSB-first
-            bits = base[e.lsb : e.stop]
+            # our vectors LSB-first
+            bits = base[e.lsb : e.msb + 1]
 
         elif k == "Resize":
             a = self._eval_expr_bits(e.a)
