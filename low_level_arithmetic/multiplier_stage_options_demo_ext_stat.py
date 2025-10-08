@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from enum import Enum
+import sys
 import time
 from typing import NamedTuple, Self, Tuple, Type
 import uuid
 
 import numpy as np
+from tqdm import tqdm
 
 
 from low_level_arithmetic.multiplier_stage_options_demo_lib import Demo, MultiplierEncodings, PPAOption, PPGOption
@@ -61,45 +64,33 @@ from testing.test_different_logic import run_vectors_io
 from low_level_arithmetic.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list
 
 
-def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cover - demonstration only
+def run_configuration(
+    multiplier_cls: Type[StageBasedExtMultiplier],
+    encodings: MultiplierEncodings,
+    ppg_opt: PPGOption,
+    ppa_opt: PPAOption,
+    fsa_opt: FSAOption,
+    n_bits: int,
+    num_vectors: int,
+    sigmas: list,
+) -> None:
+    reset_shared_cache()
 
-    num_vectors = 2000
-    bitwidths = [4, 8, 16]
-    sigma_factor = 0.5
-    n_steps_sigma = 8
+    multiplier = multiplier_cls(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=encodings.a,
+        b_encoding=encodings.b,
+        ppg_cls=ppg_opt.value,
+        ppa_cls=ppa_opt.value,
+        fsa_cls=fsa_opt.value,
+        optim_type="area",
+    )
 
-    # datecode
-    run_id = time.strftime("%Y%m%d_%H%M%S")
-    out_file = f"data/multiplier_runs_{run_id}.parquet"
-    collector = ParquetCollector(out_file)
+    module = multiplier.to_module(f"demo_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
+    print(f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
 
-    completed_demo_runs = 0
-
-    for n_bits in bitwidths:
-
-        sigma_max = 2**n_bits * sigma_factor
-        sigma_start = sigma_max / n_steps_sigma        
-        sigmas = np.linspace(sigma_start, sigma_max, n_steps_sigma)
-
-        for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos:
-
-            reset_shared_cache()
-
-            multiplier = multiplier_cls(
-                a_w=n_bits,
-                b_w=n_bits,
-                a_encoding=encodings.a,
-                b_encoding=encodings.b,
-                ppg_cls=ppg_opt.value,
-                ppa_cls=ppa_opt.value,
-                fsa_cls=fsa_opt.value,
-                optim_type="area",
-            )
-
-            module = multiplier.to_module(f"demo_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
-            print(f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
-
-            vecs = MultiplierTestVectors(
+    vecs = MultiplierTestVectors(
                 a_w=n_bits,
                 b_w=n_bits,
                 y_w=multiplier.io.y.typ.width,
@@ -110,28 +101,28 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                 y_encoding=encodings.y,
             ).generate()
 
-            #run_vectors_io(module, vecs)
+    # run_vectors_io(module, vecs)
 
-            # -- swact --
-            m_aig = refactor_module_to_aig(module)
+    # -- swact --
+    m_aig = refactor_module_to_aig(module)
 
-            # AIG network test sim
-            print("Sim (AIG) …")
-            #run_vectors_io(m_aig, vecs)
+    # AIG network test sim
+    print("Sim (AIG) …")
+    # run_vectors_io(m_aig, vecs)
 
-            exprs = m_aig.all_exprs()
-            all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
+    exprs = m_aig.all_exprs()
+    all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
 
-            def run_and_count(vecs_run) -> int:
-                states_list = run_vectors(m_aig, vecs_run, exprs=all_ands)
-                return get_switch_count(states_list)             
+    def run_and_count(vecs_run) -> int:
+        states_list = run_vectors(m_aig, vecs_run, exprs=all_ands)
+        return get_switch_count(states_list)             
 
-            # switches = run_and_count(vecs)
-            # print(f"Average AND switches: {switches}")
+    # switches = run_and_count(vecs)
+    # print(f"Average AND switches: {switches}")
 
-            switches = []
-            for sigma in sigmas:
-                vecs = MultiplierTestVectors(
+    switches = []
+    for sigma in sigmas:
+        vecs = MultiplierTestVectors(
                       a_w=n_bits,
                       b_w=n_bits,
                       y_w=multiplier.io.y.typ.width,
@@ -141,22 +132,21 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                       b_encoding=encodings.b,
                       y_encoding=encodings.y,
                   ).generate()
-                switches.append(run_and_count(vecs))
-                print(f"Average AND switches (sigma={sigma}): {switches[-1]}")
+        switches.append(run_and_count(vecs))
+        print(f"Average AND switches (sigma={sigma}): {switches[-1]}")
 
-            completed_demo_runs += 1
-            print(f"Completed {completed_demo_runs} multiplier demos.")
-            gr = m_aig.module_analyze()
-            tc = get_yosys_transistor_count(m_aig)
-            ym = get_yosys_metrics(m_aig)
-            print(f"Yosys-reported transistor count: {tc}")
+    gr = m_aig.module_analyze()
+    tc = get_yosys_transistor_count(m_aig)
+    ym = get_yosys_metrics(m_aig)
+    print(f"Yosys-reported transistor count: {tc}")
 
-            # ... inside your loops ...
-            run_id = uuid.uuid4().hex
-            t_now = time.time()
+    # ... inside your loops ...
+    run_id = uuid.uuid4().hex
+    t_now = time.time()
 
-            for sigma_val, sw_val in zip(sigmas, switches):
-                row = MultiplierRow(
+    rows = []
+    for sigma_val, sw_val in zip(sigmas, switches):
+        row = MultiplierRow(
                     run_id=run_id,
                     timestamp=t_now,
                     module_name=module.name,
@@ -187,11 +177,66 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                     estimated_num_transistors=int(ym["estimated_num_transistors"]),
                     transistor_count=int(tc),
                 )
-                collector.add(row)
+        rows.append(row)
+    return rows
 
-    # append to the single file after each design (or once at the end)
+def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cover - demonstration only
+
+    num_vectors = 2000
+    bitwidths = [4, 8, 16]
+    sigma_factor = 0.5
+    n_steps_sigma = 8
+    parallel = True
+    
+    sys.setrecursionlimit(2000)
+
+    # datecode
+    run_id = time.strftime("%Y%m%d_%H%M%S")
+    out_file = f"data/multiplier_runs_{run_id}.parquet"
+    collector = ParquetCollector(out_file)
+
+    for n_bits in bitwidths:
+
+        sigma_max = 2**n_bits * sigma_factor
+        sigma_start = sigma_max / n_steps_sigma        
+        sigmas = np.linspace(sigma_start, sigma_max, n_steps_sigma)
+
+        if not parallel:
+            
+            for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos:                
+                rows = run_configuration(multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt, n_bits, num_vectors, sigmas)
+                collector.extend(rows)
+
+        else:       
+
+            max_workers = 30
+
+            _worker = run_configuration
+
+            results = []
+            with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                #futures = [
+                #    ex.submit(_worker, demo, n_bits, num_vectors, sigmas)
+                #    for demo in demos
+                #]
+                futures = []
+                for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos: 
+                    futures.append(
+                        ex.submit(_worker, multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt, n_bits, num_vectors, sigmas)
+                    )
+                for fut in tqdm(as_completed(futures), total=len(futures), desc="Running demos", unit="demo"):
+                    rec = fut.result()
+                    # Safely aggregate on the main process:
+                    if collector is not None and rec is not None:
+                        collector.extend(rec)   # or whatever your API is
+                    results.extend(rec)
+
+    # get number of rows added
+    print(f"Total number of configurations run: {len(demos) * len(bitwidths)}")
+    print(f"Total rows collected: {collector.n_rows()}")
+    
+    # save to file
     collector.save(append=True)
-
 
 if __name__ == "__main__":
     # run_stage_multiplier_ext_demo(demos=demos1)

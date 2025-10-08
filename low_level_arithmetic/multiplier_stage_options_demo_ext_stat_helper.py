@@ -101,6 +101,10 @@ class ParquetCollector:
 
     def add(self, row):
         self._rows.append(asdict(row) if is_dataclass(row) else dict(row))
+    
+    def extend(self, rows: List[Any]):
+        for row in rows:
+            self.add(row)
 
     def _to_df(self) -> pd.DataFrame:
         if not self._rows:
@@ -121,4 +125,7 @@ class ParquetCollector:
         else:
             df.to_parquet(self.out_file, engine=self.engine, index=False)
         self._rows.clear()
+        
+    def n_rows(self) -> int:
+        return len(self._rows)
 
