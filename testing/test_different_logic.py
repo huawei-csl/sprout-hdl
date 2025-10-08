@@ -102,6 +102,7 @@ def run_vectors_io(
     vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]],
     *,
     decoder: Callable[[int], float] | None = None,
+    use_signed: bool = False,
 ) -> None:
     """
     Generic runner:
@@ -119,8 +120,9 @@ def run_vectors_io(
         bad = []
         for oname, exp in outs.items():
             got_raw = sim.peek(oname) #sim.get(oname)
-            got = sim.get(oname)
-            if got_raw != exp:
+            got_signed = sim.get(oname)
+            got = got_signed if use_signed else got_raw
+            if got != exp:
                 if decoder and oname == "y":
                     bad.append(f"{oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
                 else:

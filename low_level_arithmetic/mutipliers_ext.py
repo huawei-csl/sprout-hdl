@@ -5,8 +5,9 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 
 import numpy as np
 
-from low_level_arithmetic.multiplier_stage_core import Component, CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
+from low_level_arithmetic.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
 from low_level_arithmetic.test_vector_generation import Encoding, from_encoding, to_encoding
+from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 
@@ -42,11 +43,18 @@ class StageBasedMultiplierBasic(StageBasedExtMultiplier):
 
         assert self.a_encoding == Encoding.unsigned or self.b_encoding == Encoding.twos_complement, "Only unsigned or two's complement encoding is supported"
         assert self.b_encoding == Encoding.unsigned or self.b_encoding == Encoding.twos_complement, "Only unsigned or two's complement encoding is supported"
+        y_encoding = Encoding.twos_complement if (self.a_encoding == Encoding.twos_complement or self.b_encoding == Encoding.twos_complement) else Encoding.unsigned
 
-        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
-            a=Signal(name="a", typ=UInt(self.aw), kind="input"),
-            b=Signal(name="b", typ=UInt(self.bw), kind="input"),
-            y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
+        def get_type(enc: Encoding,) -> Type:
+            if enc == Encoding.unsigned:
+                return UInt
+            elif enc == Encoding.twos_complement:
+                return SInt
+
+        self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=get_type(self.a_encoding)(self.aw), kind="input"),
+            b=Signal(name="b", typ=get_type(self.b_encoding)(self.bw), kind="input"),
+            y=Signal(name="y", typ=get_type(y_encoding)(self.aw + self.bw), kind="output"),
         )
 
         self.elaborate()
@@ -64,7 +72,7 @@ class StageBasedMultiplierBasic(StageBasedExtMultiplier):
             fsa_cls=self.fsa_cls,
             optim_type=self.optim_type,
         ).make_internal()
-        
+
         self.mult = mult
 
         # use the specified multiplier
@@ -460,35 +468,31 @@ class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedExtMul
 
         self.enc = enc
 
-class StarSignedMultiplier(StageBasedExtMultiplier):
+class StarMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.a_encoding == Encoding.twos_complement or self.a_encoding == Encoding.twos_complement, "Only two's complement encoding is supported"
-
-        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
-            a=Signal(name="a", typ=SInt(self.aw), kind="input"),
-            b=Signal(name="b", typ=SInt(self.bw), kind="input"),
-            y=Signal(name="y", typ=SInt(self.aw + self.bw), kind="output"),
+        assert self.a_encoding == Encoding.unsigned or self.b_encoding == Encoding.twos_complement, "Only unsigned or two's complement encoding is supported"
+        assert self.b_encoding == Encoding.unsigned or self.b_encoding == Encoding.twos_complement, "Only unsigned or two's complement encoding is supported"
+        y_encoding = (
+            Encoding.twos_complement if (self.a_encoding == Encoding.twos_complement or self.b_encoding == Encoding.twos_complement) else Encoding.unsigned
         )
-        self.elaborate()
 
-    def elaborate(self) -> None:
-        self.io.y <<= self.io.a * self.io.b
-        
-class StartUnsignedMultiplier(StageBasedExtMultiplier):
+        def get_type(
+            enc: Encoding,
+        ) -> Type:
+            if enc == Encoding.unsigned:
+                return UInt
+            elif enc == Encoding.twos_complement:
+                return SInt
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-        assert self.a_encoding == Encoding.unsigned or self.a_encoding == Encoding.unsigned, "Only unsigned encoding is supported"
-
-        self.io : StageBasedMultiplierIO = StageBasedMultiplierIO(
-            a=Signal(name="a", typ=UInt(self.aw), kind="input"),
-            b=Signal(name="b", typ=UInt(self.bw), kind="input"),
-            y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
+        self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=get_type(self.a_encoding)(self.aw), kind="input"),
+            b=Signal(name="b", typ=get_type(self.b_encoding)(self.bw), kind="input"),
+            y=Signal(name="y", typ=get_type(y_encoding)(self.aw + self.bw), kind="output"),
         )
+
         self.elaborate()
 
     def elaborate(self) -> None:

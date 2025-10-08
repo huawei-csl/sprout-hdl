@@ -2,87 +2,30 @@
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import Tuple
 
-from low_level_arithmetic.ppa_stages import (
-    CarrySaveAccumulator,
-    DaddaTreeAccumulator,
-    FourTwoCompressorAccumulator,
-    WallaceTreeAccumulator,
-)
+from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
 from low_level_arithmetic.test_vector_generation import (
     Encoding,
     MultiplierTestVectors,
     to_encoding,
 )
-from low_level_arithmetic.ppg_baugh_wooley_stages import (
-    BaughWooleyPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_basic_stages import (
-    BasicUnsignedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_optim_signed_stages import (
-    BoothOptimizedSignedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_optim_stages import (
-    BoothOptimizedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_unoptim_stages import (
-    BoothUnoptimizedPartialProductGenerator,
-)
 from low_level_arithmetic.multiplier_stage_core import (
-    CompressorTreeAccumulator,
-    RippleCarryFinalAdder,
     StageBasedMultiplier,
-)
-from low_level_arithmetic.fsa_stages import (
-    BrentKungPrefixFinalStage,
-    PrefixAdderFinalStage,
-    RipplePrefixFinalStage,
-    SklanskyPrefixFinalStage,
 )
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
-
-# Options for each stage
-
-class PPGOption(Enum):
-    BASIC = BasicUnsignedPartialProductGenerator
-    BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
-    BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
-    BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
-    BOOTH_OPTIMISED_SIGNED = BoothOptimizedSignedPartialProductGenerator
-    NONE = None
-
-
-class PPAOption(Enum):
-    COMPRESSOR_TREE = CompressorTreeAccumulator
-    WALLACE_TREE = WallaceTreeAccumulator
-    DADDA_TREE = DaddaTreeAccumulator
-    CARRY_SAVE_TREE = CarrySaveAccumulator
-    FOUR_TWO_COMPRESSOR = FourTwoCompressorAccumulator
-    NONE = None
-
-
-class FSAOption(Enum):
-    RIPPLE = RippleCarryFinalAdder
-    PREFIX_KS = PrefixAdderFinalStage
-    PREFIX_BK = BrentKungPrefixFinalStage
-    PREFIX_SKLANSKY = SklanskyPrefixFinalStage
-    PREFIX_RCA = RipplePrefixFinalStage
-    NONE = None
 
 def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration only
 
     # define some demo combinations to try
     demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
         (PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KS),
-        (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BK),
-        (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KS),
+        (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KOGGE_STONE),
+        (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
+        (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KOGGE_STONE),
         (PPGOption.BOOTH_UNOPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_RCA),
-        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BK),
+        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BRENT_KUNG),
         (PPGOption.BOOTH_OPTIMISED_SIGNED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_SKLANSKY),
     )
 

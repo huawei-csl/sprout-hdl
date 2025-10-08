@@ -6,7 +6,8 @@ from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
 import numpy as np
 from low_level_arithmetic.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
-from sprouthdl.sprouthdl import Concat, Const, Expr, Op2, SInt, UInt
+from sprouthdl.helpers import optimize_aag
+from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Op2, SInt, UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_io_collector import IOCollector
 from sprouthdl.sprouthdl_module import Module
@@ -18,7 +19,8 @@ import matplotlib.pyplot as plt
 
 def run_vectors_io_log(
     m: Module, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
-    decoder: Callable[[int], float] | None = None, exprs: List[Expr] = []
+    decoder: Callable[[int], float] | None = None, exprs: List[Expr] = [],
+    use_signed: bool = False,
 ) -> None:
     """
     Generic runner:
@@ -36,7 +38,9 @@ def run_vectors_io_log(
         sim.eval()
         bad = []
         for oname, exp in outs.items():
-            got = sim.get(oname)
+            got_raw = sim.peek(oname) #sim.get(oname)
+            got_signed = sim.get(oname)
+            got = got_signed if use_signed else got_raw
             if got != exp:
                 if decoder and oname == "y":
                     bad.append(f"{oname}: got=0x{got:0X} ({decoder(got):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
@@ -149,7 +153,7 @@ def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float]
     mag_b = b[0:W-1]  # make magnitude unsigned
     mag_y = mag_a * mag_b
     sy = sa ^ sb
-    y <<= Concat([mag_y[0:2 * W - 1], sy])  # sign + magnitude (drop overflow bit)
+    y <<= Concat([mag_y, Const(False, Bool()), sy])  # sign + magnitude (drop overflow bit)
     vecs = []
     for _ in range(n_vecs):
         abs_max = (1 << (W - 1)) - 1
@@ -182,30 +186,11 @@ def build_signed_multiplier_sign_magnitude(W: int = 8, tb_sigma: Optional[float]
     spec = {"a": UInt(W), "b": UInt(W), "y": UInt(2*W)}
     return m, spec, vecs, None
 
-def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
-
-    # aag to aig
-    aig = conv_aag_into_aig(aag_lines)
-
-    for i in range(n_iter_optimizations):
-        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
-            optimization(aig)
-
-    # aig back to aag
-    aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
-
-    #aag_sym = _get_aag_sym(aag_lines)
-    # In your flow you did: aag[:-2] + aag_sym
-    # Keep that exact trick to preserve symbols
-    #aag_optimized = aag_optimized[:-2] + aag_sym
-
-    return aag_optimized
-
 
 def main():
 
     optim=True
-    n_vecs = 5000//5
+    n_vecs = 5000//100
 
     sigma_factor = 0.5
     # sigmas = [1, 2]
@@ -237,7 +222,7 @@ def main():
 
             # 1) Original sim
             print("Sim (original) …")
-            run_vectors_io(m, vecs, decoder=dec)
+            run_vectors_io(m, vecs, decoder=dec, use_signed=True)
 
             # get AIG
             aag = AigerExporter(m).get_aag()
@@ -248,7 +233,7 @@ def main():
 
             # AIG network test sim
             print("Sim (AIG) …")
-            run_vectors_io(m_aig, vecs, decoder=dec)
+            run_vectors_io(m_aig, vecs, decoder=dec, use_signed=True)
 
             exprs = m_aig.all_exprs()
 
@@ -259,7 +244,7 @@ def main():
                 # if vecs_diff is not None:
                 #    vecs = vecs_diff
 
-                states_list = run_vectors_io_log(m_aig, vecs_run, decoder=dec, exprs=all_ands)
+                states_list = run_vectors_io_log(m_aig, vecs_run, decoder=dec, exprs=all_ands, use_signed=True)
 
                 # get all ids from step 0
                 ids = set(states_list[0].keys())

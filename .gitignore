@@ -10,3 +10,4 @@
 *.csv
 output/*
 *.history
+*.parquet

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 import random
 from typing import Dict, Literal, Optional, Tuple, List
 import numpy as np
-from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
+from sprouthdl.helpers import get_yosys_transistor_count
+from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt, cast, fit_width, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
@@ -260,14 +261,6 @@ def gen_sprout_module(class_instance: MultiplierCompressorTree) -> Module:
     return m
 
 
-def gen_spec(class_instance: Component) -> Dict[str, UInt]:
-    spec = {}
-    for sig in class_instance.io.__dict__.values():
-        spec[sig.name] = sig.typ
-
-    return spec
-
-
 def main():
     n_bits = 16
     signed = True
@@ -276,7 +269,7 @@ def main():
     # get size in # t transistors
     # print(m.to_verilog())
 
-    tc = get_transistor_count_from_m_yosys(m, n_iter_optimizations=10)
+    tc = get_yosys_transistor_count(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")
 
     specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=16, tb_sigma=None, signed_a=signed, signed_b=signed).generate()

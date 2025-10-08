@@ -4,7 +4,8 @@ from dataclasses import dataclass
 import random
 from typing import Dict, Literal, Optional, Tuple, List
 import numpy as np
-from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
+from sprouthdl.helpers import get_yosys_transistor_count
+from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt, cast, fit_width, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
@@ -361,12 +362,6 @@ def gen_sprout_module(class_instance: MultiplierCompressorTree) -> Module:
             raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
     return m
 
-def gen_spec(class_instance: Component) -> Dict[str, UInt]:
-    spec = {}
-    for sig in class_instance.io.__dict__.values():
-        spec[sig.name] = sig.typ
-
-    return spec
 
 def main():
     n_bits = 4
@@ -380,7 +375,7 @@ def main():
     specs2 = gen_spec(mult)
     run_vectors_io(m, vecs, decoder=dec)
     
-    tc = get_transistor_count_from_m_yosys(m, n_iter_optimizations=10)
+    tc = get_yosys_transistor_count(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")
 
 

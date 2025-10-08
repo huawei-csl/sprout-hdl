@@ -1,10 +1,56 @@
 
-from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, fit_width, _SHARED, reset_shared_cache
+import abc
+from dataclasses import dataclass
+from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, fit_width, _SHARED, reset_shared_cache
 
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Self
 
 from sprouthdl.sprouthdl_analyzer import _Analyzer, GraphReport
+
+
+class Component(abc.ABC):
+
+    io: dataclass
+
+    # define attribute name
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @abc.abstractmethod
+    def elaborate(self) -> None:  # pragma: no cover - structural hook
+        raise NotImplementedError
+
+    # convenience helpers -------------------------------------------------------
+
+    def to_module(self, name: Optional[str] = None) -> 'Module':
+        module = Module(
+            name or f"comp_{get_rand_hash()}",
+            with_clock=False,
+            with_reset=False,
+        )
+        for sig in self.io.__dict__.values():
+            if sig.kind == "input":
+                module.add_input(sig)
+            elif sig.kind == "output":
+                module.add_output(sig)
+            else:
+                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
+        module.component = self # can be used for debugging
+        return module
+
+    def make_internal(self) -> Self:
+        # go through all signals in io and change to 'wire'
+        for sig in self.io.__dict__.values():
+            if sig.kind in ('input', 'output'):
+                sig.kind = 'wire'
+            else:
+                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
+        return self
+
+    def get_spec(self) -> Dict[str, UInt]:
+        return gen_spec(self)
 
 
 class Module:
@@ -199,4 +245,16 @@ class Module:
                 visit(s._next)
     
         return exprs
+    
+def gen_spec(class_instance: Component) -> Dict[str, UInt]:
+    spec = {}
+    for sig in class_instance.io.__dict__.values():
+        spec[sig.name] = sig.typ
+    return spec
+
+def get_rand_hash() -> str:
+    random_string = str(random.random()) + str(time.time())
+    hash_object = hashlib.sha256(random_string.encode())
+    name = str(hash_object.hexdigest())
+    return name
     

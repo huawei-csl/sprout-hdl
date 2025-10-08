@@ -8,11 +8,11 @@ from tqdm import tqdm
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, conv_aig_into_aag
 from low_level_arithmetic.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
 from low_level_arithmetic.prefix_adder import Vec
+from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl import Bool, HDLType, Op2
 from sprouthdl.sprouthdl_aiger import AigerExporter
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.yosys_extract_metrics import extract_yosys_metrics
 
 
 def build_multiplier_from_compressor_graph(name: str, A, nodes):
@@ -278,27 +278,6 @@ def run_vectors(mod, vectors, *, label="") -> bool:
         raise ValueError("Some vectors failed!")
     return all_ok
 
-def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
-
-    # aag to aig
-    aig = conv_aag_into_aig(aag_lines)
-    
-    for i in range(n_iter_optimizations):
-        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
-            optimization(aig)
-            
-    # aig back to aag
-    aag_optimized = conv_aig_into_aag(aig)
-    return aag_optimized
-
-def get_transistor_count_from_m_yosys(m: Module, n_iter_optimizations=0, deepsyn=False) -> int:
-    aag_lines = AigerExporter(m).get_aag()
-
-    if n_iter_optimizations > 0:
-        aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
-
-    stat = extract_yosys_metrics(aag_lines, deepsyn=deepsyn)
-    return stat
 
 def main():
 
@@ -410,7 +389,7 @@ def main():
                     sizes.append(size)
                     depths.append(depth)
                     #transistor_count = get_transistor_count_from_m(m)
-                    transistor_count = get_transistor_count_from_m_yosys(m, n_iter_optimizations=2)
+                    transistor_count = get_yosys_transistor_count(m, n_iter_optimizations=2)
                     transistor_counts.append(transistor_count)
                     m_depth = m.module_analyze().max_depth
                 else:

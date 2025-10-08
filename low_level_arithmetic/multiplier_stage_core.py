@@ -3,13 +3,13 @@ from __future__ import annotations
 import abc
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Self, Tuple, Type
+from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, Type
 
 import numpy as np
 
 from low_level_arithmetic.test_vector_generation import Encoding
+from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux
-from sprouthdl.sprouthdl_module import Module
 
 
 # ---- common arithmetic helpers -------------------------------------------------
@@ -29,41 +29,6 @@ def full_adder_fast(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
 
 
 # ---- abstract component/stage definitions --------------------------------------
-
-
-class Component(abc.ABC):
-    io: dataclass
-
-    @abc.abstractmethod
-    def elaborate(self) -> None:  # pragma: no cover - structural hook
-        raise NotImplementedError
-    
-    # convenience helpers -------------------------------------------------------
-    
-    def to_module(self, name: Optional[str] = None) -> Module:
-        module = Module(
-            name or f"Mul{self.config.a_width}x{self.config.b_width}_ct",
-            with_clock=False,
-            with_reset=False,
-        )
-        for sig in self.io.__dict__.values():
-            if sig.kind == "input":
-                module.add_input(sig)
-            elif sig.kind == "output":
-                module.add_output(sig)
-            else:
-                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
-        module.component = self # can be used for debugging
-        return module
-    
-    def make_internal(self) -> Self:
-        # go through all signals in io and change to 'wire'
-        for sig in self.io.__dict__.values():
-            if sig.kind in ('input', 'output'):
-                sig.kind = 'wire'
-            else:
-                raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
-        return self
 
 
 @dataclass(frozen=True)
@@ -245,13 +210,6 @@ class StageBasedMultiplier(Component):
         # debugging
         self.colums = columns
         self.reduced_columns = reduced_columns
-
-def gen_spec(component: Component) -> Dict[str, UInt]:
-    spec: Dict[str, UInt] = {}
-    for sig in component.io.__dict__.values():
-        spec[sig.name] = sig.typ
-    return spec
-
 
 @dataclass
 class MultiplierTestVectors:

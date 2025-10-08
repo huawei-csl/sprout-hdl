@@ -6,8 +6,9 @@ from enum import Enum
 from typing import NamedTuple, Self, Tuple, Type
 
 
-from low_level_arithmetic.multiplier_stage_options_demo import FSAOption, PPAOption, PPGOption
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarSignedMultiplier, StartUnsignedMultiplier
+from low_level_arithmetic.multiplier_stage_options_demo_lib import PPAOption, PPGOption
+from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption
+from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
     DaddaTreeAccumulator,
@@ -80,7 +81,7 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
         fsa_opt: FSAOption
 
     # define some demo combinations to try
-    demos: Tuple[Demo, ...] = (
+    demos: list[Demo] = [
         (StageBasedSignMagnitudeMultiplier, MultiplierEncodings.with_enc(Encoding.sign_magnitude), PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         (
             StageBasedSignMagnitudeExtMultiplier,
@@ -126,20 +127,20 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
             FSAOption.RIPPLE,
         ),
         (
-            StarSignedMultiplier,
+            StarMultiplier,
             MultiplierEncodings.with_enc(Encoding.twos_complement),
             PPGOption.NONE,
             PPAOption.NONE,
             FSAOption.NONE,
         ),
         (
-            StartUnsignedMultiplier,
+            StarMultiplier,
             MultiplierEncodings.with_enc(Encoding.unsigned),
             PPGOption.NONE,
             PPAOption.NONE,
             FSAOption.NONE,
         ),
-    )
+    ]
 
     completed_demo_runs = 0
 

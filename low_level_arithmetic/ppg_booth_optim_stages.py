@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import DefaultDict, List
 
-from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
+from sprouthdl.helpers import get_yosys_transistor_count
 from low_level_arithmetic.multiplier_stage_core import (
     CompressorTreeAccumulator,
     FinalStageAdderBase,
@@ -196,7 +196,7 @@ def main() -> None:
     )
 
     module = gen_sprout_module(mult)
-    transistor_count = get_transistor_count_from_m_yosys(module, n_iter_optimizations=10)
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {transistor_count}")
 
     specs, vecs, decoder = MultiplierTestVectors(
