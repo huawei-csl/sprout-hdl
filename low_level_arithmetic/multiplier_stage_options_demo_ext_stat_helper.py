@@ -43,7 +43,9 @@ class MultiplierRow:
 
     # Sweep / result
     sigma: float
-    switches: int  # <- simple, consistent name
+    switches: float
+    n_sigmas: int
+    multiple_sigmas: bool
 
     # Graph report
     total_expr_nodes: int

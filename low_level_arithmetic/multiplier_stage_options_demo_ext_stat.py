@@ -181,6 +181,8 @@ def run_configuration(
             
                     sigma=float(sigma_val),
                     switches=int(sw_val),
+                    n_sigmas=len(sigmas),
+                    multiple_sigmas=len(sigmas) > 1,
             
                     total_expr_nodes=int(gr.total_expr_nodes),
                     max_depth=int(gr.max_depth),
@@ -204,7 +206,7 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
     bitwidths = [4, 8, 16]
     sigma_factor = 0.5
     n_steps_sigma = 8
-    parallel = True
+    parallel = False
 
     sys.setrecursionlimit(2000)
 
@@ -212,6 +214,9 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
     run_id = time.strftime("%Y%m%d_%H%M%S")
     out_file = f"data/multiplier_runs_{run_id}.parquet"
     collector = ParquetCollector(out_file)
+    
+    if parallel:
+        bitwidths = list(reversed(bitwidths))  # start with big ones first to get better load balancing
 
     for n_bits in bitwidths:
 
@@ -254,4 +259,4 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
 
 if __name__ == "__main__":
     # run_stage_multiplier_ext_demo(demos=demos1)
-    run_stage_multiplier_ext_demo(demos=get_selection1_list())
+    run_stage_multiplier_ext_demo(demos=get_selection1_list(small_sweep=True))

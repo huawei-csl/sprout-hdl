@@ -311,7 +311,7 @@ def make_app(df: pd.DataFrame) -> Dash:
             "padding": "12px",
         },
         children=[
-            html.H2("Multiplier Results Explorer"),
+            html.H2("Multiplier Explorer"),
             html.Div(
                 [
                     html.Div(
@@ -554,47 +554,117 @@ def make_app(df: pd.DataFrame) -> Dash:
 
     # ------------------------- callbacks: line ------------------------ #
 
+    # @callback(
+    #     Output("line-graph", "figure"),
+    #     [
+    #         Input("full-table", "data"),
+    #         Input("color-by", "value"),
+    #         Input("line-metric", "value"),
+    #         Input("f-mult", "value"),
+    #         Input("f-ppg", "value"),
+    #         Input("f-ppa", "value"),
+    #         Input("f-fsa", "value"),
+    #         Input("f-aenc", "value"),
+    #         Input("f-benc", "value"),
+    #         Input("f-yenc", "value"),
+    #         Input("f-label", "value"),
+    #         Input("r-nbits", "value"),
+    #         Input("r-aw", "value"),
+    #         Input("r-bw", "value"),
+    #         Input("r-yw", "value"),
+    #     ],
+    # )
+    # def update_line(full_table_json, color_by, y_metric, mult, ppg, ppa, fsa, aenc, benc, yenc, labels, nbits_r, aw_r, bw_r, yw_r):
+    #     if not full_table_json or not y_metric:
+    #         return go.Figure()
+
+    #     full_df = pd.DataFrame.from_records(pd.read_json(full_table_json, orient="records"))
+    #     full_df = apply_filters(full_df, mult, ppg, ppa, fsa, aenc, benc, yenc, labels, nbits_r, aw_r, bw_r, yw_r)
+
+    #     if "sigma" not in full_df.columns or y_metric not in full_df.columns or full_df.empty:
+    #         return go.Figure()
+
+    #     # Build label to color lines consistently
+    #     if "design_label" not in full_df.columns:
+    #         full_df["design_label"] = full_df.apply(design_label_from_row, axis=1)
+
+    #     hover_cols = [c for c in HOVER_BASE + ["sigma", y_metric] if c in full_df.columns]
+    #     fig = px.line(
+    #         full_df.sort_values(["design_label", "sigma"]),
+    #         x="sigma",
+    #         y=y_metric,
+    #         color=color_by if color_by in full_df.columns else "design_label",
+    #         line_group="design_label",
+    #         hover_data=hover_cols,
+    #         template="plotly_white",
+    #     )
+    #     fig.update_traces(mode="lines+markers", marker=dict(size=6, opacity=0.8))
+    #     fig.update_layout(
+    #         legend=dict(font=dict(size=10)),
+    #         margin=dict(l=40, r=10, t=50, b=40),
+    #         title=f"{y_metric} vs sigma (lines per configuration)",
+    #     )
+    #     return fig
+    
     @callback(
         Output("line-graph", "figure"),
         [
             Input("full-table", "data"),
             Input("color-by", "value"),
             Input("line-metric", "value"),
-            Input("f-mult", "value"),
-            Input("f-ppg", "value"),
-            Input("f-ppa", "value"),
-            Input("f-fsa", "value"),
-            Input("f-aenc", "value"),
-            Input("f-benc", "value"),
-            Input("f-yenc", "value"),
-            Input("f-label", "value"),
-            Input("r-nbits", "value"),
-            Input("r-aw", "value"),
-            Input("r-bw", "value"),
-            Input("r-yw", "value"),
+            Input("f-mult", "value"), Input("f-ppg", "value"), Input("f-ppa", "value"), Input("f-fsa", "value"),
+            Input("f-aenc", "value"), Input("f-benc", "value"), Input("f-yenc", "value"), Input("f-label", "value"),
+            Input("r-nbits", "value"), Input("r-aw", "value"), Input("r-bw", "value"), Input("r-yw", "value"),
         ],
     )
-    def update_line(full_table_json, color_by, y_metric, mult, ppg, ppa, fsa, aenc, benc, yenc, labels, nbits_r, aw_r, bw_r, yw_r):
+    def update_line(full_table_json, color_by, y_metric,
+                    mult, ppg, ppa, fsa, aenc, benc, yenc, labels,
+                    nbits_r, aw_r, bw_r, yw_r):
         if not full_table_json or not y_metric:
             return go.Figure()
-
+    
         full_df = pd.DataFrame.from_records(pd.read_json(full_table_json, orient="records"))
-        full_df = apply_filters(full_df, mult, ppg, ppa, fsa, aenc, benc, yenc, labels, nbits_r, aw_r, bw_r, yw_r)
-
-        if "sigma" not in full_df.columns or y_metric not in full_df.columns or full_df.empty:
+    
+        # Apply filters
+        full_df = apply_filters(full_df, mult, ppg, ppa, fsa, aenc, benc, yenc, labels,
+                                nbits_r, aw_r, bw_r, yw_r)
+    
+        # Guard rails
+        if full_df.empty or "sigma" not in full_df.columns or y_metric not in full_df.columns:
             return go.Figure()
-
-        # Build label to color lines consistently
+        if "run_id" not in full_df.columns:
+            # Fallback: synthesize a line id if run_id is missing (shouldn't happen with your data)
+            full_df["run_id"] = (
+                full_df["multiplier_cls"].astype(str) + "|" +
+                full_df["ppg_opt"].astype(str) + "|" +
+                full_df["ppa_opt"].astype(str) + "|" +
+                full_df["fsa_opt"].astype(str) + "|" +
+                full_df["a_enc"].astype(str) + "/" +
+                full_df["b_enc"].astype(str) + "→" +
+                full_df["y_enc"].astype(str)
+            )
+    
+        # Make sure we have design labels (for coloring/hover if chosen)
         if "design_label" not in full_df.columns:
             full_df["design_label"] = full_df.apply(design_label_from_row, axis=1)
-
-        hover_cols = [c for c in HOVER_BASE + ["sigma", y_metric] if c in full_df.columns]
+    
+        # Keep one point per (run_id, sigma); order by (run_id, sigma) so lines are drawn correctly
+        lines_df = (full_df
+                    .dropna(subset=["run_id", "sigma", y_metric])
+                    .sort_values(["run_id", "sigma"])
+                    .drop_duplicates(subset=["run_id", "sigma"], keep="first"))
+    
+        if lines_df.empty:
+            return go.Figure()
+    
+        hover_cols = [c for c in HOVER_BASE + ["run_id", "sigma", y_metric] if c in lines_df.columns]
+    
         fig = px.line(
-            full_df.sort_values(["design_label", "sigma"]),
+            lines_df,
             x="sigma",
             y=y_metric,
-            color=color_by if color_by in full_df.columns else "design_label",
-            line_group="design_label",
+            color=color_by if color_by in lines_df.columns else "design_label",
+            line_group="run_id",            # <-- connects only within the same run
             hover_data=hover_cols,
             template="plotly_white",
         )
@@ -602,9 +672,10 @@ def make_app(df: pd.DataFrame) -> Dash:
         fig.update_layout(
             legend=dict(font=dict(size=10)),
             margin=dict(l=40, r=10, t=50, b=40),
-            title=f"{y_metric} vs sigma (lines per configuration)",
+            title=f"{y_metric} vs sigma (each line = one run_id)",
         )
         return fig
+    
 
     return app
 

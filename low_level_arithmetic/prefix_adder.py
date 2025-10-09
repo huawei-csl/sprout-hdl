@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
+from low_level_arithmetic.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
@@ -317,10 +318,10 @@ def validate_legality(n: int, nodes: Set[Pair]) -> bool:
         print(f"Carry to bit 0 (node {(n-1,0)}) is not declared in P.")
         return False
     # check that all (i, 0) in nodes
-    #for i in range(n):
-    #    if not (i, 0) in nodes:
-    #        print(f"Node {(i,0)} is not declared in P (carry to bit 0).")
-    #        return False
+    for i in range(n):
+       if not (i, 0) in nodes:
+           print(f"Node {(i,0)} is not declared in P (carry to bit 0).")
+           return False
     return True
 
 
@@ -449,7 +450,7 @@ def Handmade_8_a(n: int) -> Set[Pair]:
     nodes.add((5,4))
     nodes.add((7,6))
     #nodes.add((3, 0))
-    nodes.add((7, 4))
+    #nodes.add((5,0))
 
     return nodes
 
@@ -486,7 +487,7 @@ def Handmade_16_a(n: int) -> Set[Pair]:
     for i in range(0, n):
         nodes.add((i, i))
     
-    nodes.add((1,0))
+    #nodes.add((1,0))
     nodes.add((3,2))
     nodes.add((5,4))
     nodes.add((7,6))
@@ -494,14 +495,9 @@ def Handmade_16_a(n: int) -> Set[Pair]:
     nodes.add((11,10))
     nodes.add((13,12))
     nodes.add((15,14))
-
-    #nodes.add((3,0))
+    
     nodes.add((7,4))
     nodes.add((11,8))
-    nodes.add((15,12))
-
-    #nodes.add((7,0))
-    #nodes.add((11,0))
 
     return nodes
 
@@ -533,6 +529,59 @@ def Handmade_16_b(n: int) -> Set[Pair]:
 
     return nodes
 
+def get_num_nodes(P: Set[Pair], n: int, cleanup=True) -> int:
+    
+    # check if legal
+    if cleanup:
+        P = add_trivial_nodes(P, n)
+    assert validate_legality(n, P)
+    
+    n_nodes = 0
+    for p_elem in P:
+        if p_elem[0] == p_elem[1]:
+            continue
+        n_nodes += 1
+    return n_nodes
+
+def add_trivial_nodes(P: Set[Pair], n: int) -> Set[Pair]:
+    
+    P_new = P.copy()
+    
+    for i in range(n):
+        P_new.add((i,i))  # leaves
+    for i in range(1,n):
+        P_new.add((i,0))  # carry to bit 0
+        
+    return P_new
+
+def get_depth(P: Set[Pair], n: int) -> int:
+    
+    def get_depth(current_node: Pair, current_depth: int) -> int:
+        
+        if current_node[0] == current_node[1]:
+            return current_depth
+        
+        # find split
+        k = _find_split(P, current_node[0], current_node[1])
+        assert k is not None
+        
+        left_node = (current_node[0], k+1)
+        right_node = (k, current_node[1])
+        
+        left_depth = get_depth(left_node, current_depth + 1)
+        right_depth = get_depth(right_node, current_depth + 1)
+        
+        return max(left_depth, right_depth)
+    
+    # start with inputs and got thourgh all leaves
+    max_depth_overall = 0
+    for i in range(n):
+        node = (i,0)
+        depth = get_depth(node, 0)
+        if depth > max_depth_overall:
+            max_depth_overall = depth
+
+    return max_depth_overall
 
 # ------------------------- Test Vectors -------------------------
 
@@ -546,7 +595,7 @@ def build_prefix_adder_vectors_cin0():
 Vec: TypeAlias = Tuple[str, int, int, int, int, int]
 
 def build_adder_vectors16(num_random: int = 512, seed: int = 0xADDEF) -> List[Vec]:
-    n = 16
+    n = 8
     M = (1 << n) - 1
     V: List[Vec] = []
 
@@ -672,7 +721,7 @@ class AigReport:
 def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
 
     m = build_prefix_adder_from_matrix(name, n, nodes, with_cin=False, with_cout=True, depth_optimize=True)
-    print(m.to_verilog())
+    #print(m.to_verilog())
 
     sim = Simulator(m)
     sim.set("a", 3).set("b", 5).eval()
@@ -705,13 +754,15 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
         optimized_size=aig_clone.size(),
         optimized_depth=DepthAig(aig_clone).num_levels()
         )
-    graph_report = m.module_analyze(include_wiring=True, include_consts=True)    
+    graph_report = m.module_analyze(include_wiring=True, include_consts=True)
+    
+    prefix_graph_stats = {"num_nodes": get_num_nodes(nodes, n), "depth": get_depth(nodes, n)}   
 
-    return graph_report, aig_report
+    return graph_report, aig_report, prefix_graph_stats
 
 def main_test():
 
-    n = 16 # number of bits
+    n = 8 # number of bits
     n_random = 100
 
     configs = [
@@ -727,24 +778,41 @@ def main_test():
         assert validate_legality(n, Handmade_8_b(n))
         configs += [(Handmade_8_a(n), "Handmade 8a")]  
         configs += [(Handmade_8_b(n), "Handmade 8b")]
+        assert get_num_nodes(Handmade_8_a(n), n) == 10
+        assert get_num_nodes(Handmade_8_b(n), n) == 10
 
     if n == 16:
+
         assert validate_legality(n, Handmade_16_a(n))
         assert validate_legality(n, Handmade_16_b(n))
         configs += [(Handmade_16_a(n), "Handmade 16a")]
         configs += [(Handmade_16_b(n), "Handmade 16b")]
-        
+        assert get_num_nodes(Handmade_16_a(n), n) == 24
+        assert get_num_nodes(Handmade_16_b(n), n) == 24
+
+    if n == 24:
+
+        config = add_trivial_nodes(get_multiscan_nodes_24(), n)
+        assert validate_legality(n, config)
+        configs += [(config, "Multiscan 24")]
+
+    if n == 32:
+
+        config = add_trivial_nodes(get_multiscan_nodes_32(), n)
+        assert validate_legality(n, config)
+        configs += [(config, "Multiscan 32")]
 
     configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(n_random)]
 
     results: List[Tuple[str, GraphReport, AigReport]] = []
     for nodes, name in configs:
+        nodes = add_trivial_nodes(nodes, n)
         if not validate_legality(n, nodes):
             print(f"Invalid configuration for {name}. Skipping.")
             raise RuntimeError("Invalid configuration.")
         print(f"\nBuilding {name} prefix adder with n={n}...")
-        graph_report, aig_report = get_stats(nodes, n, name)
-        results.append((name, graph_report, aig_report))
+        graph_report, aig_report, prefix_graph_stats = get_stats(nodes, n, name)
+        results.append((name, graph_report, aig_report, prefix_graph_stats))
 
     # plot results in scatter plot size vs depth, aig
     plt.figure(figsize=(6, 4))
@@ -780,14 +848,15 @@ def main_test():
     # transform results to
 
     results_plot_list = []
-    for name, graph_report, aig_report in results:
+    for name, graph_report, aig_report, prefix_graph_stats in results:
         results_plot_list.append((name, aig_report.size, aig_report.depth))
     plt_results(results_plot_list)
 
     plt.title("Prefix Adder AIG Size vs Depth")
     plt.xlabel("AIG Size")
     plt.ylabel("AIG Depth")
-    plt.legend()
+    # on upper right
+    plt.legend(loc='upper right')
     plt.grid()
     plt.savefig(f"prefix_adder_aig_size_vs_depth_n{n}.png")
 
@@ -795,29 +864,41 @@ def main_test():
     plt.figure(figsize=(6, 4))
 
     results_plot_list = []
-    for name, graph_report, aig_report in results:
+    for name, graph_report, aig_report, prefix_graph_stats in results:
         results_plot_list.append((name, aig_report.optimized_size, aig_report.optimized_depth))
     plt_results(results_plot_list)
 
     plt.title("Prefix Adder Optimized AIG Size vs Depth")
     plt.xlabel("Optimized AIG Size")
     plt.ylabel("Optimized AIG Depth")
-    plt.legend()
+    plt.legend(loc="upper right")
     plt.grid()
     plt.savefig(f"prefix_adder_optimized_aig_size_vs_depth_n{n}.png")
 
     plt.figure(figsize=(6, 4))
     results_plot_list = []
-    for name, graph_report, aig_report in results:
+    for name, graph_report, aig_report, prefix_graph_stats in results:
         results_plot_list.append((name, graph_report.op_nodes, graph_report.max_depth))
     plt_results(results_plot_list)
 
     plt.title("Prefix Adder Graph Size vs Depth")
     plt.xlabel("Graph Nodes")
     plt.ylabel("Graph Depth")
-    plt.legend()
+    plt.legend(loc="upper right")
     plt.grid()
     plt.savefig(f"prefix_adder_graph_size_vs_depth_n{n}.png")
+
+    plt.figure(figsize=(6, 4))
+    results_plot_list = []
+    for name, graph_report, aig_report, prefix_graph_stats in results:
+        results_plot_list.append((name, prefix_graph_stats["num_nodes"], prefix_graph_stats["depth"]))
+    plt_results(results_plot_list)
+    plt.title("Prefix Adder Prefix Tree Size vs Depth")
+    plt.xlabel("Prefix Tree Nodes")
+    plt.ylabel("Prefix Tree Depth")
+    plt.legend(loc="upper right")
+    plt.grid()
+    plt.savefig(f"prefix_adder_prefix_tree_size_vs_depth_n{n}.png")
 
 
 if __name__ == "__main__":

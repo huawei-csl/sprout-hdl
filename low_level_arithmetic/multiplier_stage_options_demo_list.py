@@ -66,7 +66,7 @@ demos1: List[Demo] = [
 ]
 
 
-def get_selection1_list():
+def get_selection1_list(small_sweep: bool = True) -> List[Demo]:
 
     demos : list[Demo] = []
 
@@ -106,23 +106,25 @@ def get_selection1_list():
     # add supposedly "best" option
     demos.append(Demo(StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BOOTH_OPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_SKLANSKY))
     demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_opt=PPGOption.BOOTH_OPTIMISED_SIGNED, ppa_opt=PPAOption.DADDA_TREE, fsa_opt=FSAOption.PREFIX_SKLANSKY))
-    
+
     # now all combinations of PPG, PPA, FSA for basic multiplier with unsigned and twos_complement
     # with all_sigma = False to make it quicker
     from itertools import product
-    for ppg, ppa, fsa in product(get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
+    for sm, ppg, ppa, fsa in product(get_list_from_enum(StageMultiplier), get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
         if ppg == PPGOption.NONE or ppa == PPAOption.NONE or fsa == FSAOption.NONE:
+            continue
+        if small_sweep and sm != StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC:
             continue
         for signed_a, signed_b in ppg.value.supported_signatures: # or ((False, False),):
             if signed_a != signed_b:
                 continue 
             # if already added above, skip
-            if (StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(to_encoding(signed_a)), ppg, ppa, fsa) in demos:
+            if Demo(sm.value,  MultiplierEncodings.with_enc(to_encoding(signed_a)), ppg, ppa, fsa) in demos:
                 continue
             encoding = to_encoding(signed_a)
             demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(encoding), ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=False))
     return demos
 
 if __name__ == "__main__":
-    demos1 = get_selection1_list()
+    demos1 = get_selection1_list(small_sweep=False)
     print(f"Defined {len(demos1)} demo configurations to try")
