@@ -5,7 +5,7 @@ import tempfile
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
+from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, sop_refactoring
 from pyosys import libyosys as ys
 
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
@@ -49,6 +49,21 @@ def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=1
     spec = module.component.get_spec()
     IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
     return m_aig
+
+def get_aig_stats(m: Module) -> dict:
+    aag_lines = AigerExporter(m).get_aag()
+    aig = conv_aag_into_aig(aag_lines)
+    
+    depth_aig = DepthAig(aig)
+    
+    stats = {
+        'num_pis': len(aig.pis()),
+        'num_pos': len(aig.pos()),
+        'num_gates': len(aig.gates()),
+        'size': aig.size(),
+        'depth': depth_aig.num_levels(),
+    }
+    return stats
 
 # -- sim
 

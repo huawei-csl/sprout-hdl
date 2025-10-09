@@ -40,13 +40,15 @@ import plotly.graph_objects as go
 # ----------------------------- config ----------------------------- #
 
 STATIC_METRICS = [
-    "estimated_num_transistors",
+    #"estimated_num_transistors",
     "transistor_count",
     "num_cells",
     "num_wires",
     "max_depth",
     "depth_y",
     "total_expr_nodes",
+    "num_aig_gates",
+    "aig_depth",
 ]
 
 # These are always useful to show in hover
@@ -615,11 +617,12 @@ def main():
     ap.add_argument("--file", required=True, help="Path to single Parquet file (pandas-written).")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8050)
+    ap.add_argument("--debug", action="store_true", help="Run app in debug mode (auto-reload on code changes).")
     args = ap.parse_args()
 
     df = load_df(args.file)
     app = make_app(df)
-    app.run(host=args.host, port=args.port, debug=True)
+    app.run(host=args.host, port=args.port, debug=args.debug)
 
 
 if __name__ == "__main__":

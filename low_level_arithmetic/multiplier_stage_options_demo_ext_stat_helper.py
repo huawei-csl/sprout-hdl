@@ -56,6 +56,10 @@ class MultiplierRow:
     num_cells: int
     estimated_num_transistors: int
     transistor_count: int
+    
+    # AIG
+    num_aig_gates: int
+    aig_depth: int
 
 # --- add these helpers ---
 from dataclasses import fields, is_dataclass

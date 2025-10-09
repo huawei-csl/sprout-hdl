@@ -54,7 +54,7 @@ from low_level_arithmetic.fsa_stages import (
     RipplePrefixFinalStage,
     SklanskyPrefixFinalStage,
 )
-from sprouthdl.helpers import get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
+from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import gen_spec
@@ -62,6 +62,18 @@ from sprouthdl.sprouthdl_io_collector import IOCollector
 from testing.floating_point.sim_int import optimize_aag, run_vectors_io_log
 from testing.test_different_logic import run_vectors_io
 from low_level_arithmetic.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list
+
+def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
+
+    def target_sigma_for(n_bits: int) -> float:
+        """σ_target = 3/16 * 2**n_bits."""
+        return (3.0 / 16.0) * (2 ** int(n_bits))
+
+    tgt = target_sigma_for(n_bits)
+
+    sigmas_dist = np.abs(sigmas.astype(float) - tgt)
+    idx = np.argmin(sigmas_dist)
+    return int(idx)
 
 
 def run_configuration(
@@ -73,6 +85,7 @@ def run_configuration(
     n_bits: int,
     num_vectors: int,
     sigmas: list,
+    all_sigmas: bool = True,
 ) -> None:
     reset_shared_cache()
 
@@ -121,6 +134,8 @@ def run_configuration(
     # print(f"Average AND switches: {switches}")
 
     switches = []
+    if not all_sigmas:
+        sigmas = [sigmas[get_target_sigma_index(np.array(sigmas), n_bits)]]
     for sigma in sigmas:
         vecs = MultiplierTestVectors(
                       a_w=n_bits,
@@ -138,9 +153,9 @@ def run_configuration(
     gr = m_aig.module_analyze()
     tc = get_yosys_transistor_count(m_aig)
     ym = get_yosys_metrics(m_aig)
-    print(f"Yosys-reported transistor count: {tc}")
+    num_aig_gates = len(all_ands) # aig.gates()
+    aig_stats = get_aig_stats(m_aig)
 
-    # ... inside your loops ...
     run_id = uuid.uuid4().hex
     t_now = time.time()
 
@@ -176,6 +191,9 @@ def run_configuration(
                     num_cells=int(ym["num_cells"]),
                     estimated_num_transistors=int(ym["estimated_num_transistors"]),
                     transistor_count=int(tc),
+                    
+                    num_aig_gates=aig_stats["num_gates"],
+                    aig_depth=aig_stats["depth"],
                 )
         rows.append(row)
     return rows
@@ -187,7 +205,7 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
     sigma_factor = 0.5
     n_steps_sigma = 8
     parallel = True
-    
+
     sys.setrecursionlimit(2000)
 
     # datecode
@@ -202,27 +220,23 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
         sigmas = np.linspace(sigma_start, sigma_max, n_steps_sigma)
 
         if not parallel:
-            
-            for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos:                
-                rows = run_configuration(multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt, n_bits, num_vectors, sigmas)
+
+            for demo in demos:                
+                rows = run_configuration(demo.multiplier_cls, demo.encodings, demo.ppg_opt, demo.ppa_opt, demo.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=demo.all_sigma)
                 collector.extend(rows)
 
         else:       
 
-            max_workers = 30
+            max_workers = 80
 
             _worker = run_configuration
 
             results = []
             with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                #futures = [
-                #    ex.submit(_worker, demo, n_bits, num_vectors, sigmas)
-                #    for demo in demos
-                #]
                 futures = []
-                for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos: 
+                for demo in demos: 
                     futures.append(
-                        ex.submit(_worker, multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt, n_bits, num_vectors, sigmas)
+                        ex.submit(_worker, demo.multiplier_cls, demo.encodings, demo.ppg_opt, demo.ppa_opt, demo.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=demo.all_sigma)
                     )
                 for fut in tqdm(as_completed(futures), total=len(futures), desc="Running demos", unit="demo"):
                     rec = fut.result()
@@ -232,9 +246,9 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                     results.extend(rec)
 
     # get number of rows added
-    print(f"Total number of configurations run: {len(demos) * len(bitwidths)}")
+    print(f"Total number of configurations run: {len(demos) * len(bitwidths) * n_steps_sigma}")
     print(f"Total rows collected: {collector.n_rows()}")
-    
+
     # save to file
     collector.save(append=True)
 

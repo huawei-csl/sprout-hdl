@@ -93,6 +93,12 @@ class StageMultiplier(Enum):
             result += [entry]
         return result
 
+def get_list_from_enum(enum_cls: Type[Enum]) -> list[Enum]:
+    result = []
+    for entry in enum_cls:
+        result += [entry]
+    return result
+
 
 class MultiplierEncodings(NamedTuple):
     a: Encoding
@@ -117,10 +123,11 @@ class MultiplierEncodings(NamedTuple):
 
 class Demo(NamedTuple):
     multiplier_cls: Type[StageBasedExtMultiplier]
-    encoding: MultiplierEncodings
+    encodings: MultiplierEncodings
     ppg_opt: PPGOption
     ppa_opt: PPAOption
     fsa_opt: FSAOption
+    all_sigma: bool = True
 
 
 def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> List[MultiplierEncodings]:
