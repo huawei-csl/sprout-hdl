@@ -25,8 +25,7 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
         (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
         (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KOGGE_STONE),
         (PPGOption.BOOTH_UNOPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_RCA),
-        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BRENT_KUNG),
-        (PPGOption.BOOTH_OPTIMISED_SIGNED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_SKLANSKY),
+        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BRENT_KUNG)
     )
 
     num_vectors = 100

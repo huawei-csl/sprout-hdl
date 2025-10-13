@@ -16,8 +16,7 @@ from tqdm import tqdm
 from low_level_arithmetic.multiplier_stage_options_demo_lib import Demo, MultiplierEncodings, PPAOption, PPGOption
 from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption
 from low_level_arithmetic.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
-
+from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.test_vector_generation import (
     Encoding,
     MultiplierTestVectors,
@@ -84,14 +83,14 @@ def run_configuration(
                 y_encoding=encodings.y,
             ).generate()
 
-    # run_vectors_io(module, vecs)
+    run_vectors_io(module, vecs)
 
     # -- swact --
     m_aig = refactor_module_to_aig(module)
 
     # AIG network test sim
     print("Sim (AIG) …")
-    # run_vectors_io(m_aig, vecs)
+    run_vectors_io(m_aig, vecs)
 
     exprs = m_aig.all_exprs()
     all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]

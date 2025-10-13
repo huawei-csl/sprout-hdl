@@ -320,7 +320,7 @@ def main():
 
     specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=16, tb_sigma=5.0, signed_a=signed, signed_b=signed).generate()
     specs2 = gen_spec(mult)
-    run_vectors_io(m, vecs, decoder=dec)
+    run_vectors_io(m, vecs, decoder=dec, use_signed=True)
 
 
 if __name__ == "__main__":

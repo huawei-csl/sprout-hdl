@@ -121,7 +121,7 @@ def main() -> None:
         signed_b=signed,
     ).generate()
     _ = specs
-    run_vectors_io(module, vecs, decoder=decoder)
+    run_vectors_io(module, vecs, decoder=decoder, use_signed=True)
 
 
 if __name__ == "__main__":

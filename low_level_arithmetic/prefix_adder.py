@@ -763,9 +763,34 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
 
     return graph_report, aig_report, prefix_graph_stats, yosys_stats
 
+def get_min_max_prefix_tree_range(results_vec):
+    # extract from tuple
+    min_num_nodes = None
+    max_num_nodes = None
+    min_depth = None
+    max_depth = None
+    for results in results_vec:
+        name, graph_report, aig_report, prefix_graph_stats, yosys_stats = results
+        if min_num_nodes is None:
+            min_num_nodes = prefix_graph_stats["num_nodes"]
+            max_num_nodes = prefix_graph_stats["num_nodes"]
+            min_depth = prefix_graph_stats["depth"]
+            max_depth = prefix_graph_stats["depth"]
+        else:
+            if prefix_graph_stats["num_nodes"] < min_num_nodes:
+                min_num_nodes = prefix_graph_stats["num_nodes"]
+            if prefix_graph_stats["num_nodes"] > max_num_nodes:
+                max_num_nodes = prefix_graph_stats["num_nodes"]
+            if prefix_graph_stats["depth"] < min_depth:
+                min_depth = prefix_graph_stats["depth"]
+            if prefix_graph_stats["depth"] > max_depth:
+                max_depth = prefix_graph_stats["depth"]
+    return min_num_nodes, max_num_nodes, min_depth, max_depth
+
+
 def main_test():
 
-    n_random = 100
+    n_random = 100//100
     n_bits_vec = [8, 16, 24, 32]
 
     for n in n_bits_vec:
@@ -907,6 +932,15 @@ def main_test():
         for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
             results_plot_list.append((name, prefix_graph_stats["num_nodes"], prefix_graph_stats["depth"]))
         plt_results(results_plot_list)
+        # get min max
+        min_num_nodes, max_num_nodes, min_depth, max_depth = get_min_max_prefix_tree_range(results)
+        # plot the line y=2n-2-x in the range
+        x_vals = list(range(min_num_nodes - 1, max_num_nodes + 2))
+        y_vals = [2 * n - 2 - x for x in x_vals]
+        # cut off values outside min_depth..max_depth
+        x_vals = [x for x, y in zip(x_vals, y_vals) if min_depth <= y <= max_depth]
+        y_vals = [y for y in y_vals if min_depth <= y <= max_depth]
+        plt.plot(x_vals, y_vals, color="gray", linestyle="--", label="Bound: y=2*n_bit-2-x")
         plt.title(f"Prefix Adder Prefix Tree Size vs Depth ({n}-bit)")
         plt.xlabel("Prefix Tree Nodes")
         plt.ylabel("Prefix Tree Depth")

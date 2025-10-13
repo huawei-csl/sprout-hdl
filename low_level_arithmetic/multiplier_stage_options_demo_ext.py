@@ -99,13 +99,6 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
         ),
         (StageBasedMultiplierBasic, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
         (
-            StageBasedMultiplierBasic,
-            MultiplierEncodings.with_enc(Encoding.twos_complement),
-            PPGOption.BOOTH_OPTIMISED_SIGNED,
-            PPAOption.COMPRESSOR_TREE,
-            FSAOption.PREFIX_SKLANSKY,
-        ),
-        (
             StageBasedSignMagnitudeToTwosComplementMultiplier,
             MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
             PPGOption.BASIC,

@@ -24,7 +24,7 @@ demos1: List[Demo] = [
     (
         StageBasedMultiplierBasic,
         MultiplierEncodings.with_enc(Encoding.twos_complement),
-        PPGOption.BOOTH_OPTIMISED_SIGNED,
+        PPGOption.BOOTH_OPTIMISED,
         PPAOption.COMPRESSOR_TREE,
         FSAOption.PREFIX_SKLANSKY,
     ),
@@ -105,7 +105,7 @@ def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False
 
     # add supposedly "best" option
     demos.append(Demo(StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BOOTH_OPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_SKLANSKY))
-    demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_opt=PPGOption.BOOTH_OPTIMISED_SIGNED, ppa_opt=PPAOption.DADDA_TREE, fsa_opt=FSAOption.PREFIX_SKLANSKY))
+    demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_opt=PPGOption.BOOTH_OPTIMISED, ppa_opt=PPAOption.DADDA_TREE, fsa_opt=FSAOption.PREFIX_SKLANSKY))
 
     # now all combinations of PPG, PPA, FSA for basic multiplier with unsigned and twos_complement
     # with all_sigma = False to make it quicker

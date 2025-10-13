@@ -1,11 +1,12 @@
 from collections import defaultdict
 from typing import DefaultDict, List
 
+from low_level_arithmetic.test_vector_generation import to_encoding, MultiplierTestVectors
 from sprouthdl.helpers import get_yosys_transistor_count
 from low_level_arithmetic.multiplier_stage_core import (
     CompressorTreeAccumulator,
     FinalStageAdderBase,
-    MultiplierTestVectors,
+    #MultiplierTestVectors,
     PartialProductAccumulatorBase,
     PartialProductGeneratorBase,
     RippleCarryFinalAdder,
@@ -188,17 +189,20 @@ def main() -> None:
     module = gen_sprout_module(mult)
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {transistor_count}")
-
-    specs, vecs, decoder = MultiplierTestVectors(
-        a_w=n_bits,
-        b_w=n_bits,
-        num_vectors=16,
-        tb_sigma=5.0,
-        signed_a=signed,
-        signed_b=signed,
-    ).generate()
-    _ = specs
-    run_vectors_io(module, vecs, decoder=decoder)
+    
+    vecs = MultiplierTestVectors(
+            a_w=n_bits,
+            b_w=n_bits,
+            y_w=2*n_bits,
+            num_vectors=16,
+            tb_sigma=None,
+            a_encoding=to_encoding(signed),
+            b_encoding=to_encoding(signed),
+            y_encoding=to_encoding(signed),
+        ).generate()
+    
+    
+    run_vectors_io(module, vecs)
 
 
 if __name__ == "__main__":
