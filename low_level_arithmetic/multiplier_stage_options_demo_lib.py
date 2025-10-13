@@ -18,8 +18,8 @@ from low_level_arithmetic.ppg_baugh_wooley_stages import (
 from low_level_arithmetic.ppg_basic_stages import (
     BasicUnsignedPartialProductGenerator,
 )
-from low_level_arithmetic.ppg_booth_optim_signed_stages import (
-    BoothOptimizedSignedPartialProductGenerator,
+from low_level_arithmetic.ppg_booth_optim_stages import (
+    BoothOptimizedPartialProductGenerator,
 )
 from low_level_arithmetic.ppg_booth_optim_stages import (
     BoothOptimizedPartialProductGenerator,
@@ -47,7 +47,6 @@ class PPGOption(Enum):
     BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
     BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
     BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
-    BOOTH_OPTIMISED_SIGNED = BoothOptimizedSignedPartialProductGenerator
     NONE = None
 
 

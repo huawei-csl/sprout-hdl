@@ -26,10 +26,10 @@ from low_level_arithmetic.ppg_baugh_wooley_stages import (
 from low_level_arithmetic.ppg_basic_stages import (
     BasicUnsignedPartialProductGenerator,
 )
-from low_level_arithmetic.ppg_booth_optim_signed_stages import (
-    BoothOptimizedSignedPartialProductGenerator,
-)
 from low_level_arithmetic.ppg_booth_optim_stages import (
+    BoothOptimizedPartialProductGenerator,
+)
+from low_level_arithmetic.bk.ppg_booth_optim_stages import (
     BoothOptimizedPartialProductGenerator,
 )
 from low_level_arithmetic.ppg_booth_unoptim_stages import (

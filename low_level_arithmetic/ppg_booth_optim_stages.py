@@ -17,7 +17,7 @@ from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
 
 
-class BoothOptimizedSignedPartialProductGenerator(PartialProductGeneratorBase):
+class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = (
         (False, False),
         (True, True),
@@ -124,7 +124,7 @@ class ConfiguredMultiplier(StageBasedMultiplier):
         signed_a: bool = False,
         signed_b: bool = False,
         optim_type: str = "area",
-        ppg_cls: type[PartialProductGeneratorBase] = BoothOptimizedSignedPartialProductGenerator,
+        ppg_cls: type[PartialProductGeneratorBase] = BoothOptimizedPartialProductGenerator,
         ppa_cls: type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
