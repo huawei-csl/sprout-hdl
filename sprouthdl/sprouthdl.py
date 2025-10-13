@@ -7,6 +7,8 @@ import random
 import time
 from typing import Optional, Union, Sequence
 
+from sprouthdl.helpers import get_rand_hash
+
 
 # -----------------------------
 # Shared sub-expression (CSE) support
