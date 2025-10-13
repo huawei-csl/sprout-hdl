@@ -6,7 +6,7 @@ from enum import Enum
 from typing import NamedTuple, Self, Tuple, Type
 
 
-from low_level_arithmetic.multiplier_stage_options_demo_lib import PPAOption, PPGOption
+from low_level_arithmetic.multiplier_stage_options_demo_lib import MultiplierOption, PPAOption, PPGOption
 from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.ppa_stages import (
@@ -48,6 +48,7 @@ from low_level_arithmetic.fsa_stages import (
 )
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
+from low_level_arithmetic.multiplier_stage_options_demo_list import demos1
 
 
 def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration only
@@ -73,67 +74,8 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
         def with_enc(cls, enc: Encoding) -> Self:
             return cls(a=enc, b=enc, y=enc)
 
-    class Demo(NamedTuple):
-        multiplier_cls: Type[StageBasedExtMultiplier]
-        encoding: MultiplierEncodings
-        ppg_opt: PPGOption
-        ppa_opt: PPAOption
-        fsa_opt: FSAOption
+    demos = demos1
 
-    # define some demo combinations to try
-    demos: list[Demo] = [
-        (StageBasedSignMagnitudeMultiplier, MultiplierEncodings.with_enc(Encoding.sign_magnitude), PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (
-            StageBasedSignMagnitudeExtMultiplier,
-            MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext),
-            PPGOption.BASIC,
-            PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE,
-        ),
-        (
-            StageBasedSignMagnitudeExtUpMultiplier,
-            MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up),
-            PPGOption.BASIC,
-            PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE,
-        ),
-        (StageBasedMultiplierBasic, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (
-            StageBasedSignMagnitudeToTwosComplementMultiplier,
-            MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
-            PPGOption.BASIC,
-            PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE,
-        ),
-        (
-            StageBasedSignMagnitudeExtToTwosComplementMultiplier,
-            MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
-            PPGOption.BASIC,
-            PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE,
-        ),
-        (
-            StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier,
-            MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
-            PPGOption.BASIC,
-            PPAOption.WALLACE_TREE,
-            FSAOption.RIPPLE,
-        ),
-        (
-            StarMultiplier,
-            MultiplierEncodings.with_enc(Encoding.twos_complement),
-            PPGOption.NONE,
-            PPAOption.NONE,
-            FSAOption.NONE,
-        ),
-        (
-            StarMultiplier,
-            MultiplierEncodings.with_enc(Encoding.unsigned),
-            PPGOption.NONE,
-            PPAOption.NONE,
-            FSAOption.NONE,
-        ),
-    ]
 
     completed_demo_runs = 0
 
@@ -142,11 +84,11 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
 
     for width in bitwidths:
 
-        for multiplier_cls, encodings, ppg_opt, ppa_opt, fsa_opt in demos:
+        for multiplier_opt, encodings, ppg_opt, ppa_opt, fsa_opt in demos:
 
             reset_shared_cache()
 
-            multiplier = multiplier_cls(
+            multiplier = multiplier_opt.value(
                 a_w=width,
                 b_w=width,
                 a_encoding=encodings.a,

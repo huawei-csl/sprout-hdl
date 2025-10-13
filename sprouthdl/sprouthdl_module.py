@@ -1,6 +1,8 @@
-
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, make_dataclass
+import hashlib
+import random
+import time
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, fit_width, _SHARED, reset_shared_cache
 
 
@@ -11,16 +13,17 @@ from sprouthdl.sprouthdl_analyzer import _Analyzer, GraphReport
 
 class Component(abc.ABC):
 
-    io: dataclass
+    io: dataclass | Dict
 
     # define attribute name
     @property
     def name(self) -> str:
         return self.__class__.__name__
 
-    @abc.abstractmethod
+    # @abc.abstractmethod
     def elaborate(self) -> None:  # pragma: no cover - structural hook
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
     # convenience helpers -------------------------------------------------------
 
@@ -38,11 +41,32 @@ class Component(abc.ABC):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         module.component = self # can be used for debugging
-        return module
+        return module 
+
+    
+    def from_module(self, module: 'Module', make_internal=False, group=False) -> Self:
+        #if group:
+        #    IOCollector().group(module, cls.get_spec())
+        
+        # find signals in module and assign to io
+        io_fields = {}
+        for sig in module._signals:
+            if sig.kind in ('input', 'output'):
+                io_fields[sig.name] = sig
+        #instance.io = dataclass(type('IO', (), io_fields))()  # type: ignore
+        #instance.io = make_dataclass("IO", io_fields)
+        #instance.io = io_fields
+        for io_name, io_sig in io_fields.items():
+            setattr(self.io, io_name, io_sig)
+        self.elaborate()  # re-elaborate to rebuild internal structure
+        if make_internal:
+            self.make_internal()
+
 
     def make_internal(self) -> Self:
         # go through all signals in io and change to 'wire'
-        for sig in self.io.__dict__.values():
+        ios_dict = self.io if isinstance(self.io, dict) else self.io.__dict__
+        for sig in ios_dict.values():
             if sig.kind in ('input', 'output'):
                 sig.kind = 'wire'
             else:
@@ -245,7 +269,7 @@ class Module:
                 visit(s._next)
     
         return exprs
-    
+
 def gen_spec(class_instance: Component) -> Dict[str, UInt]:
     spec = {}
     for sig in class_instance.io.__dict__.values():
@@ -257,4 +281,3 @@ def get_rand_hash() -> str:
     hash_object = hashlib.sha256(random_string.encode())
     name = str(hash_object.hexdigest())
     return name
-    

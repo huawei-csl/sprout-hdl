@@ -58,7 +58,7 @@ def verilog_to_aag_via_pyosys(
         os.close(fd)
 
     ys.run_pass("design -reset")
-    ys.run_pass(f"read_verilog {verilog_path}")
+    ys.run_pass(f"read_verilog -sv {verilog_path}")
     ys.run_pass("hierarchy -check " + ("-auto-top" if top is None else f"-top {top}"))
     ys.run_pass("synth -flatten")
     if tie_undriven in {"zero", "one", "random"}:
@@ -75,6 +75,24 @@ def verilog_to_aag_via_pyosys(
         opts += ["-map", map_out_path]
     ys.run_pass(f"write_aiger {' '.join(opts)} {aag_out_path}")
     return aag_out_path, (map_out_path if os.path.getsize(map_out_path) > 0 else None)
+
+def verilog_to_aag_lines_via_pyosys(
+    verilog_path: str,
+    *,
+    top: str | None = None,
+    tie_undriven: str | None = None,  # {"zero","one","random"} or None
+    embed_symbols: bool = True,
+    no_startoffset: bool = True,
+) -> List[str]:
+    """Run yosys: read_verilog → synth -flatten → aigmap → write_aiger -ascii […]. Returns AAG lines."""
+    aag_path, _ = verilog_to_aag_via_pyosys(
+        verilog_path,
+        top=top,
+        tie_undriven=tie_undriven,
+        embed_symbols=embed_symbols,
+        no_startoffset=no_startoffset,
+    )
+    return file_to_lines(aag_path)
 
 
 def sprout_to_aig_via_exporter(m: Module):

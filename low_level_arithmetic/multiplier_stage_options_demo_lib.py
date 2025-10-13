@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, NamedTuple, Self, Tuple, Type
+from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
@@ -67,7 +67,7 @@ class FSAOption(Enum):
     PREFIX_RCA = RipplePrefixFinalStage
     NONE = None
 
-class StageMultiplier(Enum):
+class MultiplierOption(Enum):
     STAGE_BASED_MULTIPLIER_BASIC = StageBasedMultiplierBasic
     STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER = StageBasedSignMagnitudeMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER = StageBasedSignMagnitudeExtMultiplier
@@ -75,24 +75,10 @@ class StageMultiplier(Enum):
     STAGE_BASED_SIGN_MAGNITUDE_TO_TWOS_COMPLEMENT_MULTIPLIER = StageBasedSignMagnitudeToTwosComplementMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier
-    STAR_STAR_MULTIPLIER = StarMultiplier
+    STAR_MULTIPLIER = StarMultiplier
 
-    @classmethod
-    def get_list_with_string(cls, search_string: str) -> list["StageMultiplier"]:
-        result = []
-        for entry in StageMultiplier:
-            if search_string.lower() in entry.name.lower():
-                result += [entry]
-        return result
-    
-    @classmethod
-    def get_list_with_all(cls) -> list["StageMultiplier"]:
-        result = []
-        for entry in StageMultiplier:
-            result += [entry]
-        return result
-
-def get_list_from_enum(enum_cls: Type[Enum]) -> list[Enum]:
+E = TypeVar("E", bound=Enum)
+def get_list_from_enum(enum_cls: Type[E]) -> list[E]:
     result = []
     for entry in enum_cls:
         result += [entry]
@@ -120,8 +106,8 @@ class MultiplierEncodings(NamedTuple):
     def with_enc(cls, enc: Encoding) -> Self:
         return cls(a=enc, b=enc, y=enc)
 
-class Demo(NamedTuple):
-    multiplier_cls: Type[StageBasedExtMultiplier]
+class ConfigItem(NamedTuple):
+    multiplier_opt: MultiplierOption
     encodings: MultiplierEncodings
     ppg_opt: PPGOption
     ppa_opt: PPAOption

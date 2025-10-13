@@ -11,9 +11,9 @@ Features
   2) Line: metric vs sigma (choose any metric; "switches" gives switches-per-sigma lines).
 
 - Filters (dropdowns/range sliders):
-  * multiplier_cls, ppg_opt, ppa_opt, fsa_opt
+  * multiplier_opt, ppg_opt, ppa_opt, fsa_opt
   * a_enc, b_enc, y_enc
-  * combined "design label" = "{multiplier_cls} | PPG=... | PPA=... | FSA=... | enc=a/b→y"
+  * combined "design label" = "{multiplier_opt} | PPG=... | PPA=... | FSA=... | enc=a/b→y"
   * n_bits, a_w, b_w, y_w ranges
   * color-by (for both plot types)
 
@@ -54,7 +54,7 @@ STATIC_METRICS = [
 # These are always useful to show in hover
 HOVER_BASE = [
     "design_label",
-    "multiplier_cls",
+    "multiplier_opt",
     "ppg_opt",
     "ppa_opt",
     "fsa_opt",
@@ -73,7 +73,7 @@ def design_label_from_row(row: pd.Series) -> str:
     def g(k: str, default: str = "NA"):
         return row[k] if (k in row.index and pd.notna(row[k])) else default
 
-    return f"{g('multiplier_cls')} | " f"PPG={g('ppg_opt')} | PPA={g('ppa_opt')} | FSA={g('fsa_opt')} | " f"enc={g('a_enc')}/{g('b_enc')}→{g('y_enc')}"
+    return f"{g('multiplier_opt')} | " f"PPG={g('ppg_opt')} | PPA={g('ppa_opt')} | FSA={g('fsa_opt')} | " f"enc={g('a_enc')}/{g('b_enc')}→{g('y_enc')}"
 
 
 # --------------------------- data helpers -------------------------- #
@@ -101,7 +101,7 @@ def load_df(file_path: str) -> pd.DataFrame:
     df["design_label"] = df.apply(design_label_from_row, axis=1)
 
     # Keep data types tidy
-    for c in ["multiplier_cls", "ppg_opt", "ppa_opt", "fsa_opt", "a_enc", "b_enc", "y_enc", "design_label"]:
+    for c in ["multiplier_opt", "ppg_opt", "ppa_opt", "fsa_opt", "a_enc", "b_enc", "y_enc", "design_label"]:
         if c in df.columns:
             df[c] = df[c].astype("string")
 
@@ -126,7 +126,7 @@ def compute_switches_at_target(df: pd.DataFrame) -> pd.DataFrame:
         "a_w",
         "b_w",
         "y_w",
-        "multiplier_cls",
+        "multiplier_opt",
         "ppg_opt",
         "ppa_opt",
         "fsa_opt",
@@ -166,7 +166,7 @@ def build_design_level_table(df: pd.DataFrame) -> pd.DataFrame:
         "a_w",
         "b_w",
         "y_w",
-        "multiplier_cls",
+        "multiplier_opt",
         "ppg_opt",
         "ppa_opt",
         "fsa_opt",
@@ -219,7 +219,7 @@ def list_metrics_for_line(df: pd.DataFrame) -> List[str]:
 
 def apply_filters(
     df: pd.DataFrame,
-    multiplier_cls: List[str] | None,
+    multiplier_opt: List[str] | None,
     ppg_opt: List[str] | None,
     ppa_opt: List[str] | None,
     fsa_opt: List[str] | None,
@@ -239,7 +239,7 @@ def apply_filters(
         if values:
             out = out[out[col].astype("string").isin(values)]
 
-    filt("multiplier_cls", multiplier_cls)
+    filt("multiplier_opt", multiplier_opt)
     filt("ppg_opt", ppg_opt)
     filt("ppa_opt", ppa_opt)
     filt("fsa_opt", fsa_opt)
@@ -295,7 +295,7 @@ def make_app(df: pd.DataFrame) -> Dash:
     color_options = [
         "design_label",
         "n_bits",
-        "multiplier_cls",
+        "multiplier_opt",
         "ppg_opt",
         "ppa_opt",
         "fsa_opt",
@@ -329,7 +329,7 @@ def make_app(df: pd.DataFrame) -> Dash:
             html.Div(
                 [
                     html.Div(
-                        [html.Label("multiplier_cls"), dcc.Dropdown(id="f-mult", options=opts("multiplier_cls", df), multi=True)],
+                        [html.Label("multiplier_opt"), dcc.Dropdown(id="f-mult", options=opts("multiplier_opt", df), multi=True)],
                         style={"flex": 1, "minWidth": "220px", "marginRight": "8px"},
                     ),
                     html.Div(
@@ -635,7 +635,7 @@ def make_app(df: pd.DataFrame) -> Dash:
         if "run_id" not in full_df.columns:
             # Fallback: synthesize a line id if run_id is missing (shouldn't happen with your data)
             full_df["run_id"] = (
-                full_df["multiplier_cls"].astype(str) + "|" +
+                full_df["multiplier_opt"].astype(str) + "|" +
                 full_df["ppg_opt"].astype(str) + "|" +
                 full_df["ppa_opt"].astype(str) + "|" +
                 full_df["fsa_opt"].astype(str) + "|" +

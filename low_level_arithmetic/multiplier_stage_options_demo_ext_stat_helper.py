@@ -29,7 +29,7 @@ class MultiplierRow:
 
     # Config
     n_bits: int
-    multiplier_cls: str
+    multiplier_opt: str
     ppg_opt: str
     ppa_opt: str
     fsa_opt: str

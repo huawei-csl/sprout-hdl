@@ -13,7 +13,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from low_level_arithmetic.multiplier_stage_options_demo_lib import Demo, MultiplierEncodings, PPAOption, PPGOption
+from low_level_arithmetic.multiplier_stage_options_demo_lib import ConfigItem, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
 from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption
 from low_level_arithmetic.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier
@@ -46,7 +46,7 @@ def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
 
 
 def run_configuration(
-    multiplier_cls: Type[StageBasedExtMultiplier],
+    multiplier_opt: MultiplierOption,
     encodings: MultiplierEncodings,
     ppg_opt: PPGOption,
     ppa_opt: PPAOption,
@@ -58,7 +58,7 @@ def run_configuration(
 ) -> None:
     reset_shared_cache()
 
-    multiplier = multiplier_cls(
+    multiplier = multiplier_opt.value(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=encodings.a,
@@ -69,7 +69,7 @@ def run_configuration(
         optim_type="area",
     )
 
-    module = multiplier.to_module(f"demo_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
+    module = multiplier.to_module(f"mult_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
     print(f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
 
     vecs = MultiplierTestVectors(
@@ -136,7 +136,7 @@ def run_configuration(
                     module_name=module.name,
             
                     n_bits=int(n_bits),
-                    multiplier_cls=multiplier_cls.__name__,
+                    multiplier_opt=multiplier_opt.name,
                     ppg_opt=ppg_opt.name,
                     ppa_opt=ppa_opt.name,
                     fsa_opt=fsa_opt.name,
@@ -169,10 +169,10 @@ def run_configuration(
         rows.append(row)
     return rows
 
-def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cover - demonstration only
+def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pragma: no cover - demonstration only
 
     num_vectors = 2000
-    bitwidths = [4, 8, 16, 24, 32]
+    bitwidths = [4, 8] #[4, 8, 16, 24, 32]
     sigma_factor = 0.5
     n_steps_sigma = 8
     parallel = True
@@ -195,8 +195,8 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
 
         if not parallel:
 
-            for demo in demos:                
-                rows = run_configuration(demo.multiplier_cls, demo.encodings, demo.ppg_opt, demo.ppa_opt, demo.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=demo.all_sigma)
+            for config_item in config_items:                
+                rows = run_configuration(config_item.multiplier, config_item.encodings, config_item.ppg_opt, config_item.ppa_opt, config_item.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=config_item.all_sigma)
                 collector.extend(rows)
 
         else:       
@@ -209,9 +209,9 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
             errors = []
             with ProcessPoolExecutor(max_workers=max_workers) as ex:
                 futures = []
-                for demo in demos: 
+                for config_item in config_items: 
                     futures.append(
-                        ex.submit(_worker, demo.multiplier_cls, demo.encodings, demo.ppg_opt, demo.ppa_opt, demo.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=demo.all_sigma)
+                        ex.submit(_worker, config_item.multiplier_opt, config_item.encodings, config_item.ppg_opt, config_item.ppa_opt, config_item.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=config_item.all_sigma)
                     )
                 for fut in tqdm(as_completed(futures), total=len(futures), desc="Running demos", unit="demo"):
                     try:
@@ -231,9 +231,9 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                     print(f"\n(Encountered {len(errors)} errors)")
 
     # get number of rows added
-    print(f"Total number of configurations run: {len(demos) * len(bitwidths) * n_steps_sigma}")
+    print(f"Total number of configurations run: {len(config_items) * len(bitwidths) * n_steps_sigma}")
     print(f"Total rows collected: {collector.n_rows()}")
-    print(f"Total number of demos: {len(demos)}")
+    print(f"Total number of demos: {len(config_items)}")
     print(f"Total number of errors: {len(errors)}")
 
     # save to file
@@ -241,5 +241,5 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
     print(f"Saved to '{out_file}'")
 
 if __name__ == "__main__":
-    # run_stage_multiplier_ext_demo(demos=demos1)
-    run_stage_multiplier_ext_demo(demos=get_selection1_list(large_sweep=False, all_sigmas_sweep=False))
+    run_stage_multiplier_ext_demo(config_items=demos1)
+    #run_stage_multiplier_ext_demo(demos=get_selection1_list(large_sweep=False, all_sigmas_sweep=False))
