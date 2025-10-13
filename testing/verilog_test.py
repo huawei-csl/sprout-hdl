@@ -6,7 +6,7 @@ from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.floating_point.sprout_hdl_float import build_f16_vectors, half_to_float, run_vectors
 from sprouthdl.floating_point.sprout_hdl_float_sn import build_f16_subnormal_vectors, build_fp_mul_sn
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 
 # import pyosys as ys, tempfile, os
 import os

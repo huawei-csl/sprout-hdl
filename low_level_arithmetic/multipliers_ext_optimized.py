@@ -1,7 +1,8 @@
 import abc
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, Type
+import re
+from typing import ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optional, Tuple, Type
 
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
@@ -12,7 +13,6 @@ from low_level_arithmetic.test_vector_generation import Encoding, MultiplierTest
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
 from sprouthdl.helpers import get_aig_stats, get_yosys_transistor_count, optimize_aag
 from sprouthdl.sprouthdl_aiger import AigerImporter
-from sprouthdl.sprouthdl_io_collector import IOCollector
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
@@ -52,13 +52,16 @@ class StageBasedMultiplierBasicOptmized(StageBasedExtMultiplier):
         aag_lines = verilog_to_aag_lines_via_pyosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True)
         # aag_lines = optimize_aag(aag_lines)
 
-        aag_file = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_2/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger_yosys_iter9_proc2_0.aig"
-        aag_lines2 = aag_file_to_aag_lines(aag_file)
-        aag_sym = _get_aag_sym(aag_lines)
-        aag_lines_c = aag_lines2[:-2] + aag_sym
+        # aag_file = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_2/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger_yosys_iter9_proc2_0.aig"
+        aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/exp_test_3/data_collection/run_20251013_174847_MO2F"
+        aag_file = aag_root + "/final_mockturtle_design/out_aiger_yosys_iter3_proc0_2.aig"
+        map_file = aag_root + "/final_mockturtle_design/aiger_map_cleaned.map"
+        
+        aag_lines2 = aag_file_to_aag_lines(aag_file, map_file=map_file)
+ 
 
-        m = AigerImporter(aag_lines_c).get_sprout_module()
-
+        m = AigerImporter(aag_lines2).get_sprout_module()
+                              
         # c = Component().from_module(m, make_internal=True)
         # instantiate an unsigned multiplier for the magnitudes
 
@@ -72,18 +75,15 @@ class StageBasedMultiplierBasicOptmized(StageBasedExtMultiplier):
                     operand_a_i: Signal
                     operand_b_i: Signal
                     result_o: Signal
-
+ 
                 self.io: IO = IO(
                     operand_a_i=Signal(name="operand_a_i", typ=UInt(this_class.aw), kind="input"),
                     operand_b_i=Signal(name="operand_b_i", typ=UInt(this_class.bw), kind="input"),
                     result_o=Signal(name="result_o", typ=UInt(this_class.aw + this_class.bw), kind="output"),
                 )
-                self.elaborate()
 
-        # c = LoadedMultiplier()
-        IOCollector().group(m, LoadedMultiplier().get_spec())
         self.mult = LoadedMultiplier()
-        self.mult.from_module(m, make_internal=True)
+        self.mult.from_module(m, make_internal=True, group=True)
 
         # use the specified multiplier
         self.mult.io.operand_a_i <<= self.io.a
@@ -127,3 +127,5 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
     ).generate()
 
     run_vectors_io(module, vecs)
+    
+

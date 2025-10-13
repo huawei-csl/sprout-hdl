@@ -27,7 +27,7 @@ from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import gen_spec
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 from testing.floating_point.sim_int import optimize_aag, run_vectors_io_log
 from testing.test_different_logic import run_vectors_io
 from low_level_arithmetic.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list

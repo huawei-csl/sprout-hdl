@@ -7,7 +7,7 @@ from sprouthdl.sprouthdl import UInt, mux, fit_width
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 
 
 

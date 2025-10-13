@@ -7,7 +7,7 @@ from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_a
 
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 from testing.testvectors_general import build_f16_subnormal_vectors
 
 

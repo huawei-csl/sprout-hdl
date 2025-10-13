@@ -11,7 +11,7 @@ from pyosys import libyosys as ys
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
 from sprouthdl.sprouthdl import Expr
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 

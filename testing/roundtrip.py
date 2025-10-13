@@ -4,7 +4,7 @@ from typing import Dict, Tuple
 
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 
 # If these live elsewhere, fix the imports:
 # from sprout_hdl import UInt, Bool, Module

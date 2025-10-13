@@ -11,7 +11,7 @@ from sprouthdl.sprouthdl import UInt, Bool, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 from testing.testvectors_general import build_fp_vectors, floatx_to_float  # generic EW,FW vectors/decoder
 from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 
@@ -106,13 +106,23 @@ def aag_file_to_aag_lines(aag_path: str, map_file: str|None = None) -> List[str]
         fd, map_out_path = tempfile.mkstemp(suffix=".map")
         os.close(fd)
     ys.run_pass("design -reset")
-    ys.run_pass(f"read_aiger {aag_path}")
     if map_file:
-        opt_map = f"-map {map_file}"
+        opt_map = f"-map {map_file} "
     else:
         opt_map = ""
-    ys.run_pass(f"write_aiger -symbols -ascii {aag_out_path} {opt_map}")
-    return file_to_lines(aag_out_path) 
+    ys.run_pass(f"read_aiger {opt_map}{aag_path}")
+    ys.run_pass(f"write_aiger -symbols -ascii {aag_out_path}")
+    aag_lines = file_to_lines(aag_out_path)
+    
+    # clean up, in case of [<index>] appearing twice in a line
+    aag_lines_clean = []
+    for line in aag_lines:
+        # if twice [  in line remove the last 3 characters
+        if line.count('[') == 2:
+            line = line[:-3]
+        aag_lines_clean.append(line)
+        
+    return aag_lines_clean
 
 def sprout_to_aig_via_exporter(m: Module):
     """Sprout → AAGER lines (ASCII) and AIG object (via read_aag_into_aig)."""

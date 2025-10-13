@@ -9,7 +9,7 @@ from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_a
 from sprouthdl.helpers import optimize_aag
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Op2, SInt, UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.sprouthdl_io_collector import IOCollector
+from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.test_different_logic import gen_m_case, run_vectors_io
