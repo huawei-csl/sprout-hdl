@@ -94,6 +94,25 @@ def verilog_to_aag_lines_via_pyosys(
     )
     return file_to_lines(aag_path)
 
+# also works for binary files
+def aag_file_to_aag_lines(aag_path: str, map_file: str|None = None) -> List[str]:
+    ys.run_pass("design -reset")
+    aag_out_path = None
+    map_out_path = None
+    if aag_out_path is None:
+        fd, aag_out_path = tempfile.mkstemp(suffix=".aag")
+        os.close(fd)
+    if map_out_path is None:
+        fd, map_out_path = tempfile.mkstemp(suffix=".map")
+        os.close(fd)
+    ys.run_pass("design -reset")
+    ys.run_pass(f"read_aiger {aag_path}")
+    if map_file:
+        opt_map = f"-map {map_file}"
+    else:
+        opt_map = ""
+    ys.run_pass(f"write_aiger -symbols -ascii {aag_out_path} {opt_map}")
+    return file_to_lines(aag_out_path) 
 
 def sprout_to_aig_via_exporter(m: Module):
     """Sprout → AAGER lines (ASCII) and AIG object (via read_aag_into_aig)."""

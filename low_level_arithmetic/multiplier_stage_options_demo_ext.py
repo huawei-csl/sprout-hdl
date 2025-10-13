@@ -74,7 +74,7 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
         def with_enc(cls, enc: Encoding) -> Self:
             return cls(a=enc, b=enc, y=enc)
 
-    demos = demos1
+    config_items = demos1
 
 
     completed_demo_runs = 0
@@ -84,23 +84,23 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
 
     for width in bitwidths:
 
-        for multiplier_opt, encodings, ppg_opt, ppa_opt, fsa_opt in demos:
+        for config_item in config_items:
 
             reset_shared_cache()
 
-            multiplier = multiplier_opt.value(
+            multiplier = config_item.multiplier_opt.value(
                 a_w=width,
                 b_w=width,
-                a_encoding=encodings.a,
-                b_encoding=encodings.b,
-                ppg_cls=ppg_opt.value,
-                ppa_cls=ppa_opt.value,
-                fsa_cls=fsa_opt.value,
+                a_encoding=config_item.encodings.a,
+                b_encoding=config_item.encodings.b,
+                ppg_cls=config_item.ppg_opt.value,
+                ppa_cls=config_item.ppa_opt.value,
+                fsa_cls=config_item.fsa_opt.value,
                 optim_type="area",
             )
 
-            module = multiplier.to_module(f"demo_{ppg_opt.name.lower()}_{encodings.a.name.lower()}_{encodings.b.name.lower()}_{fsa_opt.name.lower()}")
-            print(f"Built module '{module.name}' using PPG={ppg_opt.name}, PPA={ppa_opt.name}, FSA={fsa_opt.name}")
+            module = multiplier.to_module(f"demo_{config_item.ppg_opt.name.lower()}_{config_item.encodings.a.name.lower()}_{config_item.encodings.b.name.lower()}_{config_item.fsa_opt.name.lower()}")
+            print(f"Built module '{module.name}' using PPG={config_item.ppg_opt.name}, PPA={config_item.ppa_opt.name}, FSA={config_item.fsa_opt.name}")
 
             vecs = MultiplierTestVectors(
                 a_w=width,
@@ -108,9 +108,9 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
                 y_w=multiplier.io.y.typ.width,
                 num_vectors=num_vectors,
                 tb_sigma=None,
-                a_encoding=encodings.a,
-                b_encoding=encodings.b,
-                y_encoding=encodings.y,
+                a_encoding=config_item.encodings.a,
+                b_encoding=config_item.encodings.b,
+                y_encoding=config_item.encodings.y,
             ).generate()
 
             run_vectors_io(module, vecs)

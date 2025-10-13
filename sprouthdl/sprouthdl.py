@@ -7,8 +7,6 @@ import random
 import time
 from typing import Optional, Union, Sequence
 
-from sprouthdl.helpers import get_rand_hash
-
 
 # -----------------------------
 # Shared sub-expression (CSE) support
@@ -285,6 +283,11 @@ class Signal(Expr):
 # helper which generates signal for casting
 def cast(expr: ExprLike, to_type: HDLType) -> Signal:
     """Create a new Signal with the same name but different type."""
+    def get_rand_hash() -> str:
+        random_string = str(random.random()) + str(time.time())
+        hash_object = hashlib.sha256(random_string.encode())
+        name = str(hash_object.hexdigest())
+        return name
     name = get_rand_hash()
     s = Signal(name, to_type, 'wire')
     s <<= fit_width(as_expr(expr), to_type)

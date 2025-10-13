@@ -31,13 +31,6 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
     return aag_optimized
 
 
-def get_rand_hash() -> str:
-    random_string = str(random.random()) + str(time.time())
-    hash_object = hashlib.sha256(random_string.encode())
-    name = str(hash_object.hexdigest())
-    return name
-
-
 def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=10) -> Module:
     # -- swact --
     optim = True

@@ -3,18 +3,20 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, Type
 
+from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
 from low_level_arithmetic.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.test_vector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
-from sprouthdl.helpers import get_yosys_transistor_count, optimize_aag
+from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
+from sprouthdl.helpers import get_aig_stats, get_yosys_transistor_count, optimize_aag
 from sprouthdl.sprouthdl_aiger import AigerImporter
 from sprouthdl.sprouthdl_io_collector import IOCollector
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
-from testing.test_different_logic import run_vectors_io, verilog_to_aag_lines_via_pyosys, verilog_to_aag_via_pyosys
+from testing.test_different_logic import aag_file_to_aag_lines, run_vectors_io, verilog_to_aag_lines_via_pyosys, verilog_to_aag_via_pyosys
 
 class StageBasedMultiplierBasicOptmized(StageBasedExtMultiplier):
 
@@ -43,13 +45,19 @@ class StageBasedMultiplierBasicOptmized(StageBasedExtMultiplier):
 
         if self.aw == 4 and self.bw == 4 and self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned :
             verilog_file_name = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_2/analysis/minima_histogram/final_gen_design_files_best_design_aig_count/mydesign_mockturtle_cleaned.v"
+            # verilog_file_name = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_2/analysis/minima_histogram/final_gen_design_files_best_design_nb_transistors/mydesign_mockturtle_cleaned.v"
         else:
             raise NotImplementedError("This optimized multiplier is only implemented for 4x4 unsigned multiplication.")
 
         aag_lines = verilog_to_aag_lines_via_pyosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True)
-        aag_lines = optimize_aag(aag_lines)
+        # aag_lines = optimize_aag(aag_lines)
 
-        m = AigerImporter(aag_lines).get_sprout_module()
+        aag_file = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_2/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger_yosys_iter9_proc2_0.aig"
+        aag_lines2 = aag_file_to_aag_lines(aag_file)
+        aag_sym = _get_aag_sym(aag_lines)
+        aag_lines_c = aag_lines2[:-2] + aag_sym
+
+        m = AigerImporter(aag_lines_c).get_sprout_module()
 
         # c = Component().from_module(m, make_internal=True)
         # instantiate an unsigned multiplier for the magnitudes
@@ -84,10 +92,10 @@ class StageBasedMultiplierBasicOptmized(StageBasedExtMultiplier):
 
 
 if __name__ == "__main__":  # pragma: no cover - demonstration only
-    
+
     n_bits = 4
     signed = False
-    
+
     m = StageBasedMultiplierBasicOptmized(
         a_w=n_bits,
         b_w=n_bits,
@@ -100,11 +108,13 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
     )
     mod = m.to_module("multiplier_ext_optimized")
     print(mod)
-    
+
     module = mod
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    aig_gates = get_aig_stats(module)
     print(f"Yosys-reported transistor count: {transistor_count}")
-    
+    print(f"AIG-reported gate count: {aig_gates}")
+
     vecs = MultiplierTestVectors(
         a_w=n_bits,
         b_w=n_bits,
@@ -115,5 +125,5 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         b_encoding=to_encoding(signed),
         y_encoding=to_encoding(signed),
     ).generate()
-    
+
     run_vectors_io(module, vecs)
