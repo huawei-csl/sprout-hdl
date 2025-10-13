@@ -203,18 +203,18 @@ def run_configuration(
 def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cover - demonstration only
 
     num_vectors = 2000
-    bitwidths = [4, 8, 16]
+    bitwidths = [4, 8, 16, 24, 32]
     sigma_factor = 0.5
     n_steps_sigma = 8
-    parallel = False
+    parallel = True
 
-    sys.setrecursionlimit(2000)
+    sys.setrecursionlimit(4000)
 
     # datecode
     run_id = time.strftime("%Y%m%d_%H%M%S")
     out_file = f"data/multiplier_runs_{run_id}.parquet"
     collector = ParquetCollector(out_file)
-    
+
     if parallel:
         bitwidths = list(reversed(bitwidths))  # start with big ones first to get better load balancing
 
@@ -237,6 +237,7 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
             _worker = run_configuration
 
             results = []
+            errors = []
             with ProcessPoolExecutor(max_workers=max_workers) as ex:
                 futures = []
                 for demo in demos: 
@@ -244,19 +245,32 @@ def run_stage_multiplier_ext_demo(demos: list[Demo]) -> None:  # pragma: no cove
                         ex.submit(_worker, demo.multiplier_cls, demo.encodings, demo.ppg_opt, demo.ppa_opt, demo.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=demo.all_sigma)
                     )
                 for fut in tqdm(as_completed(futures), total=len(futures), desc="Running demos", unit="demo"):
-                    rec = fut.result()
-                    # Safely aggregate on the main process:
-                    if collector is not None and rec is not None:
-                        collector.extend(rec)   # or whatever your API is
-                    results.extend(rec)
+                    try:
+                        rec = fut.result()
+                        # Safely aggregate on the main process:
+                        if collector is not None and rec is not None:
+                            collector.extend(rec)   # or whatever your API is
+                            results.extend(rec)
+                    except Exception as e:
+                        errors.append(f"Error in demo: {str(e)}")
+                        print(f"Error in demo: {str(e)}")
+
+                if errors:
+                    print(f"\nEncountered {len(errors)} errors:")
+                    for i, error in enumerate(errors, 1):
+                        print(f"{i}. {error}")
+                    print(f"\n(Encountered {len(errors)} errors)")
 
     # get number of rows added
     print(f"Total number of configurations run: {len(demos) * len(bitwidths) * n_steps_sigma}")
     print(f"Total rows collected: {collector.n_rows()}")
+    print(f"Total number of demos: {len(demos)}")
+    print(f"Total number of errors: {len(errors)}")
 
     # save to file
     collector.save(append=True)
+    print(f"Saved to '{out_file}'")
 
 if __name__ == "__main__":
     # run_stage_multiplier_ext_demo(demos=demos1)
-    run_stage_multiplier_ext_demo(demos=get_selection1_list(small_sweep=True))
+    run_stage_multiplier_ext_demo(demos=get_selection1_list(large_sweep=False, all_sigmas_sweep=False))

@@ -66,7 +66,7 @@ demos1: List[Demo] = [
 ]
 
 
-def get_selection1_list(small_sweep: bool = True) -> List[Demo]:
+def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False) -> List[Demo]:
 
     demos : list[Demo] = []
 
@@ -113,7 +113,7 @@ def get_selection1_list(small_sweep: bool = True) -> List[Demo]:
     for sm, ppg, ppa, fsa in product(get_list_from_enum(StageMultiplier), get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
         if ppg == PPGOption.NONE or ppa == PPAOption.NONE or fsa == FSAOption.NONE:
             continue
-        if small_sweep and sm != StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC:
+        if not large_sweep and sm != StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC:
             continue
         for signed_a, signed_b in ppg.value.supported_signatures: # or ((False, False),):
             if signed_a != signed_b:
@@ -122,9 +122,9 @@ def get_selection1_list(small_sweep: bool = True) -> List[Demo]:
             if Demo(sm.value,  MultiplierEncodings.with_enc(to_encoding(signed_a)), ppg, ppa, fsa) in demos:
                 continue
             encoding = to_encoding(signed_a)
-            demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(encoding), ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=False))
+            demos.append(Demo(multiplier_cls=StageMultiplier.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(encoding), ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=all_sigmas_sweep))
     return demos
 
 if __name__ == "__main__":
-    demos1 = get_selection1_list(small_sweep=False)
+    demos1 = get_selection1_list(large_sweep=True, all_sigmas_sweep=True)
     print(f"Defined {len(demos1)} demo configurations to try")

@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
-from low_level_arithmetic.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32
+from low_level_arithmetic.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
+from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
@@ -433,7 +434,7 @@ def P_brent_kung(n: int) -> Set[Pair]:
 
     return nodes
 
-def Handmade_8_a(n: int) -> Set[Pair]:
+def ParallelScan_8_a(n: int) -> Set[Pair]:
     
     assert n == 8
 
@@ -454,7 +455,7 @@ def Handmade_8_a(n: int) -> Set[Pair]:
 
     return nodes
 
-def Handmade_8_b(n: int) -> Set[Pair]:
+def ParallelScan_8_b(n: int) -> Set[Pair]:
     
     assert n == 8
 
@@ -475,7 +476,7 @@ def Handmade_8_b(n: int) -> Set[Pair]:
     
     return nodes
 
-def Handmade_16_a(n: int) -> Set[Pair]:
+def ParallelScan_16_a(n: int) -> Set[Pair]:
     
     assert n == 16
 
@@ -501,7 +502,7 @@ def Handmade_16_a(n: int) -> Set[Pair]:
 
     return nodes
 
-def Handmade_16_b(n: int) -> Set[Pair]:
+def ParallelScan_16_b(n: int) -> Set[Pair]:
     
     assert n == 16
 
@@ -721,7 +722,7 @@ class AigReport:
 def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
 
     m = build_prefix_adder_from_matrix(name, n, nodes, with_cin=False, with_cout=True, depth_optimize=True)
-    #print(m.to_verilog())
+    # print(m.to_verilog())
 
     sim = Simulator(m)
     sim.set("a", 3).set("b", 5).eval()
@@ -747,7 +748,7 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
     print(f"Optimized AIG Size: {aig.size()}")
     print(f"Original AIG Depth: {DepthAig(aig_clone).num_levels()}")
     print(f"Optimized AIG Depth: {DepthAig(aig).num_levels()}")
-        
+
     aig_report = AigReport(
         size=aig.size(),
         depth=DepthAig(aig).num_levels(),
@@ -755,150 +756,175 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
         optimized_depth=DepthAig(aig_clone).num_levels()
         )
     graph_report = m.module_analyze(include_wiring=True, include_consts=True)
-    
-    prefix_graph_stats = {"num_nodes": get_num_nodes(nodes, n), "depth": get_depth(nodes, n)}   
 
-    return graph_report, aig_report, prefix_graph_stats
+    prefix_graph_stats = {"num_nodes": get_num_nodes(nodes, n), "depth": get_depth(nodes, n)}
+
+    yosys_stats = get_yosys_metrics(m)
+
+    return graph_report, aig_report, prefix_graph_stats, yosys_stats
 
 def main_test():
 
-    n = 8 # number of bits
     n_random = 100
+    n_bits_vec = [8, 16, 24, 32]
 
-    configs = [
-        (P_ripple_carry(n), "Ripple Carry"),
-        (P_kogge_stone(n), "Kogge-Stone"),
-        (P_sklansky(n), "Sklansky"),
-        (P_brent_kung(n), "Brent-Kung"),
-    ]
+    for n in n_bits_vec:
+        print(f"\n\n\nTesting prefix adders with n={n} bits...")
 
-    if n == 8:
+        configs = [
+            (P_ripple_carry(n), "Ripple Carry"),
+            (P_kogge_stone(n), "Kogge-Stone"),
+            (P_sklansky(n), "Sklansky"),
+            (P_brent_kung(n), "Brent-Kung"),
+        ]
 
-        assert validate_legality(n, Handmade_8_a(n))
-        assert validate_legality(n, Handmade_8_b(n))
-        configs += [(Handmade_8_a(n), "Handmade 8a")]  
-        configs += [(Handmade_8_b(n), "Handmade 8b")]
-        assert get_num_nodes(Handmade_8_a(n), n) == 10
-        assert get_num_nodes(Handmade_8_b(n), n) == 10
+        if n == 8:
 
-    if n == 16:
+            assert validate_legality(n, ParallelScan_8_a(n))
+            assert validate_legality(n, ParallelScan_8_b(n))
+            configs += [(ParallelScan_8_a(n), "Parallel Scan 8a")]
+            configs += [(ParallelScan_8_b(n), "Parallel Scan 8b")]
+            assert get_num_nodes(ParallelScan_8_a(n), n) == 10
+            assert get_num_nodes(ParallelScan_8_b(n), n) == 10
 
-        assert validate_legality(n, Handmade_16_a(n))
-        assert validate_legality(n, Handmade_16_b(n))
-        configs += [(Handmade_16_a(n), "Handmade 16a")]
-        configs += [(Handmade_16_b(n), "Handmade 16b")]
-        assert get_num_nodes(Handmade_16_a(n), n) == 24
-        assert get_num_nodes(Handmade_16_b(n), n) == 24
+        if n == 16:
 
-    if n == 24:
+            assert validate_legality(n, ParallelScan_16_a(n))
+            assert validate_legality(n, ParallelScan_16_b(n))
+            configs += [(ParallelScan_16_a(n), "Parallel Scan 16a")]
+            configs += [(ParallelScan_16_b(n), "Parallel Scan 16b")]
+            assert get_num_nodes(ParallelScan_16_a(n), n) == 24
+            assert get_num_nodes(ParallelScan_16_b(n), n) == 24
 
-        config = add_trivial_nodes(get_multiscan_nodes_24(), n)
-        assert validate_legality(n, config)
-        configs += [(config, "Multiscan 24")]
+        if n == 24:
 
-    if n == 32:
+            config = add_trivial_nodes(get_multiscan_nodes_24(), n)
+            assert validate_legality(n, config)
+            configs += [(config, "Parallel Scan 24")]
 
-        config = add_trivial_nodes(get_multiscan_nodes_32(), n)
-        assert validate_legality(n, config)
-        configs += [(config, "Multiscan 32")]
+            config = add_trivial_nodes(prefix_nodes_to_ranges(zcg_24), n)
+            assert validate_legality(n, config)
+            configs += [(config, "ZCG 24")]
 
-    configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(n_random)]
+        if n == 32:
 
-    results: List[Tuple[str, GraphReport, AigReport]] = []
-    for nodes, name in configs:
-        nodes = add_trivial_nodes(nodes, n)
-        if not validate_legality(n, nodes):
-            print(f"Invalid configuration for {name}. Skipping.")
-            raise RuntimeError("Invalid configuration.")
-        print(f"\nBuilding {name} prefix adder with n={n}...")
-        graph_report, aig_report, prefix_graph_stats = get_stats(nodes, n, name)
-        results.append((name, graph_report, aig_report, prefix_graph_stats))
+            config = add_trivial_nodes(get_multiscan_nodes_32(), n)
+            assert validate_legality(n, config)
+            configs += [(config, "Parallel Scan 32")]
 
-    # plot results in scatter plot size vs depth, aig
-    plt.figure(figsize=(6, 4))
+            config = add_trivial_nodes(prefix_nodes_to_ranges(zcg_32), n)
+            assert validate_legality(n, config)
+            configs += [(config, "ZCG 32")]
 
-    def plt_results(results_plot_list):
-        markers = ['s', '^', 'D', 'v', 'P', '*', 'X', 'H', '<', '>']
-        first_gray = True
-        i_not_gray = 0
+        configs += [(gen_random_P(n, random.randint(5, 15)), f"Random {i}") for i in range(n_random)]
 
-        x_rand = []
-        y_rand = []
+        results: List[Tuple[str, GraphReport, AigReport]] = []
+        for nodes, name in configs:
+            nodes = add_trivial_nodes(nodes, n)
+            if not validate_legality(n, nodes):
+                print(f"Invalid configuration for {name}. Skipping.")
+                raise RuntimeError("Invalid configuration.")
+            print(f"\nBuilding {name} prefix adder with n={n}...")
+            graph_report, aig_report, prefix_graph_stats, yosys_stats = get_stats(nodes, n, name)
+            results.append((name, graph_report, aig_report, prefix_graph_stats, yosys_stats))
 
-        for name, x, y in results_plot_list:
-            if "Random" not in name:
-                continue  # plot randoms only in second pass
-            x_rand.append(x)
-            y_rand.append(y)
+        # plot results in scatter plot size vs depth, aig
+        plt.figure(figsize=(6, 4))
 
-        plt.scatter(x_rand, y_rand, color="gray", label=f"Random ({n_random}x, legal)", marker="o", alpha=0.25)
+        def plt_results(results_plot_list):
+            markers = ['s', '^', 'D', 'v', 'P', '*', 'X', 'H', '<', '>']
+            first_gray = True
+            i_not_gray = 0
 
-        for name, x, y in results_plot_list:
-            if "Random" in name:
-                continue  # plot randoms only in second pass
+            x_rand = []
+            y_rand = []
 
-            label = name
-            color = None
-            # take from palette
-            marker = markers[i_not_gray]
-            i_not_gray = (i_not_gray + 1) % len(markers)
-            alpha = 1.0
-            plt.scatter(x, y, color=color, label=label, marker=marker, alpha=alpha)
+            for name, x, y in results_plot_list:
+                if "Random" not in name:
+                    continue  # plot randoms only in second pass
+                x_rand.append(x)
+                y_rand.append(y)
 
-    # transform results to
+            plt.scatter(x_rand, y_rand, color="gray", label=f"Random ({n_random}x, legal)", marker="o", alpha=0.25)
 
-    results_plot_list = []
-    for name, graph_report, aig_report, prefix_graph_stats in results:
-        results_plot_list.append((name, aig_report.size, aig_report.depth))
-    plt_results(results_plot_list)
+            for name, x, y in results_plot_list:
+                if "Random" in name:
+                    continue  # plot randoms only in second pass
 
-    plt.title("Prefix Adder AIG Size vs Depth")
-    plt.xlabel("AIG Size")
-    plt.ylabel("AIG Depth")
-    # on upper right
-    plt.legend(loc='upper right')
-    plt.grid()
-    plt.savefig(f"prefix_adder_aig_size_vs_depth_n{n}.png")
+                label = name
+                color = None
+                # take from palette
+                marker = markers[i_not_gray]
+                i_not_gray = (i_not_gray + 1) % len(markers)
+                alpha = 1.0
+                plt.scatter(x, y, color=color, label=label, marker=marker, alpha=alpha)
 
-    # plot results in scatter plot size vs depth, optimized aig
-    plt.figure(figsize=(6, 4))
+        # transform results to
 
-    results_plot_list = []
-    for name, graph_report, aig_report, prefix_graph_stats in results:
-        results_plot_list.append((name, aig_report.optimized_size, aig_report.optimized_depth))
-    plt_results(results_plot_list)
+        results_plot_list = []
+        for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
+            results_plot_list.append((name, aig_report.size, aig_report.depth))
+        plt_results(results_plot_list)
 
-    plt.title("Prefix Adder Optimized AIG Size vs Depth")
-    plt.xlabel("Optimized AIG Size")
-    plt.ylabel("Optimized AIG Depth")
-    plt.legend(loc="upper right")
-    plt.grid()
-    plt.savefig(f"prefix_adder_optimized_aig_size_vs_depth_n{n}.png")
+        plt.title(f"Prefix Adder AIG Size vs Depth ({n}-bit)")
+        plt.xlabel("AIG Size")
+        plt.ylabel("AIG Depth")
+        # on upper right
+        plt.legend(loc='upper right')
+        plt.grid()
+        plt.savefig(f"prefix_adder_aig_size_vs_depth_n{n}.png")
 
-    plt.figure(figsize=(6, 4))
-    results_plot_list = []
-    for name, graph_report, aig_report, prefix_graph_stats in results:
-        results_plot_list.append((name, graph_report.op_nodes, graph_report.max_depth))
-    plt_results(results_plot_list)
+        # plot results in scatter plot size vs depth, optimized aig
+        plt.figure(figsize=(6, 4))
 
-    plt.title("Prefix Adder Graph Size vs Depth")
-    plt.xlabel("Graph Nodes")
-    plt.ylabel("Graph Depth")
-    plt.legend(loc="upper right")
-    plt.grid()
-    plt.savefig(f"prefix_adder_graph_size_vs_depth_n{n}.png")
+        results_plot_list = []
+        for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
+            results_plot_list.append((name, aig_report.optimized_size, aig_report.optimized_depth))
+        plt_results(results_plot_list)
 
-    plt.figure(figsize=(6, 4))
-    results_plot_list = []
-    for name, graph_report, aig_report, prefix_graph_stats in results:
-        results_plot_list.append((name, prefix_graph_stats["num_nodes"], prefix_graph_stats["depth"]))
-    plt_results(results_plot_list)
-    plt.title("Prefix Adder Prefix Tree Size vs Depth")
-    plt.xlabel("Prefix Tree Nodes")
-    plt.ylabel("Prefix Tree Depth")
-    plt.legend(loc="upper right")
-    plt.grid()
-    plt.savefig(f"prefix_adder_prefix_tree_size_vs_depth_n{n}.png")
+        plt.title(f"Prefix Adder Optimized AIG Size vs Depth ({n}-bit)")
+        plt.xlabel("Optimized AIG Size")
+        plt.ylabel("Optimized AIG Depth")
+        plt.legend(loc="upper right")
+        plt.grid()
+        plt.savefig(f"prefix_adder_optimized_aig_size_vs_depth_n{n}.png")
+
+        plt.figure(figsize=(6, 4))
+        results_plot_list = []
+        for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
+            results_plot_list.append((name, graph_report.op_nodes, graph_report.max_depth))
+        plt_results(results_plot_list)
+
+        plt.title(f"Prefix Adder Graph Size vs Depth ({n}-bit)")
+        plt.xlabel("Graph Nodes")
+        plt.ylabel("Graph Depth")
+        plt.legend(loc="upper right")
+        plt.grid()
+        plt.savefig(f"prefix_adder_graph_size_vs_depth_n{n}.png")
+
+        plt.figure(figsize=(6, 4))
+        results_plot_list = []
+        for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
+            results_plot_list.append((name, prefix_graph_stats["num_nodes"], prefix_graph_stats["depth"]))
+        plt_results(results_plot_list)
+        plt.title(f"Prefix Adder Prefix Tree Size vs Depth ({n}-bit)")
+        plt.xlabel("Prefix Tree Nodes")
+        plt.ylabel("Prefix Tree Depth")
+        plt.legend(loc="upper right")
+        plt.grid()
+        plt.savefig(f"prefix_adder_prefix_tree_size_vs_depth_n{n}.png")
+
+        plt.figure(figsize=(6, 4))
+        results_plot_list = []
+        for name, graph_report, aig_report, prefix_graph_stats, yosys_stats in results:
+            results_plot_list.append((name, yosys_stats["estimated_num_transistors"], graph_report.max_depth))
+        plt_results(results_plot_list)
+        plt.title(f"Prefix Adder Yosys Transistors vs Prefix Graph Depth ({n}-bit)")
+        plt.xlabel("Yosys Transistors")
+        plt.ylabel("Prefix Graph Depth")
+        plt.legend(loc="upper right")
+        plt.grid()
+        plt.savefig(f"prefix_adder_yosys_transistors_vs_depth_n{n}.png")
 
 
 if __name__ == "__main__":

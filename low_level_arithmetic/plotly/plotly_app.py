@@ -173,7 +173,7 @@ def build_design_level_table(df: pd.DataFrame) -> pd.DataFrame:
         "a_enc",
         "b_enc",
         "y_enc",
-        "design_label",
+        "design_label"
     ]
 
     # Static metrics: pick first non-null per group
