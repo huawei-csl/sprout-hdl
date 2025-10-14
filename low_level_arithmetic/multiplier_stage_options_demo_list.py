@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from low_level_arithmetic.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum
+from low_level_arithmetic.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.test_vector_generation import Encoding, to_encoding
 
@@ -82,52 +82,65 @@ def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False
     # vary multiplier options
     for sm in get_list_from_enum(MultiplierOption):  # StageMultiplier.get_list_with_all():
         for encoding in encoding_for_multiplier(sm.value):
-            config_items.append(ConfigItem(sm.value, encoding, ppg_0, ppa_0, fsa_0))
+            if not supports_stages(sm):
+                config_items.append(ConfigItem(sm, encoding, PPGOption.NONE, PPAOption.NONE, FSAOption.NONE))
+            else:
+                config_items.append(ConfigItem(sm, encoding, ppg_0, ppa_0, fsa_0))
 
-    # vary PPG options
-    for ppg in get_list_from_enum(PPGOption):
-        if ppg == PPGOption.NONE:
-            continue
-        for signed_a, signed_b in ppg.value.supported_signatures: # or ((False, False),):
-            if signed_a != signed_b:
-                continue 
-            encoding = to_encoding(signed_a)
-            config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(encoding), ppg, ppa_0, fsa_0))
+    # # vary PPG options
+    # for ppg in get_list_from_enum(PPGOption):
+    #     if ppg == PPGOption.NONE:
+    #         continue
+    #     for signed_a, signed_b in ppg.value.supported_signatures: # or ((False, False),):
+    #         if signed_a != signed_b:
+    #             continue
+    #         encoding = to_encoding(signed_a)
+    #         config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(encoding), ppg, ppa_0, fsa_0))
 
-    # vary PPA options
-    for ppa in get_list_from_enum(PPAOption):
-        if ppa == PPAOption.NONE:
-            continue
-        config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.unsigned), ppg_0, ppa, fsa_0))
-        config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_0, ppa, fsa_0))
+    # # vary PPA options
+    # for ppa in get_list_from_enum(PPAOption):
+    #     if ppa == PPAOption.NONE:
+    #         continue
+    #     config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(Encoding.unsigned), ppg_0, ppa, fsa_0))
+    #     config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_0, ppa, fsa_0))
 
-    # vary FSA options
-    for fsa in get_list_from_enum(FSAOption):
-        if fsa == FSAOption.NONE:
-            continue
-        config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.unsigned), ppg_0, ppa_0, fsa))
-        config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_0, ppa_0, fsa))
+    # # vary FSA options
+    # for fsa in get_list_from_enum(FSAOption):
+    #     if fsa == FSAOption.NONE:
+    #         continue
+    #     config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(Encoding.unsigned), ppg_0, ppa_0, fsa))
+    #     config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_0, ppa_0, fsa))
 
     # add supposedly "best" option
-    config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BOOTH_OPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_SKLANSKY))
-    config_items.append(ConfigItem(multiplier_cls=MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_opt=PPGOption.BOOTH_OPTIMISED, ppa_opt=PPAOption.DADDA_TREE, fsa_opt=FSAOption.PREFIX_SKLANSKY))
+    # config_items.append(ConfigItem(MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, MultiplierEncodings.with_enc(Encoding.unsigned), PPGOption.BOOTH_OPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_SKLANSKY))
+    # config_items.append(ConfigItem(multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC, encodings=MultiplierEncodings.with_enc(Encoding.twos_complement), ppg_opt=PPGOption.BOOTH_OPTIMISED, ppa_opt=PPAOption.DADDA_TREE, fsa_opt=FSAOption.PREFIX_SKLANSKY))
 
     # now all combinations of PPG, PPA, FSA for basic multiplier with unsigned and twos_complement
     # with all_sigma = False to make it quicker
     from itertools import product
-    for sm, ppg, ppa, fsa in product(get_list_from_enum(MultiplierOption), get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
-        if ppg == PPGOption.NONE or ppa == PPAOption.NONE or fsa == FSAOption.NONE:
-            continue
+    for sm, ppg, ppa, fsa in product([MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC], get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
+        if supports_stages(sm):
+            if ppg == PPGOption.NONE or ppa == PPAOption.NONE or fsa == FSAOption.NONE:
+                continue
+        if not supports_stages(sm):
+            if ppg != PPGOption.NONE or ppa != PPAOption.NONE or fsa != FSAOption.NONE:
+                continue
+
         if not large_sweep and sm != MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC:
             continue
-        for signed_a, signed_b in ppg.value.supported_signatures:
-            if signed_a != signed_b:
-                continue 
-            # if already added above, skip
-            if ConfigItem(sm.value,  MultiplierEncodings.with_enc(to_encoding(signed_a)), ppg, ppa, fsa) in config_items:
+
+        for encodings in encoding_for_multiplier(sm.value):
+
+            if ConfigItem(sm,encodings, ppg, ppa, fsa) in config_items:
                 continue
-            encoding = to_encoding(signed_a)
-            config_items.append(ConfigItem(multiplier_cls=MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC.value, encodings=MultiplierEncodings.with_enc(encoding), ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=all_sigmas_sweep))
+
+            # check
+            signature_signed = (encodings.a == Encoding.twos_complement, encodings.b == Encoding.twos_complement)
+            if  signature_signed not in ppg.value.supported_signatures:
+                continue
+
+            config_items.append(ConfigItem(multiplier_opt=sm, encodings=encodings, ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=all_sigmas_sweep))
+
     return config_items
 
 if __name__ == "__main__":

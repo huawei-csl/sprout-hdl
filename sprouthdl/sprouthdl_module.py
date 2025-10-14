@@ -20,7 +20,7 @@ class Component(abc.ABC):
     def name(self) -> str:
         return self.__class__.__name__
 
-    #@abc.abstractmethod
+    # @abc.abstractmethod
     def elaborate(self) -> None:  # pragma: no cover - structural hook
         # raise NotImplementedError
         pass
@@ -60,6 +60,24 @@ class Component(abc.ABC):
         self.elaborate()  # re-elaborate to rebuild internal structure
         if make_internal:
             self.make_internal()
+
+    def from_verilog(self, verilog_str: str, top=None, group=True) -> Self:
+        from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys
+
+        aag_lines = verilog_to_aag_lines_via_yosys(verilog_str, top=top, embed_symbols=True, no_startoffset=True)
+        self.from_aag_lines(aag_lines, group=group)
+
+    def from_aig_file(self, aig_path: str, map_file: str|None = None, group=True) -> Self:
+        from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys
+
+        aag_lines = aig_file_to_aag_lines_via_yosys(aig_path, map_file=map_file)
+        self.from_aag_lines(aag_lines, group=group)
+
+    def from_aag_lines(self, aag_lines: List[str], group=True) -> Self:
+        from sprouthdl.sprouthdl_aiger import AigerImporter
+
+        m = AigerImporter(aag_lines).get_sprout_module()
+        self.from_module(m, make_internal=True, group=group)
 
     def make_internal(self) -> Self:
         # go through all signals in io and change to 'wire'

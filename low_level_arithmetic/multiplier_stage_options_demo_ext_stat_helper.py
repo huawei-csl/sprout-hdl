@@ -40,6 +40,8 @@ class MultiplierRow:
     b_w: int
     y_w: int
     num_vectors: int
+    
+    optimization_effort: int
 
     # Sweep / result
     sigma: float

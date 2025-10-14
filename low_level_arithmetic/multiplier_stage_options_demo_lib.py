@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
+from low_level_arithmetic.multipliers_ext_optimized import OptimizedMultiplierBasic, OptmizedSignMagnitudeMultiplier
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
@@ -76,6 +77,17 @@ class MultiplierOption(Enum):
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier
     STAR_MULTIPLIER = StarMultiplier
+    OPTIMIZED_MULTIPLIER_BASIC = OptimizedMultiplierBasic
+    OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER = OptmizedSignMagnitudeMultiplier
+
+def supports_stages(multiplier_option: MultiplierOption) -> bool:
+    if multiplier_option == MultiplierOption.STAR_MULTIPLIER:
+        return False
+    if multiplier_option == MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC:
+        return False
+    if multiplier_option == MultiplierOption.OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER:
+        return False
+    return True
 
 E = TypeVar("E", bound=Enum)
 def get_list_from_enum(enum_cls: Type[E]) -> list[E]:
@@ -132,5 +144,9 @@ def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> Li
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper)]
     elif multiplier_cls == StarMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+    elif multiplier_cls == OptimizedMultiplierBasic:
+        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+    elif multiplier_cls == OptmizedSignMagnitudeMultiplier:
+        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
     else:
         raise ValueError(f"Unknown multiplier class: {multiplier_cls}")

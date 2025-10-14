@@ -67,6 +67,7 @@ HOVER_BASE = [
     "y_w",
 ]
 
+extra_cols = ["enc", "io_widths", "stages"]
 
 # Full label format requested by you
 def design_label_from_row(row: pd.Series) -> str:
@@ -77,6 +78,35 @@ def design_label_from_row(row: pd.Series) -> str:
 
 
 # --------------------------- data helpers -------------------------- #
+def augment_df_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add convenient derived columns (strings) for labeling/coloring."""
+    df = df.copy()
+
+    # enc: "a_enc/b_enc→y_enc"
+    if all(c in df.columns for c in ("a_enc", "b_enc", "y_enc")):
+        df["enc"] = (
+            df["a_enc"].astype("string") + "/" +
+            df["b_enc"].astype("string") + "→" +
+            df["y_enc"].astype("string")
+        )
+
+    # io_widths: "a_w/b_w→y_w" (uses pandas Int64 so NaNs are allowed)
+    if all(c in df.columns for c in ("a_w", "b_w", "y_w")):
+        df["io_widths"] = (
+            df["a_w"].astype("Int64").astype("string") + "/" +
+            df["b_w"].astype("Int64").astype("string") + "→" +
+            df["y_w"].astype("Int64").astype("string")
+        )
+
+    # stages combined: "PPG=... | PPA=... | FSA=..."
+    if all(c in df.columns for c in ("ppg_opt", "ppa_opt", "fsa_opt")):
+        df["stages"] = (
+            "PPG=" + df["ppg_opt"].astype("string") +
+            " | PPA=" + df["ppa_opt"].astype("string") +
+            " | FSA=" + df["fsa_opt"].astype("string")
+        )
+
+    return df
 
 
 def load_df(file_path: str) -> pd.DataFrame:
@@ -100,8 +130,14 @@ def load_df(file_path: str) -> pd.DataFrame:
     df = df.copy()
     df["design_label"] = df.apply(design_label_from_row, axis=1)
 
-    # Keep data types tidy
+    # Mark known categoricals as string
     for c in ["multiplier_opt", "ppg_opt", "ppa_opt", "fsa_opt", "a_enc", "b_enc", "y_enc", "design_label"]:
+        if c in df.columns:
+            df[c] = df[c].astype("string")
+
+    # <<< NEW: add derived columns >>>
+    df = augment_df_columns(df)
+    for c in extra_cols:
         if c in df.columns:
             df[c] = df[c].astype("string")
 
@@ -157,40 +193,25 @@ def compute_switches_at_target(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_design_level_table(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Produce one row per multiplier configuration (dedup across sigma).
-    Join static metrics + switches_at_target.
-    """
     key_cols = [
-        "n_bits",
-        "a_w",
-        "b_w",
-        "y_w",
-        "multiplier_opt",
-        "ppg_opt",
-        "ppa_opt",
-        "fsa_opt",
-        "a_enc",
-        "b_enc",
-        "y_enc",
-        "design_label"
+        "n_bits","a_w","b_w","y_w",
+        "multiplier_opt","ppg_opt","ppa_opt","fsa_opt",
+        "a_enc","b_enc","y_enc","design_label",
     ]
-
-    # Static metrics: pick first non-null per group
     static_cols = [c for c in STATIC_METRICS if c in df.columns]
-    to_keep = key_cols + static_cols
+    # keep derived label columns if present
+    extra_cols_f = [c for c in extra_cols if c in df.columns]
+
+    to_keep = list(dict.fromkeys(key_cols + static_cols + extra_cols_f))
     base = df[to_keep].drop_duplicates(subset=key_cols).reset_index(drop=True)
 
-    # switches_at_target
     sat = compute_switches_at_target(df)
     design_df = pd.merge(base, sat, on=key_cols, how="left")
 
-    # Some datasets may not have all static metrics; fill if missing
+    # numeric cleanup (unchanged)
     for col in STATIC_METRICS + ["switches_at_target"]:
         if col in design_df.columns:
-            if col.startswith("estimated_") or col.endswith("_count") or col.endswith("_nodes") or col == "switches_at_target":
-                # keep numeric
-                design_df[col] = pd.to_numeric(design_df[col], errors="coerce")
+            design_df[col] = pd.to_numeric(design_df[col], errors="coerce")
 
     return design_df
 
@@ -303,6 +324,7 @@ def make_app(df: pd.DataFrame) -> Dash:
         "b_enc",
         "y_enc",
     ]
+    color_options += extra_cols
     color_opts = [{"label": c, "value": c} for c in color_options]
 
     app.layout = html.Div(
@@ -605,7 +627,7 @@ def make_app(df: pd.DataFrame) -> Dash:
     #         title=f"{y_metric} vs sigma (lines per configuration)",
     #     )
     #     return fig
-    
+
     @callback(
         Output("line-graph", "figure"),
         [
@@ -622,13 +644,13 @@ def make_app(df: pd.DataFrame) -> Dash:
                     nbits_r, aw_r, bw_r, yw_r):
         if not full_table_json or not y_metric:
             return go.Figure()
-    
+
         full_df = pd.DataFrame.from_records(pd.read_json(full_table_json, orient="records"))
-    
+
         # Apply filters
         full_df = apply_filters(full_df, mult, ppg, ppa, fsa, aenc, benc, yenc, labels,
                                 nbits_r, aw_r, bw_r, yw_r)
-    
+
         # Guard rails
         if full_df.empty or "sigma" not in full_df.columns or y_metric not in full_df.columns:
             return go.Figure()
@@ -643,22 +665,22 @@ def make_app(df: pd.DataFrame) -> Dash:
                 full_df["b_enc"].astype(str) + "→" +
                 full_df["y_enc"].astype(str)
             )
-    
+
         # Make sure we have design labels (for coloring/hover if chosen)
         if "design_label" not in full_df.columns:
             full_df["design_label"] = full_df.apply(design_label_from_row, axis=1)
-    
+
         # Keep one point per (run_id, sigma); order by (run_id, sigma) so lines are drawn correctly
         lines_df = (full_df
                     .dropna(subset=["run_id", "sigma", y_metric])
                     .sort_values(["run_id", "sigma"])
                     .drop_duplicates(subset=["run_id", "sigma"], keep="first"))
-    
+
         if lines_df.empty:
             return go.Figure()
-    
+
         hover_cols = [c for c in HOVER_BASE + ["run_id", "sigma", y_metric] if c in lines_df.columns]
-    
+
         fig = px.line(
             lines_df,
             x="sigma",
@@ -675,7 +697,6 @@ def make_app(df: pd.DataFrame) -> Dash:
             title=f"{y_metric} vs sigma (each line = one run_id)",
         )
         return fig
-    
 
     return app
 

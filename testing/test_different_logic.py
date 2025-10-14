@@ -37,7 +37,7 @@ def write_temp_verilog(m: Module, top_name: str | None = None) -> str:
     return path
 
 
-def verilog_to_aag_via_pyosys(
+def verilog_to_aag_via_yosys(
     verilog_path: str,
     *,
     top: str | None = None,
@@ -76,7 +76,7 @@ def verilog_to_aag_via_pyosys(
     ys.run_pass(f"write_aiger {' '.join(opts)} {aag_out_path}")
     return aag_out_path, (map_out_path if os.path.getsize(map_out_path) > 0 else None)
 
-def verilog_to_aag_lines_via_pyosys(
+def verilog_to_aag_lines_via_yosys(
     verilog_path: str,
     *,
     top: str | None = None,
@@ -85,7 +85,7 @@ def verilog_to_aag_lines_via_pyosys(
     no_startoffset: bool = True,
 ) -> List[str]:
     """Run yosys: read_verilog → synth -flatten → aigmap → write_aiger -ascii […]. Returns AAG lines."""
-    aag_path, _ = verilog_to_aag_via_pyosys(
+    aag_path, _ = verilog_to_aag_via_yosys(
         verilog_path,
         top=top,
         tie_undriven=tie_undriven,
@@ -95,7 +95,7 @@ def verilog_to_aag_lines_via_pyosys(
     return file_to_lines(aag_path)
 
 # also works for binary files
-def aag_file_to_aag_lines(aag_path: str, map_file: str|None = None) -> List[str]:
+def aig_file_to_aag_lines_via_yosys(aag_path: str, map_file: str|None = None) -> List[str]:
     ys.run_pass("design -reset")
     aag_out_path = None
     map_out_path = None
@@ -309,7 +309,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
     vpath = write_temp_verilog(m, top_name=m.name)
     # for testing copy vpath to local dir
     os.system(f"cp {vpath} ./{m.name}.v")
-    aag_path, map_path = verilog_to_aag_via_pyosys(vpath, top=m.name, embed_symbols=True, no_startoffset=True)
+    aag_path, map_path = verilog_to_aag_via_yosys(vpath, top=m.name, embed_symbols=True, no_startoffset=True)
     aig_pyo = read_aag_into_aig(aag_path)
 
     aag_pyo_lines = file_to_lines(aag_path)

@@ -83,14 +83,14 @@ def run_configuration(
                 y_encoding=encodings.y,
             ).generate()
 
-    run_vectors_io(module, vecs)
+    run_vectors_io(module, vecs[0:min(16, len(vecs))])  # smoke test
 
     # -- swact --
     m_aig = refactor_module_to_aig(module)
 
     # AIG network test sim
     print("Sim (AIG) …")
-    run_vectors_io(m_aig, vecs)
+    run_vectors_io(m_aig, vecs[0:min(16, len(vecs))])  # smoke test
 
     exprs = m_aig.all_exprs()
     all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
@@ -165,6 +165,8 @@ def run_configuration(
                     
                     num_aig_gates=aig_stats["num_gates"],
                     aig_depth=aig_stats["depth"],
+                    
+                    optimization_effort = 1 if multiplier_opt == MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC else 1,
                 )
         rows.append(row)
     return rows
@@ -172,10 +174,11 @@ def run_configuration(
 def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pragma: no cover - demonstration only
 
     num_vectors = 2000
-    bitwidths = [4, 8] #[4, 8, 16, 24, 32]
+    bitwidths = [4, 8, 16, 32] #[4, 8, 16, 24, 32]
     sigma_factor = 0.5
     n_steps_sigma = 8
     parallel = True
+    max_workers = 80
 
     sys.setrecursionlimit(4000)
 
@@ -187,6 +190,8 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
     if parallel:
         bitwidths = list(reversed(bitwidths))  # start with big ones first to get better load balancing
 
+    results = []
+    errors = []
     for n_bits in bitwidths:
 
         sigma_max = 2**n_bits * sigma_factor
@@ -196,17 +201,13 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
         if not parallel:
 
             for config_item in config_items:                
-                rows = run_configuration(config_item.multiplier, config_item.encodings, config_item.ppg_opt, config_item.ppa_opt, config_item.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=config_item.all_sigma)
+                rows = run_configuration(config_item.multiplier_opt, config_item.encodings, config_item.ppg_opt, config_item.ppa_opt, config_item.fsa_opt, n_bits, num_vectors, sigmas, all_sigmas=config_item.all_sigma)
                 collector.extend(rows)
 
-        else:       
-
-            max_workers = 80
+        else:              
 
             _worker = run_configuration
 
-            results = []
-            errors = []
             with ProcessPoolExecutor(max_workers=max_workers) as ex:
                 futures = []
                 for config_item in config_items: 
@@ -224,11 +225,11 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
                         errors.append(f"Error in demo: {str(e)}")
                         print(f"Error in demo: {str(e)}")
 
-                if errors:
-                    print(f"\nEncountered {len(errors)} errors:")
-                    for i, error in enumerate(errors, 1):
-                        print(f"{i}. {error}")
-                    print(f"\n(Encountered {len(errors)} errors)")
+    if errors:
+        print(f"\nEncountered {len(errors)} errors:")
+        for i, error in enumerate(errors, 1):
+            print(f"{i}. {error}")
+        print(f"\n(Encountered {len(errors)} errors)")
 
     # get number of rows added
     print(f"Total number of configurations run: {len(config_items) * len(bitwidths) * n_steps_sigma}")
@@ -241,5 +242,5 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
     print(f"Saved to '{out_file}'")
 
 if __name__ == "__main__":
-    run_stage_multiplier_ext_demo(config_items=demos1)
-    #run_stage_multiplier_ext_demo(demos=get_selection1_list(large_sweep=False, all_sigmas_sweep=False))
+    # run_stage_multiplier_ext_demo(config_items=demos1)
+    run_stage_multiplier_ext_demo(config_items=get_selection1_list(large_sweep=True, all_sigmas_sweep=True))
