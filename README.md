@@ -101,6 +101,7 @@ Check out the `examples/` directory for practical examples:
 
 - **`simple_component.py`** – A minimal example showing how to define a Component with IO ports and generate Verilog
 - **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
+- **`module_with_component.py`** – Shows how to integrate Components within Module-based designs
 
 See the [examples README](examples/README.md) for detailed documentation and key concepts.
 
