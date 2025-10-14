@@ -32,4 +32,4 @@ jobs:
           pip install --cache-dir="$PIP_CACHE_DIR" -e .
 
       - name: Run tests
-        run: pytest
+        run: PYTHONPATH=$(pwd) pytest
