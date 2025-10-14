@@ -32,6 +32,18 @@ Run the example:
 python examples/simple_component.py
 ```
 
+### module_with_component.py
+
+Shows how to integrate Components within a Module-based design:
+- Using components inside modules with `make_internal()`
+- Converting components to separate module definitions
+- Understanding the difference between flat and hierarchical designs
+
+Run the example:
+```bash
+python examples/module_with_component.py
+```
+
 ## Key Concepts
 
 ### Defining IO Ports
