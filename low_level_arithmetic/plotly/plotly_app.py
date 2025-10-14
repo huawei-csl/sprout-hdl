@@ -67,7 +67,7 @@ HOVER_BASE = [
     "y_w",
 ]
 
-extra_cols = ["enc", "io_widths", "stages"]
+extra_cols = ["enc", "io_widths", "stages", "optimization_effort"]
 
 # Full label format requested by you
 def design_label_from_row(row: pd.Series) -> str:

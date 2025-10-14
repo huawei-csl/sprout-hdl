@@ -790,7 +790,7 @@ def get_min_max_prefix_tree_range(results_vec):
 
 def main_test():
 
-    n_random = 100//100
+    n_random = 100
     n_bits_vec = [8, 16, 24, 32]
 
     for n in n_bits_vec:

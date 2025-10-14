@@ -72,28 +72,66 @@ def choose_area_column(df: pd.DataFrame) -> str:
 
 
 # --------------------------- data helpers -------------------------- #
+def augment_df_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add convenient derived columns (strings) for labeling/coloring."""
+    df = df.copy()
+
+    # enc: "a_enc/b_enc→y_enc"
+    if all(c in df.columns for c in ("a_enc", "b_enc", "y_enc")):
+        df["enc"] = (
+            df["a_enc"].astype("string") + "/" +
+            df["b_enc"].astype("string") + "→" +
+            df["y_enc"].astype("string")
+        )
+
+    # io_widths: "a_w/b_w→y_w" (uses pandas Int64 so NaNs are allowed)
+    if all(c in df.columns for c in ("a_w", "b_w", "y_w")):
+        df["io_widths"] = (
+            df["a_w"].astype("Int64").astype("string") + "/" +
+            df["b_w"].astype("Int64").astype("string") + "→" +
+            df["y_w"].astype("Int64").astype("string")
+        )
+
+    # stages combined: "PPG=... | PPA=... | FSA=..."
+    if all(c in df.columns for c in ("ppg_opt", "ppa_opt", "fsa_opt")):
+        df["stages"] = (
+            "PPG=" + df["ppg_opt"].astype("string") +
+            " | PPA=" + df["ppa_opt"].astype("string") +
+            " | FSA=" + df["fsa_opt"].astype("string")
+        )
+
+    return df
+
 
 def load_df(file_path: str) -> pd.DataFrame:
     df = pd.read_parquet(file_path, engine="pyarrow").copy()
 
     # Derive n_bits if missing
-    if "n_bits" not in df.columns:
-        if "a_w" in df.columns:
-            df["n_bits"] = df["a_w"].astype("int64")
-        elif "y_w" in df.columns:
-            df["n_bits"] = (df["y_w"].astype("int64") // 2).clip(lower=1)
-        else:
-            df["n_bits"] = 0
+    # if "n_bits" not in df.columns:
+    #     if "a_w" in df.columns:
+    #         df["n_bits"] = df["a_w"].astype("int64")
+    #     elif "y_w" in df.columns:
+    #         df["n_bits"] = (df["y_w"].astype("int64") // 2).clip(lower=1)
+    #     else:
+    #         df["n_bits"] = 0
 
-    for col in ["a_w", "b_w", "y_w"]:
-        if col not in df.columns:
-            df[col] = pd.Series([np.nan] * len(df), dtype="float64")
+    # for col in ["a_w", "b_w", "y_w"]:
+    #     if col not in df.columns:
+    #         df[col] = pd.Series([np.nan] * len(df), dtype="float64")
+
+    
 
     # Label
     df["design_label"] = df.apply(design_label_from_row, axis=1).astype("string")
 
     # Types
     for c in ["multiplier_opt", "ppg_opt", "ppa_opt", "fsa_opt", "a_enc", "b_enc", "y_enc"]:
+        if c in df.columns:
+            df[c] = df[c].astype("string")
+            
+    df = augment_df_columns(df)
+    
+    for c in ["enc", "io_widths", "stages"]:
         if c in df.columns:
             df[c] = df[c].astype("string")
 
@@ -348,7 +386,8 @@ def run_plot(cfg: PlotConfig, full_df: pd.DataFrame, design_df: pd.DataFrame, ou
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--file", required=True, help="Path to single Parquet file (pandas-written).")
+    # ap.add_argument("--file", required=True, help="Path to single Parquet file (pandas-written).")
+    ap.add_argument("--file", default="data/multiplier_runs_20251014_140841.parquet", help="Path to single Parquet file (pandas-written).")
     ap.add_argument("--out", default="plots_mpl", help="Output directory for PNG files.")
     ap.add_argument("--legend", choices=["on", "off"], default="on", help="Show legends globally.")
     args = ap.parse_args()
