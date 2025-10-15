@@ -12,7 +12,7 @@ from sprouthdl.sprouthdl_module import IOCollector
 import os
 from pyosys import libyosys as ys
 
-from testing.testvectors_general import build_fp_vectors, floatx_to_float
+from testing.floating_point.fp_testvectors_general import build_fp_vectors, floatx_to_float
 
 
 

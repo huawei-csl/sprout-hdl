@@ -6,7 +6,12 @@ import time
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat, fit_width, _SHARED, reset_shared_cache
 
 
-from typing import Any, Dict, List, Optional, Self
+from typing import Any, Dict, List, Optional
+
+try:  # Python 3.10 compatibility
+    from typing import Self  # type: ignore
+except ImportError:
+    from typing_extensions import Self  # type: ignore
 
 from sprouthdl.sprouthdl_analyzer import _Analyzer, GraphReport
 
