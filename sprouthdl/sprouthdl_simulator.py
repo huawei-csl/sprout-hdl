@@ -78,8 +78,8 @@ class Simulator:
             if self.m.with_clock:
                 self._in[_sid(self.m.clk)] = 0
             next_vals = self._compute_next_state()
-            for r, v in next_vals.items():
-                self._reg[_sid(r)] = v
+            for sid, v in next_vals.items():
+                self._reg[sid] = v
             if self.m.with_clock:
                 self._in[_sid(self.m.clk)] = 1
                 self._in[_sid(self.m.clk)] = 0
@@ -130,9 +130,9 @@ class Simulator:
         self._cache_expr.clear()
         self._cache_sig.clear()
 
-    def _compute_next_state(self) -> dict:
+    def _compute_next_state(self) -> dict[int, int]:
         """Compute next-state values for all regs without committing."""
-        res: dict[Signal, int] = {}
+        res: dict[int, int] = {}
         rst_high = self.m.with_reset and self._in.get(_sid(self.m.rst), 0) != 0
 
         for r in self.regs:
@@ -143,7 +143,7 @@ class Simulator:
                     v = _resize_bits(init_bits, r._init.typ.width, r.typ.width, r._init.typ.signed)
                 else:
                     v = 0
-                res[r] = _to_bits(v, r.typ.width)
+                res[_sid(r)] = _to_bits(v, r.typ.width)
             else:
                 if r._next is None:
                     raise ValueError(f"Register '{r.name}' has no next-state assignment. Set r.next = ...")
