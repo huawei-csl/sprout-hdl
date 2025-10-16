@@ -58,6 +58,10 @@ class OptimizedMultiplierBasic(StageBasedExtMultiplier):
             aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1"
         elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 3:
             aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_3bit_star_1"
+        elif self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 8:
+            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_8bit_star_1"
+        elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 8:
+            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_8bit_star_1"
         else:
             raise NotImplementedError("No precomputed AIG for this configuration")
 
@@ -102,8 +106,8 @@ class OptimizedMultiplierBasic(StageBasedExtMultiplier):
         self.mult.io.operand_a_i <<= self.io.a
         self.mult.io.operand_b_i <<= self.io.b
         self.io.y <<= self.mult.io.result_o
-        
-        
+
+
 class OptmizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -160,10 +164,88 @@ class OptmizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
         self.io.y <<= Concat([mag_y[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 
+class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+        # Compose four 8x8 optimized unsigned multipliers into a 16x16->32 multiplier
+        assert self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned, "Only unsigned encoding is supported"
+        # assert aw and bw are >=4 and powers of two
+        assert self.aw >= 8 and self.bw >= 8 and ((self.aw & (self.aw - 1)) == 0) and ((self.bw & (self.bw - 1)) == 0), "This composite multiplier expects input widths >=8 and powers of two"
+
+        self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(
+            a=Signal(name="a", typ=UInt(self.aw), kind="input"),
+            b=Signal(name="b", typ=UInt(self.bw), kind="input"),
+            y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
+        )
+
+        self.elaborate()
+
+    def elaborate(self) -> None:
+
+        # Split operands into 8-bit halves: a = a_hi<<8 + a_lo; b = b_hi<<8 + b_lo
+        a_lo = self.io.a[0 : self.aw//2]
+        a_hi = self.io.a[self.aw//2 : self.aw]
+        b_lo = self.io.b[0 : self.bw//2]
+        b_hi = self.io.b[self.bw//2 : self.bw]
+
+        # Instantiate four optimized 8x8 multipliers
+        multipliers: List[MultiplierFromOptimized4BitBlocks] = []
+        mult_cls = MultiplierFromOptimized4BitBlocks if (self.aw//2 > 4 and self.bw//2 > 4) else OptimizedMultiplierBasic
+        
+        for _ in range(4):
+            multipliers.append(
+                mult_cls(
+                    a_encoding=Encoding.unsigned,
+                    b_encoding=Encoding.unsigned,
+                    a_w=self.aw//2,
+                    b_w=self.bw//2,
+                    ppg_cls=None,
+                    ppa_cls=None,
+                    fsa_cls=None,
+                ).make_internal()
+            )
+        m_ll, m_lh, m_hl, m_hh = multipliers
+
+        # Wire inputs
+        m_ll.io.a <<= a_lo
+        m_ll.io.b <<= b_lo
+
+        m_lh.io.a <<= a_lo
+        m_lh.io.b <<= b_hi
+
+        m_hl.io.a <<= a_hi
+        m_hl.io.b <<= b_lo
+
+        m_hh.io.a <<= a_hi
+        m_hh.io.b <<= b_hi
+
+        # Partial products (each 16 bits wide)
+        p0 = m_ll.io.y  # a_lo * b_lo
+        p1 = m_lh.io.y  # a_lo * b_hi
+        p2 = m_hl.io.y  # a_hi * b_lo
+        p3 = m_hh.io.y  # a_hi * b_hi
+
+        # Zero-extend to 2*aw bits and align via left shifts using Concat
+        p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
+
+        p1 = Concat([p1, Const(0, UInt(self.aw))])
+        p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
+
+        p2 = Concat([p2, Const(0, UInt(self.aw))])
+        p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
+
+        p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
+
+        # Sum partial products
+        self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
+
+
 if __name__ == "__main__":  # pragma: no cover - demonstration only
 
-    n_bits = 4
-    signed = True
+    n_bits = 8
+    signed = False
 
     m = OptimizedMultiplierBasic(
         a_w=n_bits,
@@ -198,11 +280,11 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
     ).generate()
 
     run_vectors_io(module, vecs)
-    
+
     # sign magnitude version
 
     n_bits = 4
-    
+
     from low_level_arithmetic.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
 
     encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
@@ -225,7 +307,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
     print(f"Yosys-reported transistor count: {transistor_count}")
     print(f"Yosys-reported metrics: {yosys_metrics}")
     print(f"AIG-reported gate count: {aig_gates}")
-    
+
     vecs = MultiplierTestVectors(
         a_w=n_bits,
         b_w=n_bits,
@@ -239,3 +321,39 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
 
     run_vectors_io(module, vecs)
 
+    # assembled from 4 bit blocks
+
+    n_bits = 16
+
+    m = MultiplierFromOptimized4BitBlocks(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        ppg_cls=None,
+        ppa_cls=None,
+        fsa_cls=None,
+    )
+    mod = m.to_module("multiplier_ext_optimized_8x8_from_4x4")
+    print(mod)
+    module = mod
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    yosys_metrics = get_yosys_metrics(module)
+    aig_gates = get_aig_stats(module)
+    print(f"Yosys-reported transistor count: {transistor_count}")
+    print(f"Yosys-reported metrics: {yosys_metrics}")
+    print(f"AIG-reported gate count: {aig_gates}")
+
+    vecs = MultiplierTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=2 * n_bits,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        y_encoding=Encoding.unsigned,
+    ).generate()
+    run_vectors_io(module, vecs)
+
+  

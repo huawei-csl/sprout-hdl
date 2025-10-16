@@ -174,7 +174,7 @@ def run_configuration(
 def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pragma: no cover - demonstration only
 
     num_vectors = 2000
-    bitwidths = [4, 8, 16, 32] #[4, 8, 16, 24, 32]
+    bitwidths = [8] #[4, 8, 16, 32] #[4, 8, 16, 24, 32]
     sigma_factor = 0.5
     n_steps_sigma = 8
     parallel = True
@@ -243,4 +243,4 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
 
 if __name__ == "__main__":
     # run_stage_multiplier_ext_demo(config_items=demos1)
-    run_stage_multiplier_ext_demo(config_items=get_selection1_list(large_sweep=True, all_sigmas_sweep=True))
+    run_stage_multiplier_ext_demo(config_items=get_selection1_list(large_sweep=True, stages_sigmas_sweep=False))

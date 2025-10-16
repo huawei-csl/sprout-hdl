@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
-from low_level_arithmetic.multipliers_ext_optimized import OptimizedMultiplierBasic, OptmizedSignMagnitudeMultiplier
+from low_level_arithmetic.multipliers_ext_optimized import MultiplierFromOptimized4BitBlocks, OptimizedMultiplierBasic, OptmizedSignMagnitudeMultiplier
 from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.ppa_stages import (
     CarrySaveAccumulator,
@@ -79,15 +79,17 @@ class MultiplierOption(Enum):
     STAR_MULTIPLIER = StarMultiplier
     OPTIMIZED_MULTIPLIER_BASIC = OptimizedMultiplierBasic
     OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER = OptmizedSignMagnitudeMultiplier
+    MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS = MultiplierFromOptimized4BitBlocks
 
 def supports_stages(multiplier_option: MultiplierOption) -> bool:
-    if multiplier_option == MultiplierOption.STAR_MULTIPLIER:
-        return False
-    if multiplier_option == MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC:
-        return False
-    if multiplier_option == MultiplierOption.OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER:
-        return False
-    return True
+    stages_not_supported = [
+        MultiplierOption.STAR_MULTIPLIER,
+        MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC,
+        MultiplierOption.OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER,
+        MultiplierOption.MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS,
+    ]
+    return not (multiplier_option in stages_not_supported)
+
 
 E = TypeVar("E", bound=Enum)
 def get_list_from_enum(enum_cls: Type[E]) -> list[E]:
@@ -148,5 +150,7 @@ def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> Li
         return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == OptmizedSignMagnitudeMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
+    elif multiplier_cls == MultiplierFromOptimized4BitBlocks:
+        return [MultiplierEncodings.with_enc(Encoding.unsigned)]
     else:
         raise ValueError(f"Unknown multiplier class: {multiplier_cls}")

@@ -39,7 +39,7 @@ mask = m.output(UInt(4), "mask")
 out = m.output(UInt(8), "out")
 
 sum_ <<= a + b              # automatic width growth
-top_bits = cat(a[7:6], b[7:6])
+top_bits = cat(a[7], b[7])
 mask <<= top_bits           # concatenate slices
 a_and_b = a & b
 b_or_a = a | b
@@ -100,6 +100,13 @@ These capabilities align with the standard Sprout development flow: express a de
 - Explore the `sprouthdl/floating_point` and `low_level_arithmetic` packages for more generators.
 - Use `module_analyze()` to gauge combinational depth before synthesis.【F:sprouthdl/sprouthdl_module.py†L238-L255】
 - Integrate the simulator into your verification harness to shorten debug cycles.
+
+## Slices
+We follow the indexing of pyton also in Sprout-HDL signals. For example `sig[4:7]` creates a new expression containing of bits 4 and 5 of the original expression `sig`.
+
+# Running Scripts and Tests
+
+For some scripts you might need to add `PYTHONPATH=$(pwd)` before running the command, e.g. `PYTHONPATH=$(pwd) pytest` or `PYTHONPATH=$(pwd) python <scriptname>`. 
 
 ## Todo
 

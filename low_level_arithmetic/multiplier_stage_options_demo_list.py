@@ -71,7 +71,7 @@ demos1: list[ConfigItem] = [
 ]
 
 
-def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False) -> List[ConfigItem]:
+def get_selection1_list(large_sweep: bool = True, multiplier_option_sigma_sweep: bool = False, stages_sigmas_sweep: bool = False) -> List[ConfigItem]:
 
     config_items : list[ConfigItem] = []
 
@@ -83,9 +83,9 @@ def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False
     for sm in get_list_from_enum(MultiplierOption):  # StageMultiplier.get_list_with_all():
         for encoding in encoding_for_multiplier(sm.value):
             if not supports_stages(sm):
-                config_items.append(ConfigItem(sm, encoding, PPGOption.NONE, PPAOption.NONE, FSAOption.NONE))
+                config_items.append(ConfigItem(sm, encoding, PPGOption.NONE, PPAOption.NONE, FSAOption.NONE, all_sigma=multiplier_option_sigma_sweep))
             else:
-                config_items.append(ConfigItem(sm, encoding, ppg_0, ppa_0, fsa_0))
+                config_items.append(ConfigItem(sm, encoding, ppg_0, ppa_0, fsa_0, all_sigma=multiplier_option_sigma_sweep))
 
     # # vary PPG options
     # for ppg in get_list_from_enum(PPGOption):
@@ -130,8 +130,10 @@ def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False
             continue
 
         for encodings in encoding_for_multiplier(sm.value):
+            
+            config_item = ConfigItem(sm, encodings, ppg, ppa, fsa, all_sigma=stages_sigmas_sweep)
 
-            if ConfigItem(sm,encodings, ppg, ppa, fsa) in config_items:
+            if config_item in config_items:
                 continue
 
             # check
@@ -139,10 +141,11 @@ def get_selection1_list(large_sweep: bool = True, all_sigmas_sweep: bool = False
             if  signature_signed not in ppg.value.supported_signatures:
                 continue
 
-            config_items.append(ConfigItem(multiplier_opt=sm, encodings=encodings, ppg_opt=ppg, ppa_opt=ppa, fsa_opt=fsa, all_sigma=all_sigmas_sweep))
+            config_items.append(config_item)
 
     return config_items
 
+
 if __name__ == "__main__":
-    demos1 = get_selection1_list(large_sweep=True, all_sigmas_sweep=True)
+    demos1 = get_selection1_list(large_sweep=True, multiplier_option_sigma_sweep=False, stages_sigmas_sweep=False)
     print(f"Defined {len(demos1)} demo configurations to try")

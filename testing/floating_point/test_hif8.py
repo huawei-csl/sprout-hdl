@@ -7,7 +7,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 import pytest
 
 from sprouthdl.floating_point.sprout_hdl_hif8 import (
-    build_hif8_mul_module,
+    build_hif8_mul_logic,
+    build_hif8_mul_lut,
     catalogue_summary,
     float_to_hif8,
     hif8_to_float,
@@ -75,8 +76,15 @@ def test_multiply_hif8(a, b, expected):
     assert multiply_hif8(a, b) == expected
 
 
-def test_hif8_module_matches_reference():
-    dut = build_hif8_mul_module("HiF8Mul_Test")
+@pytest.mark.parametrize(
+    "builder,name",
+    [
+        (build_hif8_mul_logic, "HiF8Mul_Logic"),
+        (build_hif8_mul_lut, "HiF8Mul_LUT"),
+    ],
+)
+def test_hif8_module_matches_reference(builder, name):
+    dut = builder(name)
     sim = Simulator(dut)
     samples = sorted(set(range(0, 256, 17)) | {255})
     for aval in range(256):
