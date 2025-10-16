@@ -6,6 +6,7 @@ from typing import List, Tuple, Dict
 # ---- imports that work with both of your Sprout variants ----
 
     # package variant
+from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import UInt, Bool, Const, mux, cat, fit_width
 
@@ -114,14 +115,20 @@ def build_rv32i_simple(name="RV32I_Simple"):
     s_imm = imm_s32(instr)
     b_imm = imm_b32(instr)
 
-    # ALU (minimal ops: ADD, SUB; ADDI)
-    is_sub = (is_rtype & (funct3 == 0) & (funct7 == 0x20))
+    # ALU (minimal ops: ADD, SUB; ADDI; plus SLTU for simple comparisons)
+    is_sub  = (is_rtype & (funct3 == 0) & (funct7 == 0x20))
+    is_slt  = (is_rtype & (funct3 == 2) & (funct7 == 0x00))  # SLT (treated as unsigned here)
+    is_sltu = (is_rtype & (funct3 == 3) & (funct7 == 0x00))  # SLTU
     # operand B: for I-type arith use immediate, else rs2
     opB = mux(is_itype, i_imm, rs2_val)
 
     add_res = fit_width(rs1_val + opB, UInt(32))
     sub_res = fit_width(rs1_val - rs2_val, UInt(32))
-    alu_res = mux(is_sub, sub_res, add_res)
+    # Less-than result as 0/1 extended to 32 bits
+    lt_bit  = (rs1_val < rs2_val)
+    lt_res  = mux(lt_bit, Const(1, UInt(32)), Const(0, UInt(32)))
+    alu_sub_add = mux(is_sub, sub_res, add_res)
+    alu_res = mux((is_slt | is_sltu), lt_res, alu_sub_add)
 
     # Data memory interface
     addr_imm = mux(is_store, s_imm, i_imm)           # S uses s_imm; I (LW) uses i_imm
@@ -178,6 +185,14 @@ def SUB(rd, rs1, rs2):
 def LW(rd, rs1, imm):
     # funct3=010 for LW
     return ((imm & 0xFFF) << 20) | (rs1 << 15) | (2 << 12) | (rd << 7) | 0x03
+
+def SLT(rd, rs1, rs2):
+    # R-type, funct3=010
+    return (0x00 << 25) | (rs2 << 20) | (rs1 << 15) | (2 << 12) | (rd << 7) | 0x33
+
+def SLTU(rd, rs1, rs2):
+    # R-type, funct3=011
+    return (0x00 << 25) | (rs2 << 20) | (rs1 << 15) | (3 << 12) | (rd << 7) | 0x33
 
 def SW(rs2, rs1, imm):
     # funct3=010 for SW; imm split into [11:5] and [4:0]
@@ -327,6 +342,16 @@ def assemble(lines: List[str], *, origin: int = 0) -> List[int]:
             rd  = _parse_reg(ops[0]); rs1 = _parse_reg(ops[1]); rs2 = _parse_reg(ops[2])
             words.append(SUB(rd, rs1, rs2))
 
+        elif mnem == "SLT":
+            if len(ops) != 3: raise ValueError("SLT rd, rs1, rs2")
+            rd  = _parse_reg(ops[0]); rs1 = _parse_reg(ops[1]); rs2 = _parse_reg(ops[2])
+            words.append(SLT(rd, rs1, rs2))
+
+        elif mnem == "SLTU":
+            if len(ops) != 3: raise ValueError("SLTU rd, rs1, rs2")
+            rd  = _parse_reg(ops[0]); rs1 = _parse_reg(ops[1]); rs2 = _parse_reg(ops[2])
+            words.append(SLTU(rd, rs1, rs2))
+
         elif mnem == "LW":
             if len(ops) != 2: raise ValueError("LW rd, offset(rs1)")
             rd = _parse_reg(ops[0])
@@ -362,6 +387,8 @@ def assemble(lines: List[str], *, origin: int = 0) -> List[int]:
 def simulate_demo():
     if Simulator is None:
         raise RuntimeError("Simulator class not found. Import your sprout simulator and retry.")
+    
+    print("Running simple RV32I simulation demo...")
 
     # Program (assembly):
     prog_asm = [
@@ -378,6 +405,8 @@ def simulate_demo():
 
     # Instantiate core
     m = build_rv32i_simple("RV32I_Simple")
+    transistor_count = get_yosys_transistor_count(m)
+    print("Estimated transistor count:", transistor_count)
     sim = Simulator(m)
 
     # Memories
@@ -393,7 +422,7 @@ def simulate_demo():
         return prog[idx] if 0 <= idx < len(prog) else 0
 
     # Run
-    print("Assembled program:")
+    print("Assembled program 1:")
     for i, w in enumerate(prog):
         print(f"  {4*i:04x}: 0x{w:08x}   | {prog_asm[i] if i < len(prog_asm) else ''}")
 
@@ -432,11 +461,179 @@ def simulate_demo():
         if halt:
             break
 
-    # Final check: mem[0..3] should hold 5
+    print(f"Simulation ended at cycle {cycle}, PC=0x{sim.get('pc'):08x}, halt={halt}")
+    
+    # Final checks and simple assertions
+    # - x1=2, x2=3, x3=x1+x2=5, store/load path works (DMEM[0]=5, x4=5)
+    # - BEQ taken to label 'done' so ADDI x5,99 is skipped (x5 remains 0)
+    # - PC should point at the EBREAK instruction (index 7 -> byte addr 28)
     final_word = int.from_bytes(dmem[0:4], "little")
-    print(f"DMEM[0..3] = {list(dmem[0:4])}  (word={final_word})")
-    print("Registers:",\
-          {f"x{i}": sim.get(f'x{i}') for i in range(8)})
+    x1 = sim.get("x1"); x2 = sim.get("x2"); x3 = sim.get("x3"); x4 = sim.get("x4"); x5 = sim.get("x5")
+    pc_final = sim.get("pc")
 
-if __name__ == "__main__":
+    # Print a short summary for visibility when run as a script
+    print(f"DMEM[0..3] = {list(dmem[0:4])}  (word={final_word})")
+    print("Registers:", {f"x{i}": sim.get(f'x{i}') for i in range(8)})
+
+    # Assertions (will raise if any basic behavior regresses)
+    assert x1 == 2, f"Expected x1=2 after ADDI, got {x1}"
+    assert x2 == 3, f"Expected x2=3 after ADDI, got {x2}"
+    assert x3 == 5, f"ADD failed: expected x3=5, got {x3}"
+    assert final_word == 5, f"Store/Load failed: DMEM[0]=5 expected, got {final_word}"
+    assert x4 == 5, f"Load failed: expected x4=5, got {x4}"
+    assert x5 == 0, f"Branch not taken? x5 should remain 0 (skipped), got {x5}"
+    assert pc_final == 7*4, f"Unexpected final PC: expected 28 (EBREAK), got {pc_final}"
+    
+    print("All assertions passed.")
+
+def run_all_demos():
     simulate_demo()
+
+    # --- Additional simulations ---
+    def run_program(prog_asm, *, verbose=False, max_cycles=5000):
+        if Simulator is None:
+            raise RuntimeError("Simulator class not found. Import your sprout simulator and retry.")
+
+        prog = assemble(prog_asm)
+        m = build_rv32i_simple("RV32I_Simple")
+        sim = Simulator(m)
+
+        dmem = bytearray(1024)  # data memory
+
+        # Reset
+        sim.reset(True).eval()
+        sim.deassert_reset().eval()
+
+        def imem_fetch(pc_val: int) -> int:
+            idx = (pc_val >> 2)
+            return prog[idx] if 0 <= idx < len(prog) else 0
+
+        if verbose:
+            print("Assembled program:")
+            for i, w in enumerate(prog):
+                asm = prog_asm[i] if i < len(prog_asm) else ""
+                print(f"  {4*i:04x}: 0x{w:08x}   | {asm}")
+
+        for cycle in range(max_cycles):
+            pc_val = sim.get("pc")
+            inst = imem_fetch(pc_val)
+            sim.set("instr", inst)
+            sim.eval()
+
+            addr = sim.get("dmem_addr") & ~0x3
+            rword = int.from_bytes(dmem[addr:addr+4], "little")
+            sim.set("dmem_rdata", rword)
+            sim.eval()
+
+            we   = sim.get("dmem_we")
+            wdat = sim.get("dmem_wdata")
+            halt = sim.get("halt")
+            if we:
+                dmem[addr:addr+4] = (wdat & 0xFFFFFFFF).to_bytes(4, "little")
+            sim.step(1)
+
+            if verbose:
+                print(f"t={cycle:04d} PC=0x{pc_val:08x} instr=0x{inst:08x} we={we} addr={addr} w=0x{wdat&0xffffffff:08x}")
+            if halt:
+                break
+
+        return dmem, sim
+
+    def simulate_fibonacci(n: int = 10):
+        print(f"\nSimulating Fibonacci sequence for n={n}")
+        # First n Fibonacci numbers starting at F0=0, F1=1 stored to DMEM words
+        prog_asm = [
+            # init: a=x1=0, b=x2=1, ptr=x7=0, cnt=x3=n
+            "ADDI x1, x0, 0",
+            "ADDI x2, x0, 1",
+            "ADDI x7, x0, 0",
+            f"ADDI x3, x0, {n}",
+            "loop: BEQ  x3, x0, done",   # if cnt==0 -> done
+            "SW   x1, 0(x7)",
+            "ADDI x3, x3, -1",
+            "ADD  x4, x1, x2",          # t = a+b
+            "ADD  x1, x2, x0",          # a = b
+            "ADD  x2, x4, x0",          # b = t
+            "ADDI x7, x7, 4",           # ptr += 4
+            "BEQ  x0, x0, loop",
+            "done: EBREAK",
+        ]
+
+        dmem, sim = run_program(prog_asm, verbose=False, max_cycles=2000)
+        # Validate
+        fib = [0, 1]
+        for _ in range(max(0, n-2)):
+            fib.append(fib[-1] + fib[-2])
+        exp = fib[:n]
+        got = [int.from_bytes(dmem[4*i:4*i+4], "little") for i in range(n)]
+        assert got == exp, f"Fibonacci mismatch: expected {exp}, got {got}"
+        print("Fibonacci OK:", got)
+
+    def simulate_pi_digits(m: int = 10):
+        print(f"\nSimulating Pi digits (22/7) for m={m}")
+        # Approximate pi using 22/7. Store integer part at DMEM[0], then m digits at DMEM[4..]
+        prog_asm = [
+            # r=x1=22, d=x2=7, q0=x3=0, ptr=x7=0, m=x9=m
+            "ADDI x1, x0, 22",
+            "ADDI x2, x0, 7",
+            "ADDI x3, x0, 0",
+            "ADDI x7, x0, 0",
+            f"ADDI x9, x0, {m}",
+            # q0 loop: while r >= d: r-=d; q0++
+            "q0_loop: SLTU x8, x1, x2",   # x8 = (r<d)
+            "BNE  x8, x0, q0_done",
+            "SUB  x1, x1, x2",
+            "ADDI x3, x3, 1",
+            "BEQ  x0, x0, q0_loop",
+            "q0_done: SW   x3, 0(x7)",    # store integer part
+            "ADDI x7, x7, 4",
+            # digits loop
+            "digits_check: BEQ  x9, x0, done",   # if m==0 -> done
+            # t = r * 10 via repeated addition
+            "ADDI x4, x0, 0",             # t=0
+            "ADDI x5, x0, 10",            # c=10
+            "mul10: BEQ  x5, x0, after_mul10",
+            "ADD  x4, x4, x1",            # t += r
+            "ADDI x5, x5, -1",
+            "BEQ  x0, x0, mul10",
+            "after_mul10: ADDI x6, x0, 0",# q=0
+            # divide t by d: while t >= d: t -= d; q++
+            "div_loop: SLTU x8, x4, x2",  # x8=(t<d)
+            "BNE  x8, x0, div_done",
+            "SUB  x4, x4, x2",
+            "ADDI x6, x6, 1",
+            "BEQ  x0, x0, div_loop",
+            "div_done: ADD  x1, x4, x0",  # r = t
+            "SW   x6, 0(x7)",             # store digit
+            "ADDI x7, x7, 4",
+            "ADDI x9, x9, -1",            # m--
+            "BEQ  x0, x0, digits_check",
+            "done: EBREAK",
+        ]
+
+        dmem, sim = run_program(prog_asm, verbose=False, max_cycles=20000)
+
+        # Expected digits for 22/7
+        n = 22
+        d = 7
+        q0 = n // d
+        r = n % d
+        digits = []
+        for _ in range(m):
+            r *= 10
+            digits.append(r // d)
+            r = r % d
+
+        got_q0 = int.from_bytes(dmem[0:4], "little")
+        got_digits = [int.from_bytes(dmem[4*i+4:4*i+8], "little") for i in range(m)]
+        assert got_q0 == q0, f"pi int-part mismatch: expected {q0}, got {got_q0}"
+        assert got_digits == digits, f"pi digits mismatch: expected {digits}, got {got_digits}"
+        digits_str = "".join(str(d) for d in digits)
+        print(f"Pi(22/7) OK: {q0}.{digits_str}")
+
+    # Run the extra demos with assertions
+    simulate_fibonacci(10)
+    simulate_pi_digits(10)
+    
+if __name__ == "__main__":
+    run_all_demos()
