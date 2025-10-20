@@ -1,20 +1,18 @@
 from aigverse import Aig, DepthAig
 from sprouthdl.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul
 from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
-from sprouthdl.sprouthdl_aiger import export_module_to_aiger
+from sprouthdl.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic
+from sprouthdl.helpers import get_yosys_transistor_count
+from sprouthdl.sprouthdl_aiger import AigerExporter, export_module_to_aiger
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
 
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
-def get_size_mult(ew: int, subnormals=False, optim_steps = 200) -> int:
-    fw = 16 - ew - 1
-    m = build_fp_mul_sn("F16Mul", EW=ew, FW=fw, subnormals=subnormals)
+from sprouthdl.sprouthdl_module import Module
 
-    export_module_to_aiger(m, "f16mul.aag")  # writes ASCII AIGER
-
-    aig = Aig()
-    aig = read_aag_into_aig("f16mul.aag", aig)
-    # aig = read_aiger_into_aig("i10.aig")  # or any AIGER file
+def get_result(m: Module, optim_steps = 200) -> tuple:
+    agg_lines = AigerExporter(m).get_aag()
+    aig = conv_aag_into_aig(agg_lines)
     print("nodes:", aig.size(), "PIs:", aig.num_pis(), "POs:", aig.num_pos())
 
     # Clone the AIG network for size comparison
@@ -25,56 +23,88 @@ def get_size_mult(ew: int, subnormals=False, optim_steps = 200) -> int:
         for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing]:
             optimization(aig)
 
+    nb_transistors = get_yosys_transistor_count(m)
+    
     # Print the size of the unoptimized and optimized AIGs
     print(f"Original AIG Size:  {aig_clone.size()}")
     print(f"Optimized AIG Size: {aig.size()}")
+    print(f"Number of Transistors: {nb_transistors}")    
 
-    return aig.size(), DepthAig(aig).num_levels()
+    return aig.size(), DepthAig(aig).num_levels(), nb_transistors
+
+def get_size_mult(n_bits: int, ew: int, subnormals=False, optim_steps = 200) -> int:
+    fw = n_bits - ew - 1
+    m = build_fp_mul_sn(f"F{n_bits}Mul", EW=ew, FW=fw, subnormals=subnormals)
+
+    return get_result(m, optim_steps=optim_steps)
+
+
+def get_hifloat8_results():
+
+    m = build_hif8_mul_logic("HiFP8Mul_Logic_Ref")
+
+    return get_result(m)   
 
 
 def main():
+
+    n_bits = 8
 
     # sweep and plot
 
     import matplotlib.pyplot as plt
     import numpy as np
-    ew_values = list(range(1, 14))
-    size_depth= [get_size_mult(ew) for ew in ew_values]
-    sizes = [size for size, _ in size_depth]
-    depths = [depth for _, depth in size_depth]
+    ew_values = list(range(1, n_bits-2))
+    res= [get_size_mult(n_bits, ew) for ew in ew_values]
+    sizes = [size for size, _, _ in res]
+    depths = [depth for _, depth, _ in res]
+    nb_transistors = [nt for _, _, nt in res]
     # print("EW sizes:", ew_values)
     # print("Sizes:", sizes)
 
-    size_depth_sn = [get_size_mult(ew, subnormals=True) for ew in ew_values]
-    sizes_sn = [size for size, _ in size_depth_sn]
-    depths_sn = [depth for _, depth in size_depth_sn]
-    # print("EW sizes (subnormals):", ew_values)
-    # print("Sizes (subnormals):", sizes_sn)
+    res_sn = [get_size_mult(n_bits, ew, subnormals=True) for ew in ew_values]
+    sizes_sn = [size for size, _, _ in res_sn]
+    depths_sn = [depth for _, depth, _ in res_sn]
+    nb_transistors_sn = [nt for _, _, nt in res_sn]
+
+    size_hif8, depth_hif8, nb_transistors_hif8 = get_hifloat8_results()
 
     # plot with two subplots, one below the other
-    _, ax = plt.subplots(2, 1, figsize=(7, 7)) #, sharex=True)
-    ax[0].plot(ew_values, sizes, marker='o', label='F16Mul (No Subnormals)')
-    ax[0].plot(ew_values, sizes_sn, marker='x', label='F16Mul (With Subnormals)')
+    _, ax = plt.subplots(3, 1, figsize=(7, 10)) #, sharex=True)
+    ax[0].plot(ew_values, sizes, marker='o', label=f'F{n_bits}Mul (No Subnormals)')
+    ax[0].plot(ew_values, sizes_sn, marker='x', label=f'F{n_bits}Mul (With Subnormals)')
+    ax[0].axhline(y=size_hif8, linestyle='--', color='red', label='HIFP8Mul')
     ax[0].legend()
-    ax[0].set_title('AIG Size vs Exponent Width (EW) for F16Mul')
+    ax[0].set_title(f'AIG Size vs Exponent Width (EW) for F{n_bits}Mul')
     ax[0].set_xlabel('Exponent Width (EW)')
     ax[0].set_ylabel('AIG Size')
     ax[0].set_xticks(ew_values)
     ax[0].grid()
 
-    ax[1].plot(ew_values, depths, marker='o', label='F16Mul (No Subnormals)')
-    ax[1].plot(ew_values, depths_sn, marker='x', label='F16Mul (With Subnormals)')
+    ax[1].plot(ew_values, depths, marker='o', label=f'F{n_bits}Mul (No Subnormals)')
+    ax[1].plot(ew_values, depths_sn, marker='x', label=f'F{n_bits}Mul (With Subnormals)')
+    ax[1].axhline(y=depth_hif8, linestyle='--', color='red', label='HIFP8Mul')
     ax[1].legend()
-    ax[1].set_title('AIG Depth vs Exponent Width (EW) for F16Mul')
+    ax[1].set_title(f'AIG Depth vs Exponent Width (EW) for F{n_bits}Mul')
     ax[1].set_xlabel('Exponent Width (EW)')
     ax[1].set_ylabel('AIG Depth')
     ax[1].set_xticks(ew_values)
-    ax[1].grid()    
+    ax[1].grid()
+
+    ax[2].plot(ew_values, nb_transistors, marker="o", label=f"F{n_bits}Mul (No Subnormals)")
+    ax[2].plot(ew_values, nb_transistors_sn, marker="x", label=f"F{n_bits}Mul (With Subnormals)")
+    ax[2].axhline(y=nb_transistors_hif8, linestyle='--', color='red', label='HIFP8Mul')
+    ax[2].legend()
+    ax[2].set_title(f"Number of Transistors vs Exponent Width (EW) for F{n_bits}Mul")
+    ax[2].set_xlabel("Exponent Width (EW)")
+    ax[2].set_ylabel("Number of Transistors")
+    ax[2].set_xticks(ew_values)
+    ax[2].grid()
 
     plt.tight_layout()
 
-    plt.savefig('aig_size_vs_ew.png')
-    print('Saved plot to aig_size_vs_ew.png')
+    plt.savefig(f'aig_size_vs_ew_{n_bits}.png')
+    print(f'Saved plot to aig_size_vs_ew_{n_bits}.png')
 
 if __name__ == "__main__":
     main()

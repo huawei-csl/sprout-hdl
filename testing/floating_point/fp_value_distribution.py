@@ -1,0 +1,186 @@
+# Plots for 8-bit formats: E4M3 (EW=4, FW=3) and E5M2 (EW=5, FW=2)
+# Uses the same fp_decode interface the user provided.
+
+from math import copysign, isfinite, isnan
+import math
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+out_folder = 'fp_value_distribution_outputs'
+os.makedirs(out_folder, exist_ok=True)
+
+
+def fp_bias(EW: int) -> int:
+    return (1 << (EW - 1)) - 1
+
+
+def fp_unpack(bits: int, EW: int, FW: int):
+    s = (bits >> (EW + FW)) & 0x1
+    e = (bits >> FW) & ((1 << EW) - 1)
+    f = bits & ((1 << FW) - 1)
+    return s, e, f
+
+
+def fp_decode_ieee_like(bits: int, EW: int, FW: int) -> float:
+    """IEEE-like decode (bias=2^(EW-1)-1), with subnormals and Inf/NaN."""
+    s, e, f = fp_unpack(bits, EW, FW)
+    bias = fp_bias(EW)
+    if e == 0:
+        if f == 0:
+            return -0.0 if s else 0.0
+        # subnormal
+        return copysign((f / (1 << FW)) * 2.0 ** (1 - bias), -1.0 if s else 1.0)
+    if e == (1 << EW) - 1:
+        if f == 0:
+            return float("-inf") if s else float("inf")
+        return float("nan")
+    # normal
+    return copysign((1.0 + f / (1 << FW)) * 2.0 ** (e - bias), -1.0 if s else 1.0)
+
+# high-float 8:
+def _is_nan(enc: int) -> bool:
+    return enc == 0x80
+
+def _is_inf(enc: int) -> bool:
+    return enc in (0x6F, 0xEF)
+
+def _is_zero(enc: int) -> bool:
+    return enc == 0x00
+
+def hif8_to_float(enc: int, EW: int, FW: int) -> float:
+    """Decode an 8-bit HiFloat8 payload into a Python float."""
+    if _is_nan(enc):
+        return math.nan
+    if _is_zero(enc):
+        return 0.0
+    if _is_inf(enc):
+        return -math.inf if enc & 0x80 else math.inf
+
+    sign = -1.0 if (enc & 0x80) else 1.0
+    payload = enc & 0x7F
+
+    # Dot-field prefix decoding (variable length)
+    bits = payload
+    if bits >> 5 == 0b11:  # D = 4  (2-bit dot)
+        exp_field = (bits >> 1) & 0xF
+        mant_field = bits & 0x1
+        exp_sign = (exp_field >> 3) & 0x1
+        mag = 8 + (exp_field & 0x7)
+        exponent = -mag if exp_sign else mag
+        significand = 1.0 + mant_field / 2.0
+    elif bits >> 5 == 0b10:  # D = 3
+        exp_field = (bits >> 2) & 0x7
+        mant_field = bits & 0x3
+        exp_sign = (exp_field >> 2) & 0x1
+        mag = 4 + (exp_field & 0x3)
+        exponent = -mag if exp_sign else mag
+        significand = 1.0 + mant_field / 4.0
+    elif bits >> 5 == 0b01:  # D = 2
+        exp_field = (bits >> 3) & 0x3
+        mant_field = bits & 0x7
+        exp_sign = (exp_field >> 1) & 0x1
+        mag = 2 + (exp_field & 0x1)
+        exponent = -mag if exp_sign else mag
+        significand = 1.0 + mant_field / 8.0
+    elif bits >> 4 == 0b001:  # D = 1
+        exp_sign = (bits >> 3) & 0x1
+        exponent = -1 if exp_sign else 1
+        mant_field = bits & 0x7
+        significand = 1.0 + mant_field / 8.0
+    elif bits >> 3 == 0b0001:  # D = 0
+        exponent = 0
+        mant_field = bits & 0x7
+        significand = 1.0 + mant_field / 8.0
+    else:  # DML denormals
+        mant_field = bits & 0x7
+        if mant_field == 0:
+            return 0.0
+        exponent = mant_field - 23  # M encodes exponent offset
+        significand = 1.0
+
+    return sign * math.ldexp(significand, exponent)
+
+# end high-float 8
+
+
+def make_plots(EW: int, FW: int, fp_decode: callable):
+    TOTAL = 1 << (1 + EW + FW)
+    vals = []
+    es = []
+    ninf = pinf = nans = 0
+    for b in range(TOTAL):
+        v = fp_decode(b, EW, FW)
+        s, e, f = fp_unpack(b, EW, FW)
+        if isnan(v):
+            nans += 1
+            continue
+        if v == float("inf"):
+            pinf += 1
+            continue
+        if v == float("-inf"):
+            ninf += 1
+            continue
+        if isfinite(v):
+            vals.append(v)
+            es.append(e)
+
+    vals = np.array(vals, dtype=float)
+    es = np.array(es, dtype=int)
+
+    # 1) Histogram of log2(|value|) for nonzero finite values
+    nz = vals != 0.0
+    absvals = np.abs(vals[nz])
+    log2abs = np.log2(absvals)
+
+    plt.figure(figsize=(9, 4.5))
+    bins = 200  # fixed; 8-bit is tiny
+    plt.hist(log2abs, bins=bins)
+    plt.xlabel("log2(|value|)")
+    plt.ylabel("Count")
+    plt.title(f"8-bit FP log2 magnitude distribution (EW={EW}, FW={FW})")
+    plt.tight_layout()
+    out1 = f"{out_folder}/fp8_EW{EW}_FW{FW}_log2abs.png"
+    plt.savefig(out1, dpi=150)
+
+    # 2) Counts per exponent field e (finite only)
+    maxe = (1 << EW) - 1
+    bins_e = np.arange(0, maxe + 1)
+    counts_e = [(es == ee).sum() for ee in bins_e]
+
+    plt.figure(figsize=(9, 4))
+    plt.bar(bins_e, counts_e, width=0.8)
+    plt.xlabel("Exponent field e")
+    plt.ylabel("Finite count with this e")
+    plt.title(f"8-bit FP counts per exponent field (EW={EW}, FW={FW})")
+    plt.tight_layout()
+    out2 = f"{out_folder}/fp8_EW{EW}_FW{FW}_counts_per_e.png"
+    plt.savefig(out2, dpi=150)
+
+    # 3) |value| vs ULP spacing (sorted uniques, forward diff), log–log
+    uniq = np.unique(vals)  # includes zeros
+    d = np.diff(uniq)
+    x = uniq[:-1]
+    mask = np.abs(x) > 0
+    x_abs = np.abs(x[mask])
+    d_nonzero = d[mask]
+
+    plt.figure(figsize=(9, 5))
+    plt.loglog(x_abs, d_nonzero, ".", markersize=3)
+    plt.xlabel("|value|")
+    plt.ylabel("Next representable spacing (ULP)")
+    plt.title(f"8-bit FP spacing vs magnitude (EW={EW}, FW={FW})")
+    plt.tight_layout()
+    out3 = f"{out_folder}/fp8_EW{EW}_FW{FW}_spacing.png"
+    plt.savefig(out3, dpi=150)
+
+    return out1, out2, out3, pinf, ninf, nans
+
+
+# Generate for E4M3 and E5M2
+files_e4m3 = make_plots(4, 3, fp_decode_ieee_like)
+files_e5m2 = make_plots(5, 2, fp_decode_ieee_like)
+files_hif8 = make_plots(8-1, 0, hif8_to_float)
+
+
+files_e4m3, files_e5m2, files_hif8

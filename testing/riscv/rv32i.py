@@ -405,7 +405,7 @@ def simulate_demo():
 
     # Instantiate core
     m = build_rv32i_simple("RV32I_Simple")
-    transistor_count = get_yosys_transistor_count(m)
+    transistor_count = get_yosys_transistor_count(m, n_iter_optimizations=0)
     print("Estimated transistor count:", transistor_count)
     sim = Simulator(m)
 

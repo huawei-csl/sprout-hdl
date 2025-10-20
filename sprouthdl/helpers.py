@@ -158,8 +158,10 @@ def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
     if deepsyn:
         ys.run_pass(f"abc -script {abc_tmp_file}")
     ys.run_pass(f"{prepend}techmap; {prepend}opt; {prepend}abc -fast; {prepend}opt")
-    #ys.run_pass("stat  -tech cmos")
-    ys.run_pass(f"tee -q -o {stat_tmp_file} stat -tech cmos -json")
+    ys.run_pass(f"{prepend}rename -wire -suffix _reg t:*DFF*")
+    # ys.run_pass(f"{prepend}autoname t:*DFF* %n;")
+    # ys.run_pass("stat  -tech cmos")
+    ys.run_pass(f"tee -q -o {stat_tmp_file} stat -top top -tech cmos -json")
 
     # todo get aiger stat
 
@@ -171,7 +173,7 @@ def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
     os.remove(stat_tmp_file)
     os.remove(aag_tmp_file)
     stats = stats["modules"]["\\top"]
-    stats['estimated_num_transistors'] = int(stats['estimated_num_transistors'])
+    stats["estimated_num_transistors"] = int(stats["estimated_num_transistors"].replace("+", "")) # plus in case of registers, because they are not counted
     return stats
 
 
