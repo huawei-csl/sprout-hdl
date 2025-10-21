@@ -43,12 +43,17 @@ def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=1
     IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
     return m_aig
 
-def get_aig_stats(m: Module) -> dict:
+
+def get_aig_stats(m: Module, n_iter_optimizations=10) -> dict:
     aag_lines = AigerExporter(m).get_aag()
     aig = conv_aag_into_aig(aag_lines)
-    
+
+    for i in range(n_iter_optimizations):
+        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
+            optimization(aig)
+
     depth_aig = DepthAig(aig)
-    
+
     stats = {
         'num_pis': len(aig.pis()),
         'num_pos': len(aig.pos()),
@@ -57,6 +62,7 @@ def get_aig_stats(m: Module) -> dict:
         'depth': depth_aig.num_levels(),
     }
     return stats
+
 
 # -- sim
 
