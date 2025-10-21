@@ -22,7 +22,7 @@ def fp_unpack(bits: int, EW: int, FW: int):
     return s, e, f
 
 
-def fp_decode_ieee_like(bits: int, EW: int, FW: int) -> float:
+def fp_decode_ieee_like(bits: int, EW: int, FW: int, subnormals: bool=True) -> float:
     """IEEE-like decode (bias=2^(EW-1)-1), with subnormals and Inf/NaN."""
     s, e, f = fp_unpack(bits, EW, FW)
     bias = fp_bias(EW)
@@ -30,7 +30,10 @@ def fp_decode_ieee_like(bits: int, EW: int, FW: int) -> float:
         if f == 0:
             return -0.0 if s else 0.0
         # subnormal
-        return copysign((f / (1 << FW)) * 2.0 ** (1 - bias), -1.0 if s else 1.0)
+        if subnormals:
+            return copysign((f / (1 << FW)) * 2.0 ** (1 - bias), -1.0 if s else 1.0)
+        else:
+            return float("nan")
     if e == (1 << EW) - 1:
         if f == 0:
             return float("-inf") if s else float("inf")
@@ -48,7 +51,7 @@ def _is_inf(enc: int) -> bool:
 def _is_zero(enc: int) -> bool:
     return enc == 0x00
 
-def hif8_to_float(enc: int, EW: int, FW: int) -> float:
+def hif8_to_float(enc: int, EW: int, FW: int, subnormals: bool) -> float:
     """Decode an 8-bit HiFloat8 payload into a Python float."""
     if _is_nan(enc):
         return math.nan
@@ -104,13 +107,21 @@ def hif8_to_float(enc: int, EW: int, FW: int) -> float:
 # end high-float 8
 
 
-def make_plots(EW: int, FW: int, fp_decode: callable):
+def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, subnormals: bool = True):
+
+    if subnormals and not hifloat:
+        sn_str = "sn_"
+    elif not subnormals and not hifloat:
+        sn_str = "no_sn_"
+    else:
+        sn_str = ""
+
     TOTAL = 1 << (1 + EW + FW)
     vals = []
     es = []
     ninf = pinf = nans = 0
     for b in range(TOTAL):
-        v = fp_decode(b, EW, FW)
+        v = fp_decode(b, EW, FW, subnormals=subnormals)
         s, e, f = fp_unpack(b, EW, FW)
         if isnan(v):
             nans += 1
@@ -132,15 +143,20 @@ def make_plots(EW: int, FW: int, fp_decode: callable):
     nz = vals != 0.0
     absvals = np.abs(vals[nz])
     log2abs = np.log2(absvals)
+    
+    subnormal_str = ", subnormals on" if subnormals else ", subnormals off"
 
     plt.figure(figsize=(9, 4.5))
     bins = 200  # fixed; 8-bit is tiny
     plt.hist(log2abs, bins=bins)
     plt.xlabel("log2(|value|)")
     plt.ylabel("Count")
-    plt.title(f"8-bit FP log2 magnitude distribution (EW={EW}, FW={FW})")
+    if not hifloat:
+        plt.title(f"8-bit FP log2 magnitude distribution (EW={EW}, FW={FW}{subnormal_str})")
+    else:
+        plt.title(f"HiFloat8 log2 magnitude distribution")
     plt.tight_layout()
-    out1 = f"{out_folder}/fp8_EW{EW}_FW{FW}_log2abs.png"
+    out1 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}log2abs.png"
     plt.savefig(out1, dpi=150)
 
     # 2) Counts per exponent field e (finite only)
@@ -152,9 +168,12 @@ def make_plots(EW: int, FW: int, fp_decode: callable):
     plt.bar(bins_e, counts_e, width=0.8)
     plt.xlabel("Exponent field e")
     plt.ylabel("Finite count with this e")
-    plt.title(f"8-bit FP counts per exponent field (EW={EW}, FW={FW})")
+    if not hifloat:
+        plt.title(f"8-bit FP counts per exponent field (EW={EW}, FW={FW}{subnormal_str})")
+    else:
+        plt.title(f"HiFloat8 counts per exponent field")
     plt.tight_layout()
-    out2 = f"{out_folder}/fp8_EW{EW}_FW{FW}_counts_per_e.png"
+    out2 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}counts_per_e.png"
     plt.savefig(out2, dpi=150)
 
     # 3) |value| vs ULP spacing (sorted uniques, forward diff), log–log
@@ -169,17 +188,19 @@ def make_plots(EW: int, FW: int, fp_decode: callable):
     plt.loglog(x_abs, d_nonzero, ".", markersize=3)
     plt.xlabel("|value|")
     plt.ylabel("Next representable spacing (ULP)")
-    plt.title(f"8-bit FP spacing vs magnitude (EW={EW}, FW={FW})")
+    plt.title(f"8-bit FP spacing vs magnitude (EW={EW}, FW={FW}{subnormal_str})")
     plt.tight_layout()
-    out3 = f"{out_folder}/fp8_EW{EW}_FW{FW}_spacing.png"
+    out3 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}spacing.png"
     plt.savefig(out3, dpi=150)
 
     return out1, out2, out3, pinf, ninf, nans
 
 
 # Generate for E4M3 and E5M2
-files_e4m3 = make_plots(4, 3, fp_decode_ieee_like)
-files_e5m2 = make_plots(5, 2, fp_decode_ieee_like)
+files_e4m3 = make_plots(4, 3, fp_decode_ieee_like, subnormals=True)
+files_e5m2 = make_plots(5, 2, fp_decode_ieee_like, subnormals=True)
+files_e4m3 = make_plots(4, 3, fp_decode_ieee_like, subnormals=False)
+files_e5m2 = make_plots(5, 2, fp_decode_ieee_like, subnormals=False)
 files_hif8 = make_plots(8-1, 0, hif8_to_float)
 
 

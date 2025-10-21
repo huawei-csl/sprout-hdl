@@ -39,7 +39,10 @@ def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=1
     if optim:
         aag = optimize_aag(aag, n_iter_optimizations=n_iter_optimizations)
     m_aig = AigerImporter(aag).get_sprout_module()
-    spec = module.component.get_spec()
+    try:
+        spec = module.component.get_spec()
+    except:
+        spec = module.get_spec()
     IOCollector().group(m_aig, spec) # regroup I/Os to match original port widths
     return m_aig
 
@@ -70,6 +73,7 @@ def run_vectors(
     m: Module, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
     decoder: Callable[[int], float] | None = None, exprs: List[Expr] = [],
     use_signed: bool = False,
+    raise_on_fail: bool = True,
 ) -> None:
     """
     Generic runner:
@@ -83,10 +87,14 @@ def run_vectors(
     fails = 0
     for name, ins, outs in vectors:
         for k, v in ins.items():
+            if k[0] == "_":
+                continue
             sim.set(k, v)
         sim.eval()
         bad = []
         for oname, exp in outs.items():
+            if oname[0] == "_":
+                continue
             got_raw = sim.peek(oname) #sim.get(oname)
             got_signed = sim.get(oname)
             got = got_signed if use_signed else got_raw
@@ -111,10 +119,11 @@ def run_vectors(
         # and convert to dict for easy comparison
         state = dict(state)
         states_list.append(state)
-    if fails:
+    
+    print(f"Number of vectors: {len(vectors)}, {fails} failures")
+    if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
 
-    print(f"Number of vectors: {len(vectors)}, {fails} failures")
 
     return states_list
 

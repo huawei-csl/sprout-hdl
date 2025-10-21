@@ -8,6 +8,7 @@ from typing import Callable, List, Optional, Tuple, Union
 
 # Encoding helpers for IEEE-like floats (arbitrary EW/FW)
 from testing.floating_point.fp_testvectors_general import fp_encode, fp_limits
+from testing.floating_point.fp_testvectors_general import fp_decode  # tie handling aid (IEEE only)
 
 # HiFloat8 encode/decode will be imported lazily inside HiF8Format methods to
 # avoid pulling optional heavy dependencies at import time.
@@ -130,6 +131,14 @@ class FPMultiplierTestVectors:
         self._b_max_fin = self.b_fmt.max_finite()
         self._y_max_fin = self.y_fmt.max_finite()
 
+        # Overflow thresholds for IEEE; HiF8 handled by max_finite (no RNE threshold concept)
+        self._y_pos_ovf = None
+        self._y_neg_ovf = None
+        if isinstance(self.y_fmt, IEEEFormat):
+            lim = self.y_fmt.limits()
+            self._y_pos_ovf = lim["pos_overflow_threshold"]
+            self._y_neg_ovf = lim["neg_overflow_threshold"]
+
     # ---------------------- sampling helpers ----------------------
     def _uniform_linear(self, lo: float, hi: float) -> float:
         return self.rng.uniform(lo, hi)
@@ -195,15 +204,78 @@ class FPMultiplierTestVectors:
 
             # Compute product as Python float, then optionally clamp
             y_val = a_val * b_val
-            if self.clamp_to_finite:
+
+            # 2. update: on overflow encode as ±Inf (not max finite)
+            # For IEEE, use exact overflow thresholds; for HiF8, use max_finite as cutoff.
+            if math.isfinite(y_val):
+                if isinstance(self.y_fmt, IEEEFormat) and self._y_pos_ovf is not None:
+                    if y_val >= self._y_pos_ovf:
+                        y_val = float("inf")
+                    elif y_val <= self._y_neg_ovf:  # type: ignore[arg-type]
+                        y_val = float("-inf")
+                else:
+                    # HiF8 or unknown: treat strictly beyond max_finite as overflow
+                    if y_val > self._y_max_fin:
+                        y_val = float("inf")
+                    elif y_val < -self._y_max_fin:
+                        y_val = float("-inf")
+
+            # If still finite and clamping requested, clamp remaining to finite range
+            if self.clamp_to_finite and math.isfinite(y_val):
                 y_val = _clamp(y_val, -self._y_max_fin, self._y_max_fin)
 
             a_bits = self.a_fmt.encode(a_val)
             b_bits = self.b_fmt.encode(b_val)
+            # 1. update: simple neighbor search with tie preference
+            # v -> encode -> decode neighbors; on tie, up for +, down for -
+            # if isinstance(self.y_fmt, IEEEFormat) and math.isfinite(y_val):
+            #     total_bits = 1 + self.y_fmt.EW + self.y_fmt.FW
+            #     max_code = (1 << total_bits) - 1
+
+            #     b0 = self.y_fmt.encode(y_val)
+            #     bdn = max(0, b0 - 1)
+            #     bup = min(max_code, b0 + 1)
+
+            #     v0 = fp_decode(b0, self.y_fmt.EW, self.y_fmt.FW)
+            #     vdn = fp_decode(bdn, self.y_fmt.EW, self.y_fmt.FW)
+            #     vup = fp_decode(bup, self.y_fmt.EW, self.y_fmt.FW)
+
+            #     def dist(v: float) -> float:
+            #         return abs(v - y_val) if math.isfinite(v) else float("inf")
+
+            #     d0, ddn, dup = dist(v0), dist(vdn), dist(vup)
+            #     min_d = min(d0, ddn, dup)
+
+            #     # tolerance proportional to neighbor spacing
+            #     span = abs(vup - vdn)
+            #     tol = span * 1e-15 if math.isfinite(span) else 0.0
+
+            #     tied: List[Tuple[int, float]] = []
+            #     if abs(d0 - min_d) <= tol:
+            #         tied.append((b0, v0))
+            #     if abs(ddn - min_d) <= tol:
+            #         tied.append((bdn, vdn))
+            #     if abs(dup - min_d) <= tol:
+            #         tied.append((bup, vup))
+
+            #     if len(tied) == 1:
+            #         y_bits = tied[0][0]
+            #     else:
+            #         # break ties: away from zero (up for +, down for -)
+            #         if y_val > 0.0:
+            #             y_bits = max(tied, key=lambda kv: kv[1])[0]
+            #         elif y_val < 0.0:
+            #             y_bits = min(tied, key=lambda kv: kv[1])[0]
+            #         else:
+            #             # y_val == 0.0: keep default
+            #             y_bits = b0
+            # else:
+            #     y_bits = self.y_fmt.encode(y_val)
+
             y_bits = self.y_fmt.encode(y_val)
 
             name = f"{a_val:.6g}*{b_val:.6g}"
-            vecs.append((name, {"a": a_bits, "b": b_bits}, {"y": y_bits}))
+            vecs.append((name, {"a": a_bits, "b": b_bits, "_a_val": a_val, "_b_val": b_val}, {"y": y_bits, "_y_val": y_val}))
 
         return vecs
 

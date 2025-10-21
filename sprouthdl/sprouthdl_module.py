@@ -170,6 +170,12 @@ class Module:
     def _internals_of(self, kind: str) -> List[Signal]:
         # Avoid `s not in self._ports` (it calls __eq__). Use identity instead.
         return [s for s in self._signals if s.kind == kind and not self._is_port(s)]
+    
+    def get_spec(self) -> Dict[str, UInt]:
+        spec = {}
+        for p in self._ports:
+            spec[p.name] = p.typ
+        return spec
 
     # Verilog generation
     def to_verilog(self) -> str:

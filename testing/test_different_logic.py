@@ -150,6 +150,7 @@ def run_vectors_io(
     *,
     decoder: Callable[[int], float] | None = None,
     use_signed: bool = False,
+    raise_on_fail: bool = True,
 ) -> None:
     """
     Generic runner:
@@ -161,11 +162,15 @@ def run_vectors_io(
     fails = 0
     for i_vec, (name, ins, outs) in enumerate(vectors):
         for k, v in ins.items():
+            if k[0] == "_":
+                continue
             sim.set(k, v)
         sim.eval()
 
         bad = []
         for oname, exp in outs.items():
+            if oname[0] == "_":
+                continue
             got_raw = sim.peek(oname) #sim.get(oname)
             got_signed = sim.get(oname)
             got = got_signed if use_signed else got_raw
@@ -176,15 +181,15 @@ def run_vectors_io(
                     bad.append(f"{oname}: got=0x{got_raw:0X} ({got}) exp=0x{exp:0X} ({exp})")
             else:
                 if decoder and oname == "y":
-                    print(f"PASS {name}: {oname}=0x{got_raw:0X} ({decoder(got_raw):.8g})")
+                    print(f"PASS {name}: {oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
                 else:
                     print(f"PASS {name}: {oname}=0x{got_raw:0X} ({got})")
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
-    if fails:
+    print(f"Number of vectors: {len(vectors)}, {fails} failures")
+    if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
-        # print(f"{fails}/{len(vectors)} vectors failed")
 
 # -----------------------------
 # Simple modules + vectors
