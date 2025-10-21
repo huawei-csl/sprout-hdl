@@ -136,25 +136,36 @@ def _choose_sigma_index(sigmas: list[float], bitwidth: int) -> int:
     return idx
 
 
+def get_module(cfg: FPConfig):
+    """Build FP multiplier module according to config."""
+    if cfg.kind == FPFormatKind.IEEE:
+        assert cfg.EW is not None and cfg.FW is not None, "EW/FW must be set for IEEE format"
+        module = build_fp_mul_sn(f"F{1+cfg.EW+cfg.FW}Mul", EW=int(cfg.EW), FW=int(cfg.FW), subnormals=bool(cfg.subnormals))
+    elif cfg.kind == FPFormatKind.HIF8:
+        from sprouthdl.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic  # type: ignore
+        module = build_hif8_mul_logic("HiFP8Mul_Logic_Ref")
+    else:
+        raise ValueError(f"Unsupported format kind: {cfg.kind}")
+    return module
+
+
 def run_configuration(
     cfg: FPConfig,
     num_vectors: int,
     sigmas: list[float],
     all_sigmas: bool = True,
+    plot_histograms: bool = False,
 ):
     reset_shared_cache()
 
     # Build module
     if cfg.kind == FPFormatKind.IEEE:
-        assert cfg.EW is not None and cfg.FW is not None, "EW/FW must be set for IEEE format"
-        module = build_fp_mul_sn(f"F{1+cfg.EW+cfg.FW}Mul", EW=int(cfg.EW), FW=int(cfg.FW), subnormals=bool(cfg.subnormals))
         a_fmt = IEEEFormat(EW=int(cfg.EW), FW=int(cfg.FW), subnormals=bool(cfg.subnormals))
     elif cfg.kind == FPFormatKind.HIF8:
-        from sprouthdl.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic  # type: ignore
-        module = build_hif8_mul_logic("HiFP8Mul_Logic_Ref")
         a_fmt = HiF8Format()
     else:
         raise ValueError(f"Unsupported format kind: {cfg.kind}")
+    module = get_module(cfg)
 
     # Smoke test vectors
     smoke_tb_sigma = None
@@ -205,12 +216,9 @@ def run_configuration(
         switches.append(run_and_count(vecs))
         print(f"Average AND switches (sigma={sigma}): {switches[-1]}")
 
-        # plot histogram of vecs one for input and one for output
-        # subplot with two histograms side by side; save file with config + sigma
-        try:
-            plot_input_output_histograms(cfg, vecs, sigma, decoder)
-        except Exception as e:
-            print(f"[warn] histogram plotting failed: {e}")
+    if plot_histograms:
+        plot_input_output_histograms(cfg, vecs, sigma, decoder)
+
 
     gr = m_aig.module_analyze()
     tc = get_yosys_transistor_count(m_aig)

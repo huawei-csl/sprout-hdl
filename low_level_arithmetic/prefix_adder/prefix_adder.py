@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
-from low_level_arithmetic.prefix_adder.prefix_adder.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
+from low_level_arithmetic.prefix_adder.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
