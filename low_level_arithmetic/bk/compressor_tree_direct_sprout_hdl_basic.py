@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import random
 from typing import Dict, Literal, Optional, Tuple, List
 import numpy as np
-from low_level_arithmetic.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
+from low_level_arithmetic.compressor_tree.compressor_tree_sprout_hdl import get_transistor_count_from_m_yosys
 from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Module

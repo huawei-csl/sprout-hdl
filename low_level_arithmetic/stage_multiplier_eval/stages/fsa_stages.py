@@ -2,16 +2,8 @@ from __future__ import annotations
 
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
-from low_level_arithmetic.multiplier_stage_core import FinalStageAdderBase
-from low_level_arithmetic.prefix_adder import (
-    P_brent_kung,
-    P_kogge_stone,
-    P_ripple_carry,
-    P_sklansky,
-    Pair,
-    analyze_prefix_matrix,
-    legalize_P,
-)
+from low_level_arithmetic.stage_multiplier_eval.multipliers.multiplier_stage_core import FinalStageAdderBase
+from low_level_arithmetic.prefix_adder.prefix_adder import P_brent_kung, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, analyze_prefix_matrix, legalize_P
 from sprouthdl.sprouthdl import Bool, Const, Expr
 
 

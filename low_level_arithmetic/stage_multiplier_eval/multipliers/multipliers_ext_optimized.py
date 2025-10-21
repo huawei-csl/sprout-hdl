@@ -8,10 +8,10 @@ from typing import ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optiona
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
-from low_level_arithmetic.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
+from low_level_arithmetic.stage_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
 
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier
-from low_level_arithmetic.test_vector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
+from low_level_arithmetic.stage_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from low_level_arithmetic.stage_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
 from sprouthdl.sprouthdl_aiger import AigerImporter
@@ -285,7 +285,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
 
     n_bits = 4
 
-    from low_level_arithmetic.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
+    from low_level_arithmetic.stage_multiplier_eval.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
 
     encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
 

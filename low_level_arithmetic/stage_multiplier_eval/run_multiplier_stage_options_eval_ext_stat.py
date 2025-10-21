@@ -13,24 +13,20 @@ import numpy as np
 from tqdm import tqdm
 
 
-from low_level_arithmetic.multiplier_stage_options_demo_lib import ConfigItem, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
-from low_level_arithmetic.multiplier_stage_options_demo_lib import FSAOption
-from low_level_arithmetic.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier
-from low_level_arithmetic.test_vector_generation import (
-    Encoding,
-    MultiplierTestVectors,
-    to_encoding,
-)
+from low_level_arithmetic.stage_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
+from low_level_arithmetic.stage_multiplier_eval.multiplier_stage_options_demo_lib import FSAOption
+from low_level_arithmetic.stage_multiplier_eval.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
+from low_level_arithmetic.stage_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from low_level_arithmetic.stage_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl_module import IOCollector
-from testing.floating_point.sim_int import optimize_aag, run_vectors_io_log
+from testing.floating_point.sweep_sim_int_mul import optimize_aag, run_vectors_io_log
 from testing.test_different_logic import run_vectors_io
-from low_level_arithmetic.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list
+from low_level_arithmetic.stage_multiplier_eval.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list
 
 def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
 

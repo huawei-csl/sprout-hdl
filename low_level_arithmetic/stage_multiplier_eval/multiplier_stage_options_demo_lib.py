@@ -1,44 +1,16 @@
 from enum import Enum
 from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
-from low_level_arithmetic.multipliers_ext_optimized import MultiplierFromOptimized4BitBlocks, OptimizedMultiplierBasic, OptmizedSignMagnitudeMultiplier
-from low_level_arithmetic.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
-from low_level_arithmetic.ppa_stages import (
-    CarrySaveAccumulator,
-    DaddaTreeAccumulator,
-    FourTwoCompressorAccumulator,
-    WallaceTreeAccumulator,
-)
-from low_level_arithmetic.test_vector_generation import (
-    Encoding,
-    MultiplierTestVectors,
-    to_encoding,
-)
-from low_level_arithmetic.ppg_baugh_wooley_stages import (
-    BaughWooleyPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_basic_stages import (
-    BasicUnsignedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_optim_stages import (
-    BoothOptimizedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_optim_stages import (
-    BoothOptimizedPartialProductGenerator,
-)
-from low_level_arithmetic.ppg_booth_unoptim_stages import (
-    BoothUnoptimizedPartialProductGenerator,
-)
-from low_level_arithmetic.multiplier_stage_core import (
-    CompressorTreeAccumulator,
-    RippleCarryFinalAdder,
-    StageBasedMultiplier,
-)
-from low_level_arithmetic.fsa_stages import (
-    BrentKungPrefixFinalStage,
-    PrefixAdderFinalStage,
-    RipplePrefixFinalStage,
-    SklanskyPrefixFinalStage,
-)
+from low_level_arithmetic.stage_multiplier_eval.multipliers.multipliers_ext_optimized import MultiplierFromOptimized4BitBlocks, OptimizedMultiplierBasic, OptmizedSignMagnitudeMultiplier
+from low_level_arithmetic.stage_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
+from low_level_arithmetic.stage_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
+from low_level_arithmetic.stage_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
+from low_level_arithmetic.stage_multiplier_eval.stages.ppg_baugh_wooley_stages import BaughWooleyPartialProductGenerator
+from low_level_arithmetic.stage_multiplier_eval.stages.ppg_basic_stages import BasicUnsignedPartialProductGenerator
+from low_level_arithmetic.stage_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
+from low_level_arithmetic.stage_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
+from low_level_arithmetic.stage_multiplier_eval.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
+from low_level_arithmetic.stage_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplier
+from low_level_arithmetic.stage_multiplier_eval.stages.fsa_stages import BrentKungPrefixFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage
 
 
 # Options for each stage
