@@ -95,8 +95,19 @@ These capabilities align with the standard Sprout development flow: express a de
 3. **Simulate early and often.** Drive stimuli with the simulator, observe register evolution, and iterate on the Python source before handing designs to downstream tools.
 4. **Export netlists.** Emit Verilog or AIG/AAG when you are ready for synthesis, formal checking, or integration with external flows.【F:sprouthdl/sprouthdl_module.py†L169-L235】【F:low_level_arithmetic/multipliers_ext_optimized.py†L62-L132】
 
+## Examples
+
+Check out the `examples/` directory for practical examples:
+
+- **`simple_component.py`** – A minimal example showing how to define a Component with IO ports and generate Verilog
+- **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
+- **`module_with_component.py`** – Shows how to integrate Components within Module-based designs
+
+See the [examples README](examples/README.md) for detailed documentation and key concepts.
+
 ## Next steps
 
+- Explore the `examples/` directory to see working examples of components and modules
 - Explore the `sprouthdl/floating_point` and `low_level_arithmetic` packages for more generators.
 - Use `module_analyze()` to gauge combinational depth before synthesis.【F:sprouthdl/sprouthdl_module.py†L238-L255】
 - Integrate the simulator into your verification harness to shorten debug cycles.
