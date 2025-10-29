@@ -7,7 +7,11 @@ from flowy.flows.reinforce.data_collection.lib.definitions import Encodings, Pol
 from flowy.flows.reinforce.run.statistical.run_flow import run_flow
 import flowy.flows.reinforce.run.statistical.run_flows_in_docker as run_flows_in_docker
 from flowy.flows.reinforce.analysis.visualize_run import visualize_run
-from flowy.data_structures.database import RunDatabase, RunIdentifier
+from flowy.data_structures.database import RunDatabase, RunIdentifier, ExperimentIdentifier
+from flowy.definitions import DatabaseConfig, ExperimentStages
+from flowy.flows.sim.extract_best_design import extract_and_store_best_design
+from flowy.flows.sim.visualize_histograms import visualize_histograms
+from flowy.flows.reinforce.analysis.visualize_runs import visualize_main   
 
 import argparse
 
@@ -57,20 +61,23 @@ def main():
     # run flowy optimization
 
     args = run_flows_in_docker.build_parser().parse_args([])
-    
-    args.experiment = f"exp_test_3_{datecode}"
+
+    selection_metric = SelectionMetric.aig_count.value
+    experiment = f"exp_test_3_{datecode}"
+
+    args.experiment = experiment
     # add arguments below
-    args.nb_runs = 10
-    args.nb_workers = 10
+    args.nb_runs = 50
+    args.nb_workers = 50
     args.iterations = 10
-    args.chains = 1
-    args.chain_len = 2
-    args.chain_workers = 10
+    args.mockturtle_chains = 1
+    args.mockturtle_chain_len = 10
+    args.mockturtle_chain_workers = args.mockturtle_chains
     args.recipe_selection = RecipeSelection.PERFORMANCE_SAMPLING.value
     # args.env_option = "auto"
     args.strategy_name = "equal"
     args.debug = False
-    args.selection_metric = SelectionMetric.nb_transistors
+    args.selection_metric = selection_metric
     # args.input_encoding = Encodings.twos_complement
     # args.output_encoding = Encodings.twos_complement
     args.verilog_file = verilog_path
@@ -78,18 +85,36 @@ def main():
     args.scripts_per_step = 2
     args.simulation_tb = False
     args.extra_files = ""
-    args.verbose = True
-    
-    results = run_flows_in_docker.run_with_args(args)
+    args.verbose = False
 
-    print("done")
-    
+    run = True
+    if run:
+
+        results = run_flows_in_docker.run_with_args(args, commit_hash="2c8627681a246df748be4bf26c4ace4bb55190ce")
+
+        # run_db_identifier = RunIdentifier(experiment_name=expert)
+        extract_and_store_best_design(experiment=experiment, target_metrics=[SelectionMetric.aig_count])
+        visualize_histograms(experiment=experiment)
+        visualize_main(ExperimentIdentifier(root_database=DatabaseConfig.default_path, experiment=experiment))
+
+        print("done")
+
+    experiment = "exp_test_3_20251029_133739"
+    best_design = RunIdentifier(root_database="output/db", experiment=experiment, stage="analysis", run="best_designs")
+
+    best_design_item = RunDatabase(best_design).load("final_mockturtle_design_best_design_aig_count")
+    aig_count = best_design_item.get("aig_count").value
+    aig_file_path = best_design_item.get("aiger_filepath").path
+    aiger_map_file_path = best_design_item.get("aiger_map_filepath").path
+
+    print(f"finished experiment {experiment}, best design stored in {best_design}")
+
     # visualize runs
     # visualize_histograms
     # extract_best
 
     # visualize_run(db_identifier)
-    
+
     # load final best design which was loaded into the analysis db by extract_best
 
     # extract number of transistors

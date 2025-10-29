@@ -191,9 +191,9 @@ class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
         b_hi = self.io.b[self.bw//2 : self.bw]
 
         # Instantiate four optimized 8x8 multipliers
-        multipliers: List[MultiplierFromOptimized4BitBlocks] = []
+        multipliers: List[StageBasedExtMultiplier] = []
         mult_cls = MultiplierFromOptimized4BitBlocks if (self.aw//2 > 4 and self.bw//2 > 4) else OptimizedMultiplierBasic
-        
+
         for _ in range(4):
             multipliers.append(
                 mult_cls(
@@ -355,5 +355,3 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         y_encoding=Encoding.unsigned,
     ).generate()
     run_vectors_io(module, vecs)
-
-  

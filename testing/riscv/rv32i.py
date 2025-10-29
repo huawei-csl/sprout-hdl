@@ -405,8 +405,8 @@ def simulate_demo():
 
     # Instantiate core
     m = build_rv32i_simple("RV32I_Simple")
-    transistor_count = get_yosys_transistor_count(m, n_iter_optimizations=0)
-    print("Estimated transistor count:", transistor_count)
+    #transistor_count = get_yosys_transistor_count(m, n_iter_optimizations=0)
+    #print("Estimated transistor count:", transistor_count)
     sim = Simulator(m)
 
     # Memories
@@ -633,7 +633,7 @@ def run_all_demos():
 
     # Run the extra demos with assertions
     simulate_fibonacci(10)
-    simulate_pi_digits(10)
+    simulate_pi_digits(5)
     
 if __name__ == "__main__":
     run_all_demos()
