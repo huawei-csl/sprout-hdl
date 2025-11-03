@@ -766,66 +766,70 @@ def contract_signals_to_labeled_edges(G: Graph) -> Graph:
     return G2
 
 
-# -----------------------------
-# Usage demo
-# -----------------------------
+def demo():
+    # -----------------------------
+    # Usage demo
+    # -----------------------------
 
-N = 8  # change to try other bitwidths; for plotting, keep <= 6
+    N = 8  # change to try other bitwidths; for plotting, keep <= 6
 
-A, nodes = build_wallace_compressor_graph(N)
-df_nodes = nodes_to_dataframe(nodes)
+    A, nodes = build_wallace_compressor_graph(N)
+    df_nodes = nodes_to_dataframe(nodes)
 
-# Basic stats
-stats = {
-    "n_bits": N,
-    "num_nodes": len(nodes),
-    "num_edges": int(A.sum()),
-    "adj_shape": A.shape,
-    "num_sigs": int(sum(1 for nd in nodes if nd.kind == "sig")),
-    "num_FA": int(sum(1 for nd in nodes if nd.kind == "FA")),
-    "num_HA": int(sum(1 for nd in nodes if nd.kind == "HA")),
-    "num_sinks": int(sum(1 for nd in nodes if nd.kind == "sink")),
-}
-stats
+    # Basic stats
+    stats = {
+        "n_bits": N,
+        "num_nodes": len(nodes),
+        "num_edges": int(A.sum()),
+        "adj_shape": A.shape,
+        "num_sigs": int(sum(1 for nd in nodes if nd.kind == "sig")),
+        "num_FA": int(sum(1 for nd in nodes if nd.kind == "FA")),
+        "num_HA": int(sum(1 for nd in nodes if nd.kind == "HA")),
+        "num_sinks": int(sum(1 for nd in nodes if nd.kind == "sink")),
+    }
+    stats
 
-# Plots
-plot_graph(A, nodes, title=f"Compressor Tree (Wallace), n={N}")
-G_c = contract_signals_to_labeled_edges(Graph(nodes, A))
-plot_graph(G_c.A, G_c.nodes, title=f"Contracted Graph (Wallace) (n={N})", suffix="_contracted")
-plot_adjacency_spy(A, title=f"Adjacency Matrix (Wallace) (n={N})")
-plot_adjacency_spy(G_c.A, title=f"Contracted Adjacency Matrix (Wallace) (n={N})", suffix="_contracted")
+    # Plots
+    plot_graph(A, nodes, title=f"Compressor Tree (Wallace), n={N}")
+    G_c = contract_signals_to_labeled_edges(Graph(nodes, A))
+    plot_graph(G_c.A, G_c.nodes, title=f"Contracted Graph (Wallace) (n={N})", suffix="_contracted")
+    plot_adjacency_spy(A, title=f"Adjacency Matrix (Wallace) (n={N})")
+    plot_adjacency_spy(G_c.A, title=f"Contracted Adjacency Matrix (Wallace) (n={N})", suffix="_contracted")
 
-# Save CSVs for download
-nodes_csv_path = f"wallace_n{N}_nodes.csv"
-adj_csv_path = f"wallace_n{N}_adjacency.csv"
-df_nodes.to_csv(nodes_csv_path, index=False)
-# store adjacency as dense CSV for convenience (small N recommended)
-pd.DataFrame(A, columns=[f"n{j}" for j in range(A.shape[1])]).to_csv(adj_csv_path, index=False)
+    # Save CSVs for download
+    nodes_csv_path = f"wallace_n{N}_nodes.csv"
+    adj_csv_path = f"wallace_n{N}_adjacency.csv"
+    df_nodes.to_csv(nodes_csv_path, index=False)
+    # store adjacency as dense CSV for convenience (small N recommended)
+    pd.DataFrame(A, columns=[f"n{j}" for j in range(A.shape[1])]).to_csv(adj_csv_path, index=False)
 
-nodes_csv_path, adj_csv_path
+    nodes_csv_path, adj_csv_path
 
-print("Quick formula checks:")
-checks = quick_formula_checks(A, nodes)
-print(checks)
+    print("Quick formula checks:")
+    checks = quick_formula_checks(A, nodes)
+    print(checks)
 
-# Run the demo now that functions are defined
+    # Run the demo now that functions are defined
 
-A_rand, nodes_rand = random_compressor_tree(n=N, seed=42, shrink_range=(0.6, 0.95), p_fa=0.65)
+    A_rand, nodes_rand = random_compressor_tree(n=N, seed=42, shrink_range=(0.6, 0.95), p_fa=0.65)
 
-stats = {
-    "nodes": len(nodes_rand),
-    "edges": int(A_rand.sum()),
-    "signals": sum(1 for nd in nodes_rand if nd.kind == "sig"),
-    "FAs": sum(1 for nd in nodes_rand if nd.kind == "FA"),
-    "HAs": sum(1 for nd in nodes_rand if nd.kind == "HA"),
-    "sinks": sum(1 for nd in nodes_rand if nd.kind == "sink"),
-}
+    stats = {
+        "nodes": len(nodes_rand),
+        "edges": int(A_rand.sum()),
+        "signals": sum(1 for nd in nodes_rand if nd.kind == "sig"),
+        "FAs": sum(1 for nd in nodes_rand if nd.kind == "FA"),
+        "HAs": sum(1 for nd in nodes_rand if nd.kind == "HA"),
+        "sinks": sum(1 for nd in nodes_rand if nd.kind == "sink"),
+    }
 
-form = quick_formula_checks(A_rand, nodes_rand)
-ver = verify_multiplier(A_rand, nodes_rand, exhaustive=False, samples=500)
+    form = quick_formula_checks(A_rand, nodes_rand)
+    ver = verify_multiplier(A_rand, nodes_rand, exhaustive=False, samples=500)
 
-print(f"Random compressor tree stats (n={N}): {stats}")
-print(f"Formula checks: {form}")
-print(f"Functional verification: {ver}")
-plot_graph(A_rand, nodes_rand, title=f"Compressor Tree (Random), n={N}", suffix="_random")
-plot_adjacency_spy(A_rand, title=f"Adjacency Matrix (Random, n={N})", suffix="_random")
+    print(f"Random compressor tree stats (n={N}): {stats}")
+    print(f"Formula checks: {form}")
+    print(f"Functional verification: {ver}")
+    plot_graph(A_rand, nodes_rand, title=f"Compressor Tree (Random), n={N}", suffix="_random")
+    plot_adjacency_spy(A_rand, title=f"Adjacency Matrix (Random, n={N})", suffix="_random")
+
+if __name__ == "__main__":
+    demo()

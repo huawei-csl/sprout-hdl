@@ -1,3 +1,5 @@
+from sprouthdl.sprouthdl import reset_shared_cache
+from testing.floating_point.synthesise_fp2 import flowy_optimize
 from aigverse import Aig, DepthAig
 from sprouthdl.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul
 from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
@@ -9,6 +11,7 @@ from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_i
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
 from sprouthdl.sprouthdl_module import Module
+
 
 def get_result(m: Module, optim_steps = 200) -> tuple:
     agg_lines = AigerExporter(m).get_aag()
@@ -32,29 +35,46 @@ def get_result(m: Module, optim_steps = 200) -> tuple:
 
     return aig.size(), DepthAig(aig).num_levels(), nb_transistors
 
+def optimize_m(m: Module) -> Module:
+    #return m
+    return flowy_optimize(m)
+
 def get_size_mult(n_bits: int, ew: int, subnormals=False, optim_steps = 200) -> int:
+
+    reset_shared_cache()
+
     fw = n_bits - ew - 1
+
     m = build_fp_mul_sn(f"F{n_bits}Mul", EW=ew, FW=fw, subnormals=subnormals)
+
+    m = optimize_m(m)
 
     return get_result(m, optim_steps=optim_steps)
 
 
 def get_hifloat8_results():
 
+    reset_shared_cache()
+
     m = build_hif8_mul_logic("HiFP8Mul_Logic_Ref")
+
+    m = optimize_m(m)
 
     return get_result(m)   
 
 
 def main():
 
+    print("starting sweep for floating point multipliers")
+
+    ew_start = 4
     n_bits = 8
 
     # sweep and plot
 
     import matplotlib.pyplot as plt
     import numpy as np
-    ew_values = list(range(1, n_bits-2))
+    ew_values = list(range(ew_start, n_bits - 2))
     res= [get_size_mult(n_bits, ew) for ew in ew_values]
     sizes = [size for size, _, _ in res]
     depths = [depth for _, depth, _ in res]

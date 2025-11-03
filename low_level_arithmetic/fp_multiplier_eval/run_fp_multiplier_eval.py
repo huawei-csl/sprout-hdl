@@ -10,6 +10,8 @@ See run_stage_multiplier_ext_demo at bottom for a minimal example.
 
 from __future__ import annotations
 
+from testing.floating_point.synthesise_fp2 import flowy_optimize
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import Enum
@@ -23,6 +25,7 @@ import uuid
 
 from sprouthdl.floating_point.sprout_hdl_hif8 import hif8_to_float
 from testing.floating_point.fp_testvectors_general import fp_decode
+
 
 try:
     import numpy as np
@@ -155,6 +158,7 @@ def run_configuration(
     sigmas: list[float],
     all_sigmas: bool = True,
     plot_histograms: bool = False,
+    do_flowy_optimize: bool = True
 ):
     reset_shared_cache()
 
@@ -183,6 +187,9 @@ def run_configuration(
     raise_on_fail = False
 
     run_vectors_io(module, vecs, decoder=decoder, raise_on_fail=raise_on_fail)  # smoke test
+
+    if do_flowy_optimize:
+        module = flowy_optimize(module)
 
     # -- swact --
     m_aig = refactor_module_to_aig(module)
@@ -218,7 +225,6 @@ def run_configuration(
 
     if plot_histograms:
         plot_input_output_histograms(cfg, vecs, sigma, decoder)
-
 
     gr = m_aig.module_analyze()
     tc = get_yosys_transistor_count(m_aig)

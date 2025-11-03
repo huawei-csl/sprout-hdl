@@ -50,23 +50,39 @@ class OptimizedMultiplierBasic(StageBasedExtMultiplier):
 
         # verilog_file_name = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1/analysis/minima_histogram/final_gen_design_files_best_design_aig_count/mydesign_mockturtle_cleaned.v"
 
-        if self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 4:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_4bit_star_1"
-        elif self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 3:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_3bit_star_1"
-        elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 4:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1"
-        elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 3:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_3bit_star_1"
-        elif self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 8:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_8bit_star_1"
-        elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 8:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_8bit_star_1"
-        else:
-            raise NotImplementedError("No precomputed AIG for this configuration")
+        def get_aig_files() -> Tuple[str, str]:
+            if self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 4:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_4bit_star_1"
 
-        aig_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger.aig"
-        map_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/aiger_map_cleaned.map"
+                # aig_file = "output/from_ryan_4b/out_aiger_yosys_iter10e733cbc682227096e34c2c7cadb079eb1d2a7c8e6e91ac5eaadcb10855ef452_1_round_12.aig"
+                # # map_file = "output/from_ryan_8b/out_aiger_map.map"
+                # map_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/aiger_map_cleaned.map"
+                # return aig_file, map_file
+
+            elif self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 3:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_3bit_star_1"
+            elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 4:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1"
+            elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 3:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_3bit_star_1"
+            elif self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned and self.aw == self.bw and self.aw == 8:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_8bit_star_1"
+
+                # aig_file = "output/from_ryan_8b/out_aiger_yosys.aig"
+                # map_file = "output/from_ryan_8b/out_aiger_map.map"
+                # # map_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/aiger_map_cleaned.map"
+                # return aig_file, map_file
+
+            elif self.a_encoding == Encoding.twos_complement and self.b_encoding == Encoding.twos_complement and self.aw == self.bw and self.aw == 8:
+                aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_8bit_star_1"
+            else:
+                raise NotImplementedError("No precomputed AIG for this configuration")
+
+            aig_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger.aig"
+            map_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/aiger_map_cleaned.map"
+            return aig_file, map_file
+
+        aig_file, map_file = get_aig_files()
 
         aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
 
@@ -242,12 +258,11 @@ class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
         self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
 
 
-if __name__ == "__main__":  # pragma: no cover - demonstration only
-
+def test_multiplier_ext_optimized() -> None:
     n_bits = 8
     signed = False
 
-    m = OptimizedMultiplierBasic(
+    c = OptimizedMultiplierBasic(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=to_encoding(signed),
@@ -257,7 +272,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         fsa_cls=None,
         optim_type="area",
     )
-    mod = m.to_module("multiplier_ext_optimized")
+    mod = c.to_module("multiplier_ext_optimized")
     print(mod)
 
     module = mod
@@ -289,7 +304,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
 
     encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
 
-    m = OptmizedSignMagnitudeMultiplier(
+    c = OptmizedSignMagnitudeMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=encodings.a,
@@ -298,7 +313,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         ppa_cls=None,
         fsa_cls=None,
     )
-    mod = m.to_module("multiplier_ext_optimized_sign_magnitude")
+    mod = c.to_module("multiplier_ext_optimized_sign_magnitude")
     print(mod)
     module = mod
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
@@ -325,7 +340,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
 
     n_bits = 16
 
-    m = MultiplierFromOptimized4BitBlocks(
+    c = MultiplierFromOptimized4BitBlocks(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=Encoding.unsigned,
@@ -334,7 +349,7 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         ppa_cls=None,
         fsa_cls=None,
     )
-    mod = m.to_module("multiplier_ext_optimized_8x8_from_4x4")
+    mod = c.to_module("multiplier_ext_optimized_8x8_from_4x4")
     print(mod)
     module = mod
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
@@ -355,3 +370,6 @@ if __name__ == "__main__":  # pragma: no cover - demonstration only
         y_encoding=Encoding.unsigned,
     ).generate()
     run_vectors_io(module, vecs)
+
+if __name__ == "__main__":
+    test_multiplier_ext_optimized()

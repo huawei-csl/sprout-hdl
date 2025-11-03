@@ -1,6 +1,7 @@
 # sprout_hdl.py
 # A tiny, SpinalHDL-inspired EDSL for Python → Verilog
 from __future__ import annotations
+from ast import expr
 from dataclasses import dataclass, field
 import hashlib
 import random
@@ -38,7 +39,14 @@ def get_shared_wires() -> list["Signal"]:
     """Access the created wires (for inclusion in module's declarations/assigns)."""
     return list(_SHARED.wires)
 
-def _maybe_share(e: "Expr") -> "Expr":
+def _create_new_shared_wire(typ: HDLType) -> "Signal":
+    name = f"sig_{_SHARED.index}"
+    _SHARED.index += 1
+    sig = Signal(name, typ, "wire")
+    _SHARED.wires.append(sig)
+    return sig
+
+def _maybe_share(e: "Expr", force_share=False) -> "Expr":
     """
     If this exact Expr instance is seen the 2nd time via as_expr(...),
     create a 'wire sig_{index}' that drives from the original expression.
@@ -52,14 +60,15 @@ def _maybe_share(e: "Expr") -> "Expr":
     cnt = _SHARED.counts.get(nid, 0) + 1
     _SHARED.counts[nid] = cnt
     cnt_share = 1 # at what count start sharing
-    if cnt == cnt_share:
+    if cnt == cnt_share or force_share:
         # Create the shared wire
-        name = f"sig_{_SHARED.index}"
-        _SHARED.index += 1
-        sig = Signal(name, e.typ, "wire")
+        # name = f"sig_{_SHARED.index}"
+        # _SHARED.index += 1
+        # sig = Signal(name, e.typ, "wire")
+        # _SHARED.wires.append(sig)
+        sig = _create_new_shared_wire(e.typ)
         sig._driver = e  # continuous assignment: assign sig = <original expr>;
         _SHARED.expr2sig[nid] = sig
-        _SHARED.wires.append(sig)
         return sig
     elif cnt > cnt_share:
         return _SHARED.expr2sig[nid]
@@ -195,7 +204,10 @@ class Expr:
                 raise ValueError("Bit index must be >= 0")
             if sl >= self.typ.width:
                 raise ValueError("Bit index exceeds signal width")
-            return Slice(self, sl, sl + 1)
+            if isinstance(self, (Const, Signal)):
+                return Slice(self, sl, sl + 1)
+            else:
+                return Slice(_maybe_share(self, force_share=True), sl, sl + 1)  # just for verilog emission, create new wire
         if isinstance(sl, slice):
             if sl.step not in (None, 1):
                 raise ValueError("Slice step must be 1")
@@ -209,7 +221,10 @@ class Expr:
                 raise ValueError("Slice stop must be > start")
             if stop > self.typ.width:
                 raise ValueError("Slice stop exceeds signal width")
-            return Slice(self, start, stop)
+            if isinstance(self, (Const, Signal)):
+                return Slice(self, start, stop)
+            else:
+                return Slice(_maybe_share(self, force_share=True), start, stop)  # just for verilog emission, create new wire
         raise TypeError("Unsupported index type")
 
     def to_verilog(self) -> str:
@@ -238,8 +253,16 @@ class Const(Expr):
     def to_verilog(self) -> str:
         if self.typ.is_bool:
             return "1'b1" if self.value != 0 else "1'b0"
-        base = "sd" if self.typ.signed or self.value < 0 else "d"
-        return f"{self.typ.width}'{base}{self.value}"
+
+        val = int(self.value)
+
+        # For negatives, use unary minus + *signed* literal: -<width>'sd<abs>
+        if val < 0:
+            return f"-{ self.typ.width}'sd{abs(val)}"
+
+        # Non-negative: choose signedness from the declared type
+        base = "sd" if self.typ.signed else "d"
+        return f"{self.typ.width}'{base}{val}"
 
 
 class Signal(Expr):
@@ -289,7 +312,8 @@ def cast(expr: ExprLike, to_type: HDLType) -> Signal:
         name = str(hash_object.hexdigest())
         return name
     name = get_rand_hash()
-    s = Signal(name, to_type, 'wire')
+    #s = Signal(name, to_type, 'wire')
+    s = _create_new_shared_wire(to_type)
     s <<= fit_width(as_expr(expr), to_type)
     return s
 
@@ -382,12 +406,20 @@ class Resize(Expr):
         tw = self.to_width
         if aw == tw:
             return self.a.to_verilog()
+        
+        # If operand is a constant, just re-emit it with the target width/signedness.
+        # This avoids patterns like (8'sd0)[7] and nested replications.
+        if isinstance(self.a, Const):
+            adapted = Const(self.a.value, HDLType(tw, signed=self.a.typ.signed, is_bool=(tw == 1)))
+            return adapted.to_verilog()
+        
         if aw > tw:
             # truncate LSBs kept (common hardware pattern)
             return f"{self.a.to_verilog()}[{tw-1}:0]"
         # extend
         ext_bits = tw - aw
         if self.a.typ.signed:
+            # Sign-extend: { ext_bits copies of MSB, src }
             signbit = f"{self.a.to_verilog()}[{aw-1}]"
             return f"{{{{{ext_bits}{{{signbit}}}}}, {self.a.to_verilog()}}}"
         else:
@@ -446,6 +478,8 @@ def mul_result_type(a: Expr, b: Expr) -> HDLType:
 def fit_width(e: Expr, t: HDLType) -> Expr:
     if e.typ.width == t.width:
         return e
+    if e.typ.width > t.width:
+        e = _maybe_share(e, force_share=True)  # for verilog emission
     return Resize(e, t.width)
 
 

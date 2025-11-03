@@ -62,6 +62,8 @@ class Component(abc.ABC):
         # instance.io = io_fields
         for io_name, io_sig in io_fields.items():
             setattr(self.io, io_name, io_sig)
+            # or self.io.__dict__[io_name] <<= io_sig
+            # io_sig.kind = 'wire'  # change to wire in module
         self.elaborate()  # re-elaborate to rebuild internal structure
         if make_internal:
             self.make_internal()
@@ -72,17 +74,18 @@ class Component(abc.ABC):
         aag_lines = verilog_to_aag_lines_via_yosys(verilog_str, top=top, embed_symbols=True, no_startoffset=True)
         self.from_aag_lines(aag_lines, group=group)
 
-    def from_aig_file(self, aig_path: str, map_file: str|None = None, group=True) -> Self:
+    def from_aig_file(self, aig_path: str, map_file: str|None = None, group=True, make_internal=False) -> Self:
         from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys
 
         aag_lines = aig_file_to_aag_lines_via_yosys(aig_path, map_file=map_file)
-        self.from_aag_lines(aag_lines, group=group)
+        self.from_aag_lines(aag_lines, group=group, make_internal=make_internal)
+        return self
 
-    def from_aag_lines(self, aag_lines: List[str], group=True) -> Self:
+    def from_aag_lines(self, aag_lines: List[str], group=True, make_internal=True) -> Self:
         from sprouthdl.sprouthdl_aiger import AigerImporter
 
         m = AigerImporter(aag_lines).get_sprout_module()
-        self.from_module(m, make_internal=True, group=group)
+        self.from_module(m, make_internal=make_internal, group=group)
 
     def make_internal(self) -> Self:
         # go through all signals in io and change to 'wire'
@@ -176,6 +179,50 @@ class Module:
         for p in self._ports:
             spec[p.name] = p.typ
         return spec
+    
+    def to_component(self) -> Component:
+        """
+        Create a lightweight Component wrapper that exposes this module's ports as
+        the component IO. This mirrors Component.to_module() in spirit by sharing
+        the same Signal objects for ports (no copying), so drivers and expressions
+        remain intact.
+
+        Notes:
+        - Field names in the IO dataclass must be valid Python identifiers. If a
+          port name contains characters like '[', ']', etc. (e.g., bit-ports
+          "a[0]"), the field name is sanitized (e.g., "a_0"). The underlying
+          Signal keeps its original .name, so codegen and analysis are unaffected.
+        """
+        # Build IO dataclass fields for inputs/outputs
+        port_signals = [p for p in self._ports if p.kind in ("input", "output")]
+
+        def sanitize(n: str) -> str:
+            s = ''.join(c if (c.isalnum() or c == '_') else '_' for c in n)
+            if not s or s[0].isdigit():
+                s = f"p_{s}"
+            return s
+
+        # Ensure unique field names after sanitization
+        used: Dict[str, int] = {}
+        fields: List[tuple[str, type]] = []
+        values: Dict[str, Signal] = {}
+        for sig in port_signals:
+            base = sanitize(sig.name)
+            idx = used.get(base, 0)
+            used[base] = idx + 1
+            field_name = base if idx == 0 else f"{base}_{idx}"
+            fields.append((field_name, Signal))
+            values[field_name] = sig
+
+        IO = make_dataclass("IO", fields)
+
+        # Minimal concrete Component instance with populated IO
+        #class _ModuleWrappedComponent(Component):
+        #    pass
+
+        comp = Component() #_ModuleWrappedComponent()
+        comp.io = IO(**values)
+        return comp
 
     # Verilog generation
     def to_verilog(self) -> str:
