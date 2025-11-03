@@ -1,6 +1,6 @@
 aigverse==0.0.24
 numpy
-pyosys==0.57.7
+pyosys==0.58
 tqdm
 pandas
 matplotlib

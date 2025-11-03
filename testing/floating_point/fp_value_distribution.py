@@ -121,6 +121,24 @@ def hif8_get_D(enc: int) -> int:
         return 0
     else:
         return -2  # denormal
+    
+def hif8_get_mantissa(enc: int) -> int:
+    """Get the mantissa field from a HiFloat8 encoding."""
+    if _is_nan(enc) or _is_inf(enc) or _is_zero(enc):
+        return 0
+    bits = enc & 0x7F
+    if bits >> 5 == 0b11:  # D = 4
+        return bits & 0x1
+    elif bits >> 5 == 0b10:  # D = 3
+        return bits & 0x3
+    elif bits >> 5 == 0b01:  # D = 2
+        return bits & 0x7
+    elif bits >> 4 == 0b001:  # D = 1
+        return bits & 0x7
+    elif bits >> 3 == 0b0001:  # D = 0
+        return bits & 0x7
+    else:
+        return bits & 0x7  # DML denormals
 
 # end high-float 8
 
