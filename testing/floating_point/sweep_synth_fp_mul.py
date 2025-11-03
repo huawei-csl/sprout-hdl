@@ -67,7 +67,7 @@ def main():
 
     print("starting sweep for floating point multipliers")
 
-    ew_start = 4
+    ew_start = 1
     n_bits = 8
 
     # sweep and plot

@@ -157,6 +157,8 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     TOTAL = 1 << (1 + EW + FW)
     vals = []
     es = []
+    Ds = []  # HiFloat8 dot-field class per encoding (used when hifloat)
+    Ms = []  # HiFloat8 mantissa field per encoding (used when hifloat)
     ninf = pinf = nans = 0
     for b in range(TOTAL):
         v = fp_decode(b, EW, FW, subnormals=subnormals)
@@ -173,6 +175,9 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
         if isfinite(v):
             vals.append(v)
             es.append(e)
+            if hifloat:
+                Ds.append(hif8_get_D(b))
+                Ms.append(hif8_get_mantissa(b))
 
     vals = np.array(vals, dtype=float)
     es = np.array(es, dtype=int)
@@ -185,7 +190,7 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     subnormal_str = ", subnormals on" if subnormals else ", subnormals off"
 
     plt.figure(figsize=(9, 4.5))
-    bins = 200//5  # fixed; 8-bit is tiny
+    bins = 200  # fixed; 8-bit is tiny
     plt.hist(log2abs, bins=bins)
     plt.xlabel("log2(|value|)")
     plt.ylabel("Count")
@@ -269,7 +274,82 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     else:
         out5 = None
 
-    return out1, out2, out3, out4, out5, pinf, ninf, nans
+    # 6) If HiFloat8: log-domain CDFs split by D (scaled to sum to total CDF)
+    out6 = None
+    out7 = None
+    if hifloat:
+        vals_np = np.array(vals, dtype=float)
+        Ds_np = np.array(Ds, dtype=int) if len(Ds) else np.array([], dtype=int)
+        Ms_np = np.array(Ms, dtype=int) if len(Ms) else np.array([], dtype=int)
+
+        nz_idx = np.where(vals_np != 0.0)[0]
+        N = nz_idx.size
+        if N > 0:
+            from collections import defaultdict
+            log_nonzero = np.log2(np.abs(vals_np[nz_idx]))
+
+            # Group by D
+            by_d = defaultdict(list)
+            for pos, idx in enumerate(nz_idx):
+                by_d[Ds_np[idx]].append(log_nonzero[pos])
+
+            plt.figure(figsize=(12, 7))
+            # Overall CDF in bold
+            plt.step(x_sorted_log, ylog, where="post", color="k", linewidth=2.0, label="All (log2|v|)")
+
+            color_cycle = plt.rcParams.get("axes.prop_cycle").by_key().get("color", [])
+            present_ds = sorted(by_d.keys(), reverse=True)
+            order = [d for d in [4, 3, 2, 1, 0, -2, -1] if d in present_ds]
+            for i, d in enumerate(order):
+                xs = np.sort(np.array(by_d[d], dtype=float))
+                nd = xs.size
+                if nd == 0:
+                    continue
+                ys = (np.arange(1, nd + 1) / nd) * (nd / N)
+                color = color_cycle[i % len(color_cycle)] if color_cycle else None
+                if d >= 0:
+                    lab = f"D={d} (w={nd/N:.2f})"
+                elif d == -2:
+                    lab = f"DML (w={nd/N:.2f})"
+                else:
+                    lab = f"Zero/Special (w={nd/N:.2f})"
+                plt.step(xs, ys, where="post", label=lab, color=color, alpha=0.9)
+
+            plt.xlabel("log2(|value|)")
+            plt.ylabel("Empirical CDF (scaled)")
+            plt.title("HiFloat8 log-domain CDF split by D (scaled)")
+            plt.legend(loc="best", fontsize=8)
+            plt.tight_layout()
+            out6 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}cdf_log2abs_by_D_scaled.png"
+            plt.savefig(out6, dpi=150)
+
+            # 7) Group by mantissa (variable width) and plot scaled CDFs
+            by_m = defaultdict(list)
+            for pos, idx in enumerate(nz_idx):
+                by_m[Ms_np[idx]].append(log_nonzero[pos])
+
+            plt.figure(figsize=(12, 7))
+            # Overall CDF in bold
+            plt.step(x_sorted_log, ylog, where="post", color="k", linewidth=2.0, label="All (log2|v|)")
+
+            for i, m in enumerate(sorted(by_m.keys())):
+                xs = np.sort(np.array(by_m[m], dtype=float))
+                nm = xs.size
+                if nm == 0:
+                    continue
+                ys = (np.arange(1, nm + 1) / nm) * (nm / N)
+                color = color_cycle[i % len(color_cycle)] if color_cycle else None
+                plt.step(xs, ys, where="post", label=f"m={m} (w={nm/N:.2f})", color=color, alpha=0.9)
+
+            plt.xlabel("log2(|value|)")
+            plt.ylabel("Empirical CDF (scaled)")
+            plt.title("HiFloat8 log-domain CDF split by mantissa (scaled)")
+            plt.legend(loc="best", fontsize=8, ncol=2)
+            plt.tight_layout()
+            out7 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}cdf_log2abs_by_m_scaled.png"
+            plt.savefig(out7, dpi=150)
+
+    return out1, out2, out3, out4, out5, out6, out7, pinf, ninf, nans
 
 
 # Generate for E4M3 and E5M2
