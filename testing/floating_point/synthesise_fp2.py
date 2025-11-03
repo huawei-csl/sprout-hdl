@@ -20,14 +20,15 @@ from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transi
 from sprouthdl.sprouthdl_module import Component, Module
 
 def flowy_optimize(m : Module | Component,
-                   nb_runs=10//10,
+                   nb_runs=50,
                    nb_workers=10,
-                   iterations=10//5,
+                   iterations=10,
                    mockturtle_chains=1,
                    mockturtle_chain_len=10,
                    mockturtle_chain_workers=1,
                    selection_metric=SelectionMetric.aig_count.value):
 
+      name_initial = m.name
       m.name = "mydesign_comb" # default flowy name
       verilog_code = m.to_verilog()
 
@@ -53,7 +54,7 @@ def flowy_optimize(m : Module | Component,
       args = run_flows_in_docker.build_parser().parse_args([])
 
       selection_metric = SelectionMetric.aig_count.value
-      experiment = f"exp_test_3_{datecode}"
+      experiment = f"exp_{name_initial}_{datecode}"
 
       args.experiment = experiment
       # add arguments below
@@ -75,7 +76,7 @@ def flowy_optimize(m : Module | Component,
       args.scripts_per_step = 2
       args.simulation_tb = False
       args.extra_files = ""
-      args.verbose = True
+      args.verbose = False
 
       # run flowy
       results = run_flows_in_docker.run_with_args(args, commit_hash="2c8627681a246df748be4bf26c4ace4bb55190ce")
