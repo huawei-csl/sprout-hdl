@@ -104,7 +104,27 @@ def hif8_to_float(enc: int, EW: int, FW: int, subnormals: bool) -> float:
 
     return sign * math.ldexp(significand, exponent)
 
+def hif8_get_D(enc: int) -> int:
+    """Get the dot-field prefix D value from a HiFloat8 encoding."""
+    if _is_nan(enc) or _is_inf(enc) or _is_zero(enc):
+        return -1  # special
+    bits = enc & 0x7F
+    if bits >> 5 == 0b11:
+        return 4
+    elif bits >> 5 == 0b10:
+        return 3
+    elif bits >> 5 == 0b01:
+        return 2
+    elif bits >> 4 == 0b001:
+        return 1
+    elif bits >> 3 == 0b0001:
+        return 0
+    else:
+        return -2  # denormal
+
 # end high-float 8
+
+
 
 
 def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, subnormals: bool = True):
@@ -114,7 +134,7 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     elif not subnormals and not hifloat:
         sn_str = "no_sn_"
     else:
-        sn_str = ""
+        sn_str = "hf8_"
 
     TOTAL = 1 << (1 + EW + FW)
     vals = []
@@ -147,7 +167,7 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     subnormal_str = ", subnormals on" if subnormals else ", subnormals off"
 
     plt.figure(figsize=(9, 4.5))
-    bins = 200  # fixed; 8-bit is tiny
+    bins = 200//5  # fixed; 8-bit is tiny
     plt.hist(log2abs, bins=bins)
     plt.xlabel("log2(|value|)")
     plt.ylabel("Count")
@@ -193,7 +213,45 @@ def make_plots(EW: int, FW: int, fp_decode: callable, hifloat: bool = False, sub
     out3 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}spacing.png"
     plt.savefig(out3, dpi=150)
 
-    return out1, out2, out3, pinf, ninf, nans
+    # 4) Empirical CDF of finite values (including zeros and sign)
+    x_sorted = np.sort(vals)
+    n = x_sorted.size
+    if n > 0:
+        y = np.arange(1, n + 1) / n
+        plt.figure(figsize=(9, 4.5))
+        plt.step(x_sorted, y, where="post")
+        plt.xlabel("value")
+        plt.ylabel("Empirical CDF")
+        if not hifloat:
+            plt.title(f"8-bit FP empirical CDF (EW={EW}, FW={FW}{subnormal_str})")
+        else:
+            plt.title("HiFloat8 empirical CDF")
+        plt.tight_layout()
+        out4 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}cdf_values.png"
+        plt.savefig(out4, dpi=150)
+    else:
+        out4 = None
+
+    # 5) Empirical CDF in log-domain (log2 |value|) for nonzero finite values
+    x_sorted_log = np.sort(log2abs)
+    nlog = x_sorted_log.size
+    if nlog > 0:
+        ylog = np.arange(1, nlog + 1) / nlog
+        plt.figure(figsize=(9, 4.5))
+        plt.step(x_sorted_log, ylog, where="post")
+        plt.xlabel("log2(|value|)")
+        plt.ylabel("Empirical CDF")
+        if not hifloat:
+            plt.title(f"8-bit FP empirical CDF of log2(|value|) (EW={EW}, FW={FW}{subnormal_str})")
+        else:
+            plt.title("HiFloat8 empirical CDF of log2(|value|)")
+        plt.tight_layout()
+        out5 = f"{out_folder}/fp8_EW{EW}_FW{FW}_{sn_str}cdf_log2abs.png"
+        plt.savefig(out5, dpi=150)
+    else:
+        out5 = None
+
+    return out1, out2, out3, out4, out5, pinf, ninf, nans
 
 
 # Generate for E4M3 and E5M2
@@ -201,7 +259,7 @@ files_e4m3 = make_plots(4, 3, fp_decode_ieee_like, subnormals=True)
 files_e5m2 = make_plots(5, 2, fp_decode_ieee_like, subnormals=True)
 files_e4m3 = make_plots(4, 3, fp_decode_ieee_like, subnormals=False)
 files_e5m2 = make_plots(5, 2, fp_decode_ieee_like, subnormals=False)
-files_hif8 = make_plots(8-1, 0, hif8_to_float)
+files_hif8 = make_plots(8-1, 0, hif8_to_float, hifloat=True)
 
 
 files_e4m3, files_e5m2, files_hif8
