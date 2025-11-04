@@ -243,6 +243,20 @@ def _fp8_to_hif8_expr(bits: Expr) -> Expr:
 
     normal_valid = valid_d4 | valid_d3 | valid_d2 | valid_d1 | valid_d0
 
+    dml_promote_to_d4 = (
+        (~normal_valid)
+        & (~valid_dml)
+        & (exp_dml == _const_sint(-15))
+    )
+    payload_d4_promote = cat(
+        _uint(1, 0),
+        _uint(3, 0b111),
+        _uint(1, 1),
+        dot_d4,
+    )
+    normal_payload = mux(dml_promote_to_d4, payload_d4_promote, normal_payload)
+    normal_valid = normal_valid | dml_promote_to_d4
+
     payload_dml = cat(mant_dml_bits, dot_dml)
     packed_inf = mux(sign, _uint(8, 0xEF), _uint(8, 0x6F))
     packed_zero = _uint(8, 0x00)

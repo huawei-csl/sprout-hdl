@@ -315,6 +315,22 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
 
     normal_valid = valid_d4 | valid_d3 | valid_d2 | valid_d1 | valid_d0
 
+    # added dml rounding promotion
+    dml_promote_to_d4 = (
+        (~normal_valid)
+        & (~valid_dml)
+        & (exp_dml == _const_sint(-15))
+    )
+    payload_d4_promote = cat(
+        _const_uint(1, 0),
+        _const_uint(3, 0b111),
+        _const_uint(1, 1),
+        dot_d4,
+    )
+    normal_payload = mux(dml_promote_to_d4, payload_d4_promote, normal_payload)
+    normal_valid = normal_valid | dml_promote_to_d4
+    # end dml rounding promotion
+
     payload_dml = cat(mant_dml_bits, dot_dml)
     packed_inf = mux(sign_out, _const_uint(8, 0xEF), _const_uint(8, 0x6F))
     packed_zero = _const_uint(8, 0x00)
@@ -340,7 +356,6 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
         zero_in
         | (~normal_valid & ~valid_dml)
         | (valid_dml & dml_zero)
-        | underflow_neg_nan
     )
 
     payload_sel = _const_uint(7, 0)
@@ -355,7 +370,7 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
     non_special = payload_ext | sign_ext
 
     result = mux(
-        is_nan_in,
+        is_nan_in | underflow_neg_nan,
         packed_nan,
         mux(
             is_inf,
@@ -574,12 +589,17 @@ if __name__ == "__main__":
     mismatches_logic = 0
     mismatch_largest = 0
     largest_delta_tuple = None
+    tests_done = 0
+    tests_mismatch=0
+    
     for aval in range(256):
         for bval in range(256):
             sim_logic.set("a", aval).set("b", bval).eval()
             got = sim_logic.get("y")
             exp = multiply_hif8(aval, bval)
+            tests_done += 1
             if got != exp:
+                tests_mismatch += 1
                 if mismatches_logic < 10:
                     aval_float = hif8_to_float(aval)
                     bval_float = hif8_to_float(bval)
@@ -599,7 +619,7 @@ if __name__ == "__main__":
     else:
         print(f"Logic mismatches: {mismatches_logic}, largest delta: {mismatch_largest}")
         print(f"Largest delta details (float): aval={largest_delta_tuple[0]:+.6e}, bval={largest_delta_tuple[1]:+.6e}, got={largest_delta_tuple[2]:+.6e}, exp={largest_delta_tuple[3]:+.6e}")
-        
+        print(f"Total tests done: {tests_done}, total mismatches: {tests_mismatch}")
     transistor_count = get_yosys_transistor_count(dut_logic)
     print(f"\nEstimated transistor count for logic multiplier: {transistor_count:,}")
     
