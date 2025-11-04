@@ -321,6 +321,8 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
     packed_nan = _const_uint(8, 0x80)
 
     overflow = exp_d4 > _const_sint(15)
+    # Results smaller than the DML window (|exp| < 23 after normalization)
+    # are treated as zero (not NaN), matching the reference path.
     underflow_neg_nan = (
         (~is_nan_in)
         & (~inf_in)
@@ -334,10 +336,11 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
     dml_zero = mant_dml_bits == _const_uint(3, 0)
     use_dml = (~normal_valid) & valid_dml & (~dml_zero)
 
-    is_zero = (~is_nan_in) & (~is_inf) & (~underflow_neg_nan) & (
+    is_zero = (~is_nan_in) & (~is_inf) & (
         zero_in
         | (~normal_valid & ~valid_dml)
         | (valid_dml & dml_zero)
+        | underflow_neg_nan
     )
 
     payload_sel = _const_uint(7, 0)
@@ -352,7 +355,7 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
     non_special = payload_ext | sign_ext
 
     result = mux(
-        is_nan_in | underflow_neg_nan,
+        is_nan_in,
         packed_nan,
         mux(
             is_inf,
