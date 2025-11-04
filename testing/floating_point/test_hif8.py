@@ -14,6 +14,7 @@ from sprouthdl.floating_point.sprout_hdl_hif8 import (
     hif8_to_float,
     multiply_hif8,
 )
+from sprouthdl.floating_point.sprout_hdl_hif8_via_fp8 import build_hif8_mul_via_fp8_module
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
@@ -93,3 +94,36 @@ def test_hif8_module_matches_reference(builder, name):
             got = sim.get("y")
             exp = multiply_hif8(aval, bval)
             assert got == exp, f"a=0x{aval:02X} b=0x{bval:02X}"
+
+
+def test_hif8_via_fp8_component_reasonable_accuracy():
+    dut = build_hif8_mul_via_fp8_module()
+    sim = Simulator(dut)
+
+    for aval in range(0, 256, 7):
+        for bval in range(0, 256, 13):
+            sim.set("a", aval).set("b", bval).eval()
+            got_bits = sim.get("y")
+            ref_bits = multiply_hif8(aval, bval)
+
+            got_val = hif8_to_float(got_bits)
+            ref_val = hif8_to_float(ref_bits)
+
+            if math.isnan(ref_val):
+                if math.isnan(got_val):
+                    continue
+                assert got_val == pytest.approx(0.0, abs=1e-3)
+                continue
+            if math.isinf(ref_val):
+                assert math.isinf(got_val)
+                assert math.copysign(1.0, got_val) == math.copysign(1.0, ref_val)
+                continue
+
+            if math.isinf(got_val):
+                assert abs(ref_val) >= 2 ** 14
+                continue
+
+            if ref_val == 0.0:
+                assert got_val == pytest.approx(0.0, abs=1e-3)
+            else:
+                assert got_val == pytest.approx(ref_val, rel=1.0, abs=1e-3)

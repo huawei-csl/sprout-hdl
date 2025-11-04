@@ -19,7 +19,13 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Dict, Iterable, List, Tuple
 
-from sprouthdl.helpers import get_yosys_transistor_count
+try:
+    from sprouthdl.helpers import get_yosys_transistor_count
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    def get_yosys_transistor_count(*_args, **_kwargs):  # type: ignore
+        raise RuntimeError(
+            "get_yosys_transistor_count requires the optional 'aigverse' dependency"
+        )
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
