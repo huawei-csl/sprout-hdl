@@ -137,6 +137,14 @@ def load_df(file_path: str) -> pd.DataFrame:
 
     return df
 
+def load_many_dfs(file_paths: List[str]) -> pd.DataFrame:
+    """Load one or more Parquet files and concatenate them."""
+    frames = [load_df(path) for path in file_paths or []]
+    if not frames:
+        return pd.DataFrame()
+    if len(frames) == 1:
+        return frames[0]
+    return pd.concat(frames, ignore_index=True)
 
 def compute_switches_at_target(df: pd.DataFrame) -> pd.DataFrame:
     """Return one row per configuration with `switches_at_target`."""
@@ -387,12 +395,18 @@ def run_plot(cfg: PlotConfig, full_df: pd.DataFrame, design_df: pd.DataFrame, ou
 def main():
     ap = argparse.ArgumentParser()
     # ap.add_argument("--file", required=True, help="Path to single Parquet file (pandas-written).")
-    ap.add_argument("--file", default="data/multiplier_runs_20251014_140841.parquet", help="Path to single Parquet file (pandas-written).")
+    ap.add_argument(
+        "--file",
+        dest="files",
+        action="append",
+        required=True,
+        help="Path to a Parquet file (repeat to load and concatenate multiple files).",
+    )
     ap.add_argument("--out", default="plots_mpl", help="Output directory for PNG files.")
     ap.add_argument("--legend", choices=["on", "off"], default="on", help="Show legends globally.")
     args = ap.parse_args()
 
-    df = load_df(args.file)
+    df = load_many_dfs(args.files)
     design_df = build_design_level_table(df)
 
     # Resolve a sensible area metric for examples

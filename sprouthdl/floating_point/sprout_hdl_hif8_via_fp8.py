@@ -200,11 +200,17 @@ def _fp8_to_hif8_expr(bits: Expr) -> Expr:
     abs_exp_d3, exp_d3_neg = _abs_sint(exp_d3)
     abs_exp_d2, exp_d2_neg = _abs_sint(exp_d2)
 
-    valid_d4 = (abs_exp_d4 >= _const_uint(8, 8)) & (abs_exp_d4 <= _const_uint(8, 15))
-    valid_d3 = (abs_exp_d3 >= _const_uint(8, 4)) & (abs_exp_d3 <= _const_uint(8, 7))
-    valid_d2 = (abs_exp_d2 >= _const_uint(8, 2)) & (abs_exp_d2 <= _const_uint(8, 3))
-    valid_d1 = abs_exp_d2 == _const_uint(8, 1)
-    valid_d0 = exp_d2 == _const_sint(0)
+    valid_d4_raw = (abs_exp_d4 >= _const_uint(8, 8)) & (abs_exp_d4 <= _const_uint(8, 15))
+    valid_d3_raw = (abs_exp_d3 >= _const_uint(8, 4)) & (abs_exp_d3 <= _const_uint(8, 7))
+    valid_d2_raw = (abs_exp_d2 >= _const_uint(8, 2)) & (abs_exp_d2 <= _const_uint(8, 3))
+    valid_d1_raw = abs_exp_d2 == _const_uint(8, 1)
+    valid_d0_raw = exp_d2 == _const_sint(0)
+
+    valid_d0 = valid_d0_raw
+    valid_d1 = (~valid_d0) & valid_d1_raw
+    valid_d2 = (~valid_d0) & (~valid_d1) & valid_d2_raw
+    valid_d3 = (~valid_d0) & (~valid_d1) & (~valid_d2) & valid_d3_raw
+    valid_d4 = (~valid_d0) & (~valid_d1) & (~valid_d2) & (~valid_d3) & valid_d4_raw
 
     mant_frac_d4 = mant_d4[0:1]
     mant_frac_d3 = mant_d3[0:2]

@@ -1,0 +1,74 @@
+from attr import dataclass
+
+
+from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectorsExhaustive, to_encoding
+from sprouthdl.helpers import get_aig_stats, get_yosys_metrics
+from sprouthdl.sprouthdl import Signal, UInt
+from sprouthdl.sprouthdl_module import Component
+from sprouthdl.sprouthdl_simulator import Simulator
+from low_level_arithmetic.int_multiplier_eval.testvector_generation import MultiplierTestVectors
+from testing.test_different_logic import run_vectors_io
+
+# Example 1: Simple Adder Component
+# ==================================
+class Multiplier(Component):
+    """A simple adder component that adds two numbers."""
+
+    def __init__(self, width: int = 8):
+        self.width = width
+
+        # Define IO ports using a dataclass
+        @dataclass
+        class IO:
+            a: Signal  # input a
+            b: Signal  # input b
+            y: Signal  # output product
+
+        # Create the IO structure with Signal instances
+        self.io = IO(
+            a=Signal(name="a", typ=UInt(width), kind="input"),
+            b=Signal(name="b", typ=UInt(width), kind="input"),
+            y=Signal(name="y", typ=UInt(width * 2), kind="output"),
+        )
+
+        # Build the internal logic
+        #self.elaborate()
+
+
+if __name__ == "__main__":
+
+    width = 4
+
+    mult = Multiplier(width=width)
+    print(mult)
+    mult.from_aig_file("/scratch/farnold/eda_package/fuzzy-waddle/model_60.aag", make_internal=False)
+
+    # from_aig_file(aig_file_path, aiger_map_file_path, make_internal=False)
+
+    print(mult)
+
+    m_mult = mult.to_module("multiplier_from_aig")
+
+    stats= get_aig_stats(m_mult, n_iter_optimizations=10)
+    print(f"AIG stats: {stats}")
+
+    yosys_metrics = get_yosys_metrics(m_mult, deepsyn=False)
+    print(f"Yosys metrics: {yosys_metrics}")
+
+    sim = Simulator(m_mult)
+    sim.set("a", 3).set("b", 15)
+    sim.eval()
+    print(f"Inputs: {sim.peek_inputs()}")
+    print(f"Outputs: {sim.peek_outputs()}")
+
+    num_vectors=1000
+
+    vecs = MultiplierTestVectorsExhaustive(
+        a_w=width,
+        b_w=width,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        y_encoding=Encoding.unsigned,
+    ).generate()
+    
+    run_vectors_io(m_mult, vecs)

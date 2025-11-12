@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dash + Plotly app for interactive visualization of multiplier exploration results
-stored in a single Parquet file (pandas/pyarrow only).
+stored in one or more Parquet files (pandas/pyarrow only).
 
 Features
 --------
@@ -20,6 +20,7 @@ Features
 Usage
 -----
 python dash_multiplier_app.py --file data/multiplier_runs.parquet --host 0.0.0.0 --port 8050
+(repeat --file to load and concatenate multiple Parquet files)
 """
 
 from __future__ import annotations
@@ -142,6 +143,16 @@ def load_df(file_path: str) -> pd.DataFrame:
             df[c] = df[c].astype("string")
 
     return df
+
+
+def load_many_ds(file_paths: List[str]) -> pd.DataFrame:
+    """Load one or more Parquet files and concatenate them."""
+    frames = [load_df(path) for path in file_paths or []]
+    if not frames:
+        return pd.DataFrame()
+    if len(frames) == 1:
+        return frames[0]
+    return pd.concat(frames, ignore_index=True)
 
 
 def target_sigma_for(n_bits: int) -> float:
@@ -706,13 +717,19 @@ def make_app(df: pd.DataFrame) -> Dash:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--file", required=True, help="Path to single Parquet file (pandas-written).")
+    ap.add_argument(
+        "--file",
+        dest="files",
+        action="append",
+        required=True,
+        help="Path to a Parquet file (repeat to load and concatenate multiple files).",
+    )
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8050)
     ap.add_argument("--debug", action="store_true", help="Run app in debug mode (auto-reload on code changes).")
     args = ap.parse_args()
 
-    df = load_df(args.file)
+    df = load_many_ds(args.files)
     app = make_app(df)
     app.run(host=args.host, port=args.port, debug=args.debug)
 

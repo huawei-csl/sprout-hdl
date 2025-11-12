@@ -45,7 +45,7 @@ class MultiplierTestVectors:
         a_w: int,
         b_w: int,
         y_w: Optional[int] = None,
-        num_vectors: int = 64,
+        num_vectors: Optional[int] = None,
         tb_sigma: Optional[float] = None,
         a_encoding: Encoding = Encoding.unsigned,
         b_encoding: Encoding = Encoding.unsigned,
@@ -138,6 +138,9 @@ class MultiplierTestVectors:
         return raw_value
 
     def generate(self) -> Tuple:
+        
+        if self.num_vectors is None:
+            self.num_vectors = 64  # default number of vectors
 
         vecs = []
         for _ in range(self.num_vectors):
@@ -153,6 +156,59 @@ class MultiplierTestVectors:
 
             y_value = va_value * vb_value
             y_encoded = self._encode_value(self.y_encoding, y_value, self.y_w)
+
+            # append test vector
+            vecs.append(
+                (f"{va_value}*{vb_value}", {"a": va_encoded, "b": vb_encoded}, {"y": y_encoded})
+            )
+
+        return vecs
+
+
+class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
+    
+    def generate_encoding_tables(self) -> Tuple[dict, dict, dict]:
+        a_table = {}
+        b_table = {}
+        y_table = {}
+
+        a_lo, a_hi = self._value_range(self.a_encoding, self.a_w)
+        for val in range(a_lo, a_hi + 1):
+            enc = self._encode_value(self.a_encoding, val, self.a_w)
+            a_table[enc] = val
+            
+        b_lo, b_hi = self._value_range(self.b_encoding, self.b_w)
+        for val in range(b_lo, b_hi + 1):
+            enc = self._encode_value(self.b_encoding, val, self.b_w)
+            b_table[enc] = val
+        
+        y_lo, y_hi = self._value_range(self.y_encoding, self.y_w)
+        for val in range(y_lo, y_hi + 1):
+            enc = self._encode_value(self.y_encoding, val, self.y_w)
+            y_table[enc] = val
+
+        return a_table, b_table, y_table
+
+    def generate(self) -> Tuple:
+        
+        if self.num_vectors is not None or self.tb_sigma is not None:
+            raise ValueError("num_vectors must be None for exhaustive test vector generation")       
+
+        total_combinations = (1 << self.a_w) * (1 << self.b_w)
+        self.num_vectors = total_combinations
+        a_table, b_table, y_table = self.generate_encoding_tables()
+
+        vecs = []
+        for i in range(self.num_vectors):
+           
+            # get encoded value
+            va_encoded = i % (1 << self.a_w)
+            vb_encoded = i // (1 << self.a_w)
+
+            va_value = a_table[va_encoded]
+            vb_value = b_table[vb_encoded]
+            y_value = va_value * vb_value
+            y_encoded = y_table[y_value]
 
             # append test vector
             vecs.append(

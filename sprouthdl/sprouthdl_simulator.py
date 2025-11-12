@@ -108,9 +108,12 @@ class Simulator:
             self._in[_sid(self.m.rst)] = 0
         return self
 
-    # Convenience
-    def peek_outputs(self, *, signed: bool = False) -> dict[str, int]:
-        return {y.name: self.get(y, signed=signed) for y in self.outputs}
+    # Convenience, todo auto signed
+    def peek_outputs(self, *e) -> dict[str, int]:
+        return {y.name: self.peek(y) for y in self.outputs}
+    
+    def peek_inputs(self, *e) -> dict[str, int]:
+        return {x.name: self.peek(x) for x in self.inputs}
 
     # -----------------------------
     # Internals

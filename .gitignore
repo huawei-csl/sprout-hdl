@@ -13,3 +13,4 @@ output/*
 *.parquet
 *.pdf
 playground_nogit
+data/*

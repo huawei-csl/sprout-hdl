@@ -266,6 +266,24 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
     abs_exp_d3, exp_d3_neg = _abs_sint(exp_d3)
     abs_exp_d2, exp_d2_neg = _abs_sint(exp_d2)
 
+    # valid_d4_raw = (abs_exp_d4 >= _const_uint(EXP_INT_WIDTH, 8)) & (
+    #     abs_exp_d4 <= _const_uint(EXP_INT_WIDTH, 15)
+    # )
+    # valid_d3_raw = (abs_exp_d3 >= _const_uint(EXP_INT_WIDTH, 4)) & (
+    #     abs_exp_d3 <= _const_uint(EXP_INT_WIDTH, 7)
+    # )
+    # valid_d2_raw = (abs_exp_d2 >= _const_uint(EXP_INT_WIDTH, 2)) & (
+    #     abs_exp_d2 <= _const_uint(EXP_INT_WIDTH, 3)
+    # )
+    # valid_d1_raw = abs_exp_d2 == _const_uint(EXP_INT_WIDTH, 1)
+    # valid_d0_raw = exp_d2 == _const_sint(0)
+
+    # valid_d0 = valid_d0_raw
+    # valid_d1 = (~valid_d0) & valid_d1_raw
+    # valid_d2 = (~valid_d0) & (~valid_d1) & valid_d2_raw
+    # valid_d3 = (~valid_d0) & (~valid_d1) & (~valid_d2) & valid_d3_raw
+    # valid_d4 = (~valid_d0) & (~valid_d1) & (~valid_d2) & (~valid_d3) & valid_d4_raw
+    
     valid_d4 = (abs_exp_d4 >= _const_uint(EXP_INT_WIDTH, 8)) & (
         abs_exp_d4 <= _const_uint(EXP_INT_WIDTH, 15)
     )
@@ -403,6 +421,22 @@ def build_hif8_mul_logic(name: str = "HiF8Mul", *, debug: bool = False) -> Modul
         dbg_payload <<= payload_sel
         dbg_non = m.output(UInt(8), "dbg_non_special")
         dbg_non <<= non_special
+        dbg_valid_d4 = m.output(UInt(1), "dbg_valid_d4")
+        dbg_valid_d4 <<= valid_d4
+        dbg_valid_d3 = m.output(UInt(1), "dbg_valid_d3")
+        dbg_valid_d3 <<= valid_d3
+        dbg_valid_d2 = m.output(UInt(1), "dbg_valid_d2")
+        dbg_valid_d2 <<= valid_d2
+        dbg_valid_d1 = m.output(UInt(1), "dbg_valid_d1")
+        dbg_valid_d1 <<= valid_d1
+        dbg_valid_d0 = m.output(UInt(1), "dbg_valid_d0")
+        dbg_valid_d0 <<= valid_d0
+        dbg_exp_d2 = m.output(SInt(EXP_INT_WIDTH), "dbg_exp_d2")
+        dbg_exp_d2 <<= exp_d2
+        dbg_exp_d3 = m.output(SInt(EXP_INT_WIDTH), "dbg_exp_d3")
+        dbg_exp_d3 <<= exp_d3
+        dbg_exp_d4 = m.output(SInt(EXP_INT_WIDTH), "dbg_exp_d4")
+        dbg_exp_d4 <<= exp_d4
     return m
 
 def _decode_operand_expr(x: Expr) -> Dict[str, Expr]:
@@ -600,7 +634,7 @@ if __name__ == "__main__":
             tests_done += 1
             if got != exp:
                 tests_mismatch += 1
-                if mismatches_logic < 10:
+                if mismatches_logic < 50:
                     aval_float = hif8_to_float(aval)
                     bval_float = hif8_to_float(bval)
                     got_float = hif8_to_float(got)

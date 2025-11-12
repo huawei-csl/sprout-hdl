@@ -163,7 +163,8 @@ def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
         fd_abc, abc_tmp_file = tempfile.mkstemp(suffix=".abc")
         os.close(fd_abc)
         with open(abc_tmp_file, "w") as f:
-            f.write("strash; &get -n; &deepsyn -I 500 -J 200; &put\n") # I: stop after I iterations without any improvement, J: number of random initializations, default: I: 20 j: 500
+            # f.write("strash; &get -n; &deepsyn -I 500 -J 200 -T 10; &put\n") # I: stop after I iterations without any improvement, J: number of random initializations, default: I: 20 j: 500 Timeout T [seconds]
+            f.write("strash; &get -n; &deepsyn J 5 -T 100; &put\n")
     ys.run_pass(f"{prepend}design -reset")
     ys.run_pass(f"{prepend}read_aiger {aag_tmp_file}")
     ys.run_pass(f"{prepend}rename -top top")

@@ -21,12 +21,8 @@ from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encod
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
-from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.sprouthdl_module import gen_spec
-from sprouthdl.sprouthdl_module import IOCollector
-from testing.floating_point.sweep_sim_int_mul import optimize_aag, run_vectors_io_log
 from testing.test_different_logic import run_vectors_io
-from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list
+from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list, get_selection1_list_optimized
 
 def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
 
@@ -169,8 +165,8 @@ def run_configuration(
 
 def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pragma: no cover - demonstration only
 
-    num_vectors = 2000
-    bitwidths = [16] #[4, 8, 16, 32] #[4, 8, 16, 24, 32]
+    num_vectors = 2000//100
+    bitwidths = [4, 8, 16, 24, 32] #[4, 8, 16, 24, 32]
     sigma_factor = 0.5
     n_steps_sigma = 8
     parallel = True
@@ -240,3 +236,4 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
 if __name__ == "__main__":
     # run_stage_multiplier_ext_demo(config_items=demos1)
     run_stage_multiplier_ext_demo(config_items=get_selection1_list(large_sweep=True, stages_sigmas_sweep=False))
+    #run_stage_multiplier_ext_demo(config_items=get_selection1_list_optimized())
