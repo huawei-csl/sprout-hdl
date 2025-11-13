@@ -666,6 +666,133 @@ def scaling_plot(
     fig.savefig(outfile, dpi=150)
     plt.close(fig)
 
+def relative_scaling_plot(
+    design_df: pd.DataFrame,
+    y_metric: str,
+    color_by: Optional[str],
+    baseline_category: str,
+    legend: bool,
+    title: str,
+    outfile: str,
+    agg: str = "min",
+    loglog: bool = False,
+    fit_power: bool = False,
+    min_points: int = 2,
+    show_baseline_line: bool = True,
+) -> None:
+    """
+    Relative scaling: for each category in `color_by`, plot
+        (agg(y_metric) at n_bits) / (agg(y_metric) of baseline_category at n_bits).
+    One line per category (excluding the baseline itself).
+    """
+    if design_df.empty or "n_bits" not in design_df.columns or y_metric not in design_df.columns:
+        print(f"[warn] rel_scaling skipped: empty data or missing 'n_bits'/'{y_metric}'")
+        return
+    if not color_by or color_by not in design_df.columns:
+        print("[warn] rel_scaling skipped: 'color_by' must be provided and exist in the dataframe")
+        return
+    if baseline_category is None:
+        print("[warn] rel_scaling skipped: 'baseline_category' must be provided")
+        return
+
+    _ensure_dir(os.path.dirname(outfile) or ".")
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    cat_series = design_df[color_by].astype("string")
+    base_key = str(baseline_category)
+    cmap = _category_colors(cat_series.values)
+    agg_fn = _agg_from_name(agg)
+
+    # ---- baseline aggregate per n_bits ----
+    base_df = (
+        design_df[cat_series == base_key]
+        .dropna(subset=[y_metric, "n_bits"])
+        .groupby("n_bits", as_index=False)[y_metric]
+        .agg(agg_fn)
+        .rename(columns={y_metric: "base_value"})
+        .sort_values("n_bits")
+    )
+    if base_df.empty:
+        print(f"[warn] rel_scaling: baseline '{base_key}' has no data")
+        return
+
+    # optional guide at y=1 over baseline x-range
+    x_base = base_df["n_bits"].astype(float).to_numpy()
+    if show_baseline_line and len(x_base) > 0:
+        ax.plot(x_base, np.ones_like(x_base), linestyle="--", linewidth=1.0,
+                color="black", alpha=0.8, label=f"baseline = {base_key}")
+
+    legend_entries: List[Tuple[str, float, float]] = []  # (cat, p_rel, r2)
+
+    # ---- plot each category relative to baseline ----
+    for cat_val, g in design_df.groupby(cat_series):
+        cat_val = str(cat_val)
+        if cat_val == base_key:
+            continue
+
+        gg = g.dropna(subset=[y_metric, "n_bits"])
+        if gg.empty:
+            continue
+
+        agg_df = (
+            gg.groupby("n_bits", as_index=False)[y_metric]
+              .agg(agg_fn)
+              .rename(columns={y_metric: "value"})
+        )
+        merged = pd.merge(agg_df, base_df, on="n_bits", how="inner").sort_values("n_bits")
+        if merged.empty:
+            continue
+
+        x = merged["n_bits"].astype(float).to_numpy()
+        ratio = (merged["value"] / merged["base_value"]).astype(float).to_numpy()
+        color = cmap.get(cat_val)
+
+        ax.plot(x, ratio, marker="o", markersize=4, linewidth=1.4, alpha=0.95,
+                color=color, label=cat_val)
+
+        # Optional: fit power law to ratio -> estimates Δp = p_cat - p_baseline
+        if fit_power and len(x) >= max(2, min_points):
+            p_rel, a_rel, r2 = _fit_power_law(x, ratio)
+            if not np.isnan(p_rel):
+                xs = np.linspace(x.min(), x.max(), 200)
+                ys = a_rel * (xs ** p_rel)
+                ax.plot(xs, ys, linestyle="--", linewidth=1.0, alpha=0.9, color=color)
+                legend_entries.append((cat_val, p_rel, r2))
+            else:
+                legend_entries.append((cat_val, np.nan, np.nan))
+        else:
+            legend_entries.append((cat_val, np.nan, np.nan))
+
+    ax.set_xlabel("n_bits")
+    ax.set_ylabel(f"{y_metric} / baseline({base_key})")
+    ax.set_title(title)
+    ax.grid(True, linestyle="--", alpha=0.4)
+
+    if loglog:
+        try:
+            ax.set_xscale("log", base=2)
+        except TypeError:
+            ax.set_xscale("log")
+        ax.set_yscale("log")
+
+    if legend:
+        handles, labels = ax.get_legend_handles_labels()
+        label_to_p = {name: (p, r2) for (name, p, r2) in legend_entries}
+        new_labels = []
+        for lab in labels:
+            p, r2 = label_to_p.get(lab, (np.nan, np.nan))
+            if not np.isnan(p):
+                new_labels.append(f"{lab}  (Δp={p:.2f}, R²={r2:.3f})")
+            else:
+                new_labels.append(lab)
+        seen = set()
+        uniq = [(h, l) for h, l in zip(handles, new_labels) if not (l in seen or seen.add(l))]
+        if uniq:
+            ax.legend(*zip(*uniq), fontsize=7, loc="best", frameon=False, markerscale=0.9, handlelength=1.2)
+
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=150)
+    plt.close(fig)
 
 # ------------------------- example orchestration -------------------- #
 
@@ -685,6 +812,9 @@ class PlotConfig:
     loglog: bool = True
     fit_power: bool = True
     min_points: int = 2
+    # --- NEW: for relative scaling ---
+    baseline_category: Optional[str] = None   # value from the 'color_by' column
+    show_baseline_line: bool = True           # draw y=1 guide (over baseline x-range)
 
 
 def run_plot(cfg: PlotConfig, full_df: pd.DataFrame, design_df: pd.DataFrame, out_dir: str) -> None:
@@ -709,6 +839,26 @@ def run_plot(cfg: PlotConfig, full_df: pd.DataFrame, design_df: pd.DataFrame, ou
         scaling_plot(
             ddf, cfg.y_metric, cfg.color_by, cfg.legend, cfg.title, out_file, agg=cfg.agg, loglog=cfg.loglog, fit_power=cfg.fit_power, min_points=cfg.min_points
         )
+    elif cfg.kind == "rel_scaling":
+        ddf = apply_filters(design_df, cfg.filters)
+        if cfg.y_metric is None or cfg.color_by is None or cfg.baseline_category is None:
+            print(f"[warn] rel_scaling '{cfg.title}' skipped: need y_metric, color_by, baseline_category")
+        else:
+            relative_scaling_plot(
+                ddf,
+                y_metric=cfg.y_metric,
+                color_by=cfg.color_by,
+                baseline_category=cfg.baseline_category,
+                legend=cfg.legend,
+                title=cfg.title,
+                outfile=os.path.join(out_dir, _slug(cfg.filename)),
+                agg=cfg.agg,
+                loglog=cfg.loglog,
+                fit_power=cfg.fit_power,
+                min_points=cfg.min_points,
+                show_baseline_line=cfg.show_baseline_line,
+            )
+    
     else:
         print(f"[warn] unknown plot kind: {cfg.kind}")
 
@@ -854,6 +1004,39 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of num_aig_gates vs n_bits (min per category)",
+                filename="scaling_num_aig_gates_vs_n_bits_by_multiplier_opt_linear.png",
+                y_metric="num_aig_gates",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+            )
+        )
+
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category)",
+                filename="rel_scaling_num_aig_gates_vs_n_bits_by_multiplier_opt.png",
+                y_metric="num_aig_gates",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+                baseline_category="STAGE_BASED_MULTIPLIER_BASIC",
+            )
+        )
 
     if "aig_depth" in design_df.columns and "n_bits" in design_df.columns:
         PLOTS.append(
@@ -871,6 +1054,39 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of aig_depth vs n_bits (min per category)",
+                filename="scaling_aig_depth_vs_n_bits_by_multiplier_opt_linear.png",
+                y_metric="aig_depth",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of aig_depth vs n_bits (min per category)",
+                filename="rel_scaling_aig_depth_vs_n_bits_by_multiplier_opt.png",
+                y_metric="aig_depth",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+                baseline_category="STAGE_BASED_MULTIPLIER_BASIC",
+            )
+        )
 
     if "switches" in design_df.columns and "n_bits" in design_df.columns:
         PLOTS.append(
@@ -886,6 +1102,39 @@ def main():
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=filter_sel,  # e.g., exclude outliers
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of switches vs n_bits (min per category)",
+                filename="scaling_switches_vs_n_bits_by_multiplier_opt_linear.png",
+                y_metric="switches",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of switches vs n_bits (min per category)",
+                filename="rel_scaling_switches_vs_n_bits_by_multiplier_opt.png",
+                y_metric="switches",
+                color_by="multiplier_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=filter_sel,  # e.g., exclude outliers
+                baseline_category="STAGE_BASED_MULTIPLIER_BASIC",
             )
         )
 
