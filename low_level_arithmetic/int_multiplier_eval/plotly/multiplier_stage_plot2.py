@@ -44,6 +44,9 @@ STATIC_METRICS = [
     "max_depth",
     "depth_y",
     "total_expr_nodes",
+    "num_aig_gates",
+    "aig_depth",
+    "switches"
 ]
 
 HOVER_BASE = [
@@ -258,6 +261,24 @@ def build_design_level_table(df: pd.DataFrame) -> pd.DataFrame:
 # import pandas as pd
 # import numpy as np
 
+# # Exclude one family everywhere
+# f = Filters(not_multiplier_opt=["STAR_MULTIPLIER"])
+
+# # Keep only unsigned encodings, but drop a specific FSA option
+# f = Filters(
+#     a_enc=["unsigned"], b_enc=["unsigned"], y_enc=["unsigned"],
+#     not_fsa_opt=["RIPPLE_ADDER_STRONG"]
+# )
+
+# # Keep 4–32b, exclude the odd widths (numeric excludes)
+# f = Filters(n_bits=(4, 32), n_bits_not=[5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31])
+
+# # Generic include/exclude on arbitrary columns
+# f = Filters(
+#     include={"enc": ["unsigned/unsigned→unsigned", "sme/sme→unsigned"]},
+#     exclude={"multiplier_opt": ["MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS_STRONG"]}
+# )
+
 @dataclass
 class Filters:
     # -------- includes (same semantics as before) --------
@@ -364,7 +385,6 @@ def apply_filters(df: pd.DataFrame, f: Filters) -> pd.DataFrame:
     exclude_values("y_w",    f.y_w_not)
 
     return out
-
 
 
 # ------------------------------ plotting --------------------------- #
@@ -798,6 +818,8 @@ def main():
             )
         )
 
+    filter_sel = Filters(not_multiplier_opt=["STAR_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"])
+
     # 6) NEW: Scaling — depth vs n_bits, min per (category, n_bits), linear axes (depth often ~ O(log n) or O(n))
     if "max_depth" in design_df.columns and "n_bits" in design_df.columns:
         PLOTS.append(
@@ -812,10 +834,10 @@ def main():
                 loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(not_multiplier_opt=["STAR_MULTIPLIER"]),  # e.g., exclude outliers
+                filters=filter_sel,  # e.g., exclude outliers
             )
         )
-            
+
     if "num_aig_gates" in design_df.columns and "n_bits" in design_df.columns:
         PLOTS.append(
             PlotConfig(
@@ -826,10 +848,10 @@ def main():
                 color_by="multiplier_opt",
                 legend=(args.legend == "on"),
                 agg="min",
-                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(not_multiplier_opt=["STAR_MULTIPLIER"]),  # e.g., exclude outliers
+                filters=filter_sel,  # e.g., exclude outliers
             )
         )
 
@@ -843,10 +865,10 @@ def main():
                 color_by="multiplier_opt",
                 legend=(args.legend == "on"),
                 agg="min",
-                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(not_multiplier_opt=["STAR_MULTIPLIER"]),  # e.g., exclude outliers
+                filters=filter_sel,  # e.g., exclude outliers
             )
         )
 
@@ -860,10 +882,10 @@ def main():
                 color_by="multiplier_opt",
                 legend=(args.legend == "on"),
                 agg="min",
-                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(not_multiplier_opt=["STAR_MULTIPLIER"]),  # e.g., exclude outliers
+                filters=filter_sel,  # e.g., exclude outliers
             )
         )
 
