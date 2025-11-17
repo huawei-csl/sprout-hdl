@@ -4,7 +4,7 @@ from typing import DefaultDict, List
 
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import to_encoding, MultiplierTestVectors
 from sprouthdl.helpers import get_yosys_transistor_count
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 from sprouthdl.sprouthdl import Bool, Const, Expr
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
@@ -108,7 +108,7 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
         return cols
 
 
-class ConfiguredMultiplier(StageBasedMultiplier):
+class ConfiguredMultiplier(StageBasedMultiplierBasic):
     def __init__(
         self,
         a_w: int,

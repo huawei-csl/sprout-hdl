@@ -1,22 +1,22 @@
 from enum import Enum
 from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
-from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import MultiplierFromOptimized4BitBlocks, MultiplierFromOptimized4BitBlocksStrong, OptimizedMultiplierBasic, OptimizedSignMagnitudeMultiplier
-from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_baugh_wooley_stages import BaughWooleyPartialProductGenerator
-from low_level_arithmetic.int_multiplier_eval.stages.ppg_basic_stages import BasicUnsignedPartialProductGenerator
+from low_level_arithmetic.int_multiplier_eval.stages.ppg_schoolbook_stages import SchoolbookPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplierBasic
 from low_level_arithmetic.int_multiplier_eval.stages.fsa_stages import BrentKungPrefixFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage
 
 
 # Options for each stage
 
 class PPGOption(Enum):
-    BASIC = BasicUnsignedPartialProductGenerator
+    SCHOOLBOOK = SchoolbookPartialProductGenerator # and partial products
     BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
     BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
     BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
@@ -24,7 +24,7 @@ class PPGOption(Enum):
 
 
 class PPAOption(Enum):
-    COMPRESSOR_TREE = CompressorTreeAccumulator
+    ACCUMULATOR_TREE = CompressorTreeAccumulator
     WALLACE_TREE = WallaceTreeAccumulator
     DADDA_TREE = DaddaTreeAccumulator
     CARRY_SAVE_TREE = CarrySaveAccumulator
@@ -41,7 +41,7 @@ class FSAOption(Enum):
     NONE = None
 
 class MultiplierOption(Enum):
-    STAGE_BASED_MULTIPLIER_BASIC = StageBasedMultiplierBasic
+    STAGE_BASED_MULTIPLIER = StageBasedMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER = StageBasedSignMagnitudeMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER = StageBasedSignMagnitudeExtMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_UP_MULTIPLIER = StageBasedSignMagnitudeExtUpMultiplier
@@ -49,17 +49,17 @@ class MultiplierOption(Enum):
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER = StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier
     STAR_MULTIPLIER = StarMultiplier
-    OPTIMIZED_MULTIPLIER_BASIC = OptimizedMultiplierBasic
+    OPTIMIZED_MULTIPLIER = OptimizedMultiplier
     OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER = OptimizedSignMagnitudeMultiplier
-    MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS = MultiplierFromOptimized4BitBlocks
-    MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS_STRONG = MultiplierFromOptimized4BitBlocksStrong
+    OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS = OptimizedMultiplierFrom4BitBlocks
+    OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG = OptimizedMultiplierFrom4BitBlocksStrong
 
 def supports_stages(multiplier_option: MultiplierOption) -> bool:
     stages_not_supported = [
         MultiplierOption.STAR_MULTIPLIER,
-        MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC,
+        MultiplierOption.OPTIMIZED_MULTIPLIER,
         MultiplierOption.OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER,
-        MultiplierOption.MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS,
+        MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS,
     ]
     return not (multiplier_option in stages_not_supported)
 
@@ -109,7 +109,7 @@ def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> Li
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext)]
     elif multiplier_cls == StageBasedSignMagnitudeExtUpMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up)]
-    elif multiplier_cls == StageBasedMultiplierBasic:
+    elif multiplier_cls == StageBasedMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == StageBasedSignMagnitudeToTwosComplementMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement)]
@@ -119,13 +119,13 @@ def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> Li
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper)]
     elif multiplier_cls == StarMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
-    elif multiplier_cls == OptimizedMultiplierBasic:
+    elif multiplier_cls == OptimizedMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == OptimizedSignMagnitudeMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
-    elif multiplier_cls == MultiplierFromOptimized4BitBlocks:
+    elif multiplier_cls == OptimizedMultiplierFrom4BitBlocks:
         return [MultiplierEncodings.with_enc(Encoding.unsigned)]
-    elif multiplier_cls == MultiplierFromOptimized4BitBlocksStrong:
+    elif multiplier_cls == OptimizedMultiplierFrom4BitBlocksStrong:
         return [MultiplierEncodings.with_enc(Encoding.unsigned)]
     else:
         raise ValueError(f"Unknown multiplier class: {multiplier_cls}")

@@ -5,7 +5,7 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 
 import numpy as np
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, from_encoding, to_encoding
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
@@ -36,7 +36,7 @@ class StageBasedExtMultiplier(Component):
         self.ppa_cls = ppa_cls
         self.fsa_cls = fsa_cls
 
-class StageBasedMultiplierBasic(StageBasedExtMultiplier):
+class StageBasedMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -62,7 +62,7 @@ class StageBasedMultiplierBasic(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         # instantiate an unsigned multiplier for the magnitudes
-        mult: StageBasedMultiplier = StageBasedMultiplier(
+        mult: StageBasedMultiplierBasic = StageBasedMultiplierBasic(
             signed_a=from_encoding(self.a_encoding),
             signed_b=from_encoding(self.b_encoding),
             a_w=self.aw,
@@ -99,7 +99,7 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         # instantiate an unsigned multiplier for the magnitudes
-        mult: StageBasedMultiplier = StageBasedMultiplier(
+        mult: StageBasedMultiplierBasic = StageBasedMultiplierBasic(
             signed_a=False,
             signed_b=False,
             a_w=self.aw - 1,
@@ -153,7 +153,7 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         # instantiate an unsigned multiplier for the magnitudes
-        mult: StageBasedMultiplier = StageBasedMultiplier(
+        mult: StageBasedMultiplierBasic = StageBasedMultiplierBasic(
             signed_a=False,
             signed_b=False,
             a_w=self.aw - 1,
@@ -243,7 +243,7 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         # instantiate an unsigned multiplier for the magnitudes
-        mult: StageBasedMultiplier = StageBasedMultiplier(
+        mult: StageBasedMultiplierBasic = StageBasedMultiplierBasic(
             signed_a=False,
             signed_b=False,
             a_w=self.aw - 1,

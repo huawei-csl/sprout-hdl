@@ -6,7 +6,7 @@ from typing import Tuple
 
 from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import StageBasedMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import StageBasedMultiplierBasic
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
 
@@ -14,12 +14,12 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
 
     # define some demo combinations to try
     demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
-        (PPGOption.BASIC, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (PPGOption.BASIC, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KOGGE_STONE),
-        (PPGOption.BASIC, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
-        (PPGOption.BAUGH_WOOLEY, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_KOGGE_STONE),
+        (PPGOption.SCHOOLBOOK, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+        (PPGOption.SCHOOLBOOK, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KOGGE_STONE),
+        (PPGOption.SCHOOLBOOK, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
+        (PPGOption.BAUGH_WOOLEY, PPAOption.ACCUMULATOR_TREE, FSAOption.PREFIX_KOGGE_STONE),
         (PPGOption.BOOTH_UNOPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_RCA),
-        (PPGOption.BOOTH_OPTIMISED, PPAOption.COMPRESSOR_TREE, FSAOption.PREFIX_BRENT_KUNG)
+        (PPGOption.BOOTH_OPTIMISED, PPAOption.ACCUMULATOR_TREE, FSAOption.PREFIX_BRENT_KUNG)
     )
 
     num_vectors = 100
@@ -35,7 +35,7 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
                 if not signed_a:
                     continue # debug only
 
-                multiplier = StageBasedMultiplier(
+                multiplier = StageBasedMultiplierBasic(
                     a_w=width,
                     b_w=width,
                     signed_a=signed_a,

@@ -162,7 +162,7 @@ class StageBasedMultiplierIO:
     y: Signal
 
 
-class StageBasedMultiplier(Component):
+class StageBasedMultiplierBasic(Component):
 
     def __init__(
         self,

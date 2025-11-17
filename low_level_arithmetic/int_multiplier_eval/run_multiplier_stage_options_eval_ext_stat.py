@@ -158,7 +158,7 @@ def run_configuration(
                     num_aig_gates=aig_stats["num_gates"],
                     aig_depth=aig_stats["depth"],
                     
-                    optimization_effort = 2 if multiplier_opt == MultiplierOption.OPTIMIZED_MULTIPLIER_BASIC else 1,
+                    optimization_effort = 2 if multiplier_opt == MultiplierOption.OPTIMIZED_MULTIPLIER else 1,
                 )
         rows.append(row)
     return rows

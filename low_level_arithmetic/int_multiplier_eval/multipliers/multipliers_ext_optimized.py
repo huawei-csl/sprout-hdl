@@ -8,7 +8,7 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplier, StageBasedMultiplierIO
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
@@ -56,7 +56,7 @@ def get_aag_lines_default(aw: int, bw: int, a_encoding: Encoding, b_encoding: En
     return aag_lines
 
 
-class OptimizedMultiplierBasic(StageBasedExtMultiplier):
+class OptimizedMultiplier(StageBasedExtMultiplier):
 
     def __init__(self, *args, f_aag_lines: Optional[Callable[[int, int, Encoding, Encoding], list[str]]] = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -136,7 +136,7 @@ class OptimizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         # instantiate an unsigned multiplier for the magnitudes
-        mult: StageBasedMultiplier = OptimizedMultiplierBasic(
+        mult: StageBasedMultiplierBasic = OptimizedMultiplier(
             a_encoding=Encoding.unsigned,
             b_encoding=Encoding.unsigned,
             a_w=self.aw - 1,
@@ -172,7 +172,7 @@ class OptimizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
         self.io.y <<= Concat([mag_y[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 
-class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
+class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
 
     def __init__(self, *args, f_aag_lines: Optional[List[str]] = None,  **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -200,7 +200,7 @@ class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
     def elaborate(self) -> None:
 
         if self.aw == 4 and self.bw == 4:
-            multiplier = OptimizedMultiplierBasic(
+            multiplier = OptimizedMultiplier(
                 a_encoding=Encoding.unsigned,
                 b_encoding=Encoding.unsigned,
                 a_w=self.aw,
@@ -226,7 +226,7 @@ class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
 
             # Instantiate four optimized 8x8 multipliers
             multipliers: List[StageBasedExtMultiplier] = []
-            mult_cls = MultiplierFromOptimized4BitBlocks if (self.aw//2 > 4 and self.bw//2 > 4) else OptimizedMultiplierBasic
+            mult_cls = OptimizedMultiplierFrom4BitBlocks if (self.aw//2 > 4 and self.bw//2 > 4) else OptimizedMultiplier
 
             for _ in range(4):
                 multipliers.append(
@@ -262,19 +262,21 @@ class MultiplierFromOptimized4BitBlocks(StageBasedExtMultiplier):
             p2 = m_hl.io.y  # a_hi * b_lo
             p3 = m_hh.io.y  # a_hi * b_hi
 
-            # Zero-extend to 2*aw bits and align via left shifts using Concat
-            p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
+            # # Zero-extend to 2*aw bits and align via left shifts using Concat
+            # p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
 
-            p1 = Concat([p1, Const(0, UInt(self.aw))])
-            p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
+            # p1 = Concat([p1, Const(0, UInt(self.aw))])
+            # p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
 
-            p2 = Concat([p2, Const(0, UInt(self.aw))])
-            p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
+            # p2 = Concat([p2, Const(0, UInt(self.aw))])
+            # p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
 
-            p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
+            # p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
 
-            # Sum partial products
-            self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
+            # # Sum partial products
+            # self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
+            
+            self.io.y <<= Concat([p0, p1]) + Concat([p2, p3])  # alternative summation order
 
 
 # def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
@@ -298,7 +300,7 @@ def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_enc
     aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
     return aag_lines
 
-class MultiplierFromOptimized4BitBlocksStrong(MultiplierFromOptimized4BitBlocks):
+class OptimizedMultiplierFrom4BitBlocksStrong(OptimizedMultiplierFrom4BitBlocks):
     f_aag_lines = staticmethod(get_optimized_aag_lines_strong)
 
 
@@ -421,7 +423,7 @@ def test_multiplier_ext_optimized() -> None:
     signed = False
 
 
-    c = MultiplierFromOptimized4BitBlocksStrong(
+    c = OptimizedMultiplierFrom4BitBlocksStrong(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=to_encoding(signed),

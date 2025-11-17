@@ -1,7 +1,6 @@
 from typing import List, Tuple
 from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
-from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import MultiplierFromOptimized4BitBlocks
-from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplierBasic, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, to_encoding
 from testing.aag_conv.aig_to_aag import aig_file_to_aag_lines
 
@@ -10,49 +9,49 @@ demos1: list[ConfigItem] = [
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_UP_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
-        MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC,
+        MultiplierOption.STAGE_BASED_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.unsigned),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_TO_TWOS_COMPLEMENT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
-        PPGOption.BASIC,
+        PPGOption.SCHOOLBOOK,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
@@ -77,7 +76,7 @@ def get_selection1_list(large_sweep: bool = True, multiplier_option_sigma_sweep:
 
     config_items : list[ConfigItem] = []
 
-    ppg_0 = PPGOption.BASIC
+    ppg_0 = PPGOption.SCHOOLBOOK
     ppa_0 = PPAOption.WALLACE_TREE
     fsa_0 = FSAOption.PREFIX_BRENT_KUNG
 
@@ -124,7 +123,7 @@ def get_selection1_list(large_sweep: bool = True, multiplier_option_sigma_sweep:
         return config_items
     
     from itertools import product
-    for sm, ppg, ppa, fsa in product([MultiplierOption.STAGE_BASED_MULTIPLIER_BASIC], get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
+    for sm, ppg, ppa, fsa in product([MultiplierOption.STAGE_BASED_MULTIPLIER], get_list_from_enum(PPGOption), get_list_from_enum(PPAOption), get_list_from_enum(FSAOption)):
         if supports_stages(sm):
             if ppg == PPGOption.NONE or ppa == PPAOption.NONE or fsa == FSAOption.NONE:
                 continue
@@ -153,7 +152,7 @@ def get_selection1_list_optimized() -> List[ConfigItem]:
         
     config_items = [
         ConfigItem(
-            MultiplierOption.MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS_STRONG,
+            MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
             MultiplierEncodings.with_enc(Encoding.unsigned),
             PPGOption.NONE,
             PPAOption.NONE,
