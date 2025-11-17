@@ -5,7 +5,7 @@ import tempfile
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, sop_refactoring
+from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from pyosys import libyosys as ys
 
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
@@ -15,15 +15,71 @@ from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
+def optimize_aig_elaborate(aig_in) -> dict:
 
-def optimize_aag(aag_lines: List[str], n_iter_optimizations=10) -> List[str]:
-
-    # convert to aigverse object
-    aig = conv_aag_into_aig(aag_lines)
+    # Track the best gate and depth
+    best_gate = None
+    best_depth = None
     
+    best_stats = None
+    best_aig = None
+
+    # Two sequences are tested
+    op_seq_tuple = ([aig_resubstitution, sop_refactoring, aig_cut_rewriting], [aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing])
+
+    # Loop through the two sequences
+    for op_seq in op_seq_tuple:
+        # Load the aig file
+        aig = aig_in.clone()
+        # Loop through the sequences 3 times
+        for i in range(3):
+            for op in op_seq:
+                # Perform the operation
+                op(aig)
+                # Perform analysis
+                depth_aig = DepthAig(aig)
+                # Extract stats
+                stats = {
+                    "num_pis": len(aig.pis()),
+                    "num_pos": len(aig.pos()),
+                    "num_gates": len(aig.gates()),
+                    "size": aig.size(),
+                    "depth": depth_aig.num_levels(),
+                }
+                # Store best stats dict
+                if best_gate is None or stats["num_gates"] < best_gate:
+                    best_gate = stats["num_gates"]
+                    best_depth = stats["depth"]
+                    best_stats = stats
+                    best_aig = aig
+                elif stats["num_gates"] == best_gate and stats["depth"] < best_depth:
+                    best_depth = stats["depth"]
+                    best_stats = stats
+                    best_aig = aig
+
+    return best_aig, best_stats
+
+def optimize_aig_simple(aig, n_iter_optimizations=10) -> dict:
     for i in range(n_iter_optimizations):
         for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
             optimization(aig)
+    return aig
+
+def optimize_aag(aag_lines: List[str], n_iter_optimizations=10, simple=False) -> List[str]:
+
+    # convert to aigverse object
+    aig = conv_aag_into_aig(aag_lines)    
+
+    if simple:
+        aig = optimize_aig_simple(aig, n_iter_optimizations=n_iter_optimizations)
+    else:
+        aig, _ = optimize_aig_elaborate(aig)
+
+    # aig back to aag
+    aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
+
+    return aag_optimized
+    aig = optimize_aig_elaborate(aig)[0]
 
     # aig back to aag
     aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
@@ -47,13 +103,14 @@ def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=1
     return m_aig
 
 
-def get_aig_stats(m: Module, n_iter_optimizations=10) -> dict:
+def get_aig_stats(m: Module, n_iter_optimizations=10, simple=False) -> dict:
     aag_lines = AigerExporter(m).get_aag()
     aig = conv_aag_into_aig(aag_lines)
 
-    for i in range(n_iter_optimizations):
-        for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
-            optimization(aig)
+    if simple:
+        aig = optimize_aig_simple(aig, n_iter_optimizations=n_iter_optimizations)
+    else:
+        aig, _ = optimize_aig_elaborate(aig)
 
     depth_aig = DepthAig(aig)
 

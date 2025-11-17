@@ -1004,7 +1004,7 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
-        
+
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
@@ -1054,7 +1054,7 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
-        
+
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
@@ -1070,7 +1070,7 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
-        
+
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
@@ -1104,7 +1104,7 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
-        
+
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
@@ -1120,7 +1120,7 @@ def main():
                 filters=filter_sel,  # e.g., exclude outliers
             )
         )
-        
+
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
@@ -1135,6 +1135,116 @@ def main():
                 min_points=2,
                 filters=filter_sel,  # e.g., exclude outliers
                 baseline_category="STAGE_BASED_MULTIPLIER_BASIC",
+            )
+        )
+
+        
+        
+    if "num_aig_gates" in design_df.columns and "n_bits" in design_df.columns:
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category)",
+                filename="scaling_num_aig_gates_vs_n_bits_by_ppg_opt.png",
+                y_metric="num_aig_gates",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category)",
+                filename="rel_scaling_num_aig_gates_vs_n_bits_by_ppg_opt.png",
+                y_metric="num_aig_gates",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
+            )
+        )
+        
+    if "aig_depth" in design_df.columns and "n_bits" in design_df.columns:
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Relative Scaling of aig_depth vs n_bits (min per category)",
+                filename="scaling_aig_depth_vs_n_bits_by_ppg_opt.png",
+                y_metric="aig_depth",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of aig_depth vs n_bits (min per category)",
+                filename="rel_scaling_aig_depth_vs_n_bits_by_ppg_opt.png",
+                y_metric="aig_depth",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
+            )
+        )
+        
+    if "switches" in design_df.columns and "n_bits" in design_df.columns:
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Relative Scaling of switches vs n_bits (min per category)",
+                filename="scaling_switches_vs_n_bits_by_ppg_opt.png",
+                y_metric="switches",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
+            )
+        )
+        
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of switches vs n_bits (min per category)",
+                filename="rel_scaling_switches_vs_n_bits_by_ppg_opt.png",
+                y_metric="switches",
+                color_by="ppg_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER_BASIC"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                baseline_category="BASIC",
             )
         )
 

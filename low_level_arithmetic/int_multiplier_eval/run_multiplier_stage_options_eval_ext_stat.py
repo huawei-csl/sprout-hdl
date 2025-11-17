@@ -172,7 +172,7 @@ def run_stage_multiplier_ext_demo(config_items: list[ConfigItem]) -> None:  # pr
     parallel = True
     max_workers = 80
 
-    sys.setrecursionlimit(4000)
+    sys.setrecursionlimit(10000)
 
     # datecode
     run_id = time.strftime("%Y%m%d_%H%M%S")
