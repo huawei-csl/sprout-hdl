@@ -21,13 +21,18 @@ from testing.test_different_logic import run_vectors_io
 
 class KaratsubaMultiplier(StageBasedExtMultiplier):
     """
-    Unsigned n×n multiplier built recursively from an optimized 4×4 block using Karatsuba.
+    Unsigned n×n multiplier constructed recursively with a Karatsuba split and a
+    configurable leaf multiplier.
 
-    - Base case (width <= 4):
-        Uses a single 4×4 OptimizedMultiplier, zero-extending inputs on the MSB side
-        and slicing the low 2*width bits of the 8-bit product.
+    - Leaf stage:
+        For small sub-problems (width <= 5 by default, or when recursion is
+        limited through ``karatsuba_only_at_first_level``) the implementation
+        instantiates ``multiplier_core_config`` directly.  When
+        ``use_power_of_two_multipliers_only`` is set and the leaf width is odd,
+        the helper ``_mul_nplus1_bit_from_n_bit_block`` fabricates the result
+        out of the nearest power-of-two block.
 
-    - Recursive case (width > 4):
+    - Recursive stage:
         Let n = width, k = n // 2, a = a_hi * 2^k + a_lo, b = b_hi * 2^k + b_lo.
 
             p0 = a_lo * b_lo
@@ -38,8 +43,9 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
 
             y = p0 + (middle << k) + (p2 << (2k))
 
-        All intermediate results are explicitly kept/modded in 2*n bits using
-        Concat + slicing to model shifts.
+        All partial products are projected into 2*n bits, and shifts are modeled
+        explicitly via ``Concat`` + slicing so the DSL keeps the bit width
+        bounded at every step.
     """
 
     def __init__(
@@ -124,11 +130,14 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
     # optional
     def _mul_nplus1_bit_from_n_bit_block(self, a5, b5, width=5):
         """
-        5x5 unsigned multiply using:
-          - one 4x4 OptimizedMultiplier on the low 4 bits
-          - simple AND-based cross terms for the top bits
-        Returns a 10-bit Expr (lower 10 bits of the full product).
+        Helper for odd widths when the leaf multiplier only supports power-of-two
+        sizes.  Builds a ``width``×``width`` unsigned product by instantiating a
+        ``(width-1)``×``(width-1)`` core for the low bits and adding explicit
+        cross/high terms.  The returned ``Expr`` contains the lower ``2*width``
+        bits of the product.
         """
+
+        # naming is for width=5, but it works generically
 
         width_core = width-1
 
@@ -179,12 +188,13 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
     # ------------------------------------------------------------------ #
     def _build_karatsuba(self, a_sig, b_sig, width: int, level=0) -> Expr:
         """
-        Recursively build an 'width'×'width' unsigned multiplier from 4×4 blocks.
-        Returns an Expr of width 2*width bits.
+        Recursively build a ``width``×``width`` unsigned multiplier with the
+        Karatsuba split described in the class docstring.  Returns a value with
+        exactly ``2*width`` bits.
         """
         assert width >= 1
 
-        # Base case: use 4×4 optimized core (with padding for widths < 4)
+        # Base case: use the configured leaf block (optionally padded for width)
 
         if width <=5 or (self.karatsuba_only_at_first_level and level == 1):
             if self.use_power_of_two_multipliers_only and width%2 == 1:
@@ -245,13 +255,20 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         if not self.use_compressor:
             prod_2n = p0_2n + middle_shift_2n + p2_shift_2n  # width: 2*n (or 2*n+1 → we'll slice at top)
         else:
+            
+            # middle_shift_big_separated=[
+            #     Concat([Const(0, UInt(k)), p1_2n]),
+            #                        Concat([Const(0, UInt(k)), -p0_2n]), 
+            #                        Concat([Const(0, UInt(k)), -p2_2n]),
+            #                         ]
+            
             prod_2n = compressor_sum(
                 config=OutputConfig(
                     out_width=self.aw + self.bw,
                     optim_type=self.optim_type,
                 ),
-                # partials=[p0_2n, middle_shift_2n, p2_shift_2n],
                 partials=[p0_2n, middle_shift_big, p2_shift_big],
+                #partials= [p0_2n, p2_shift_big] + middle_shift_big_separated, # not used, gives larger circuits
                 ppg_cls=CarrySaveAccumulator,
                 fsa_cls=RippleCarryFinalAdder,
             )
@@ -287,10 +304,8 @@ def test_multiplier() -> None:
         optim_type="area",
     )
 
-    mod = c.to_module("multiplier_ext_optimized")
-    print(mod)
+    module = c.to_module("multiplier_ext_optimized")
 
-    module = mod
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
     yosys_metrics = get_yosys_metrics(module)
     aig_gates = get_aig_stats(module)
@@ -298,6 +313,7 @@ def test_multiplier() -> None:
     print(f"Yosys-reported metrics: {yosys_metrics}")
     print(f"AIG-reported gate count: {aig_gates}")
 
+    # Run Simulation
     vecs = MultiplierTestVectors(
         a_w=n_bits,
         b_w=n_bits,
