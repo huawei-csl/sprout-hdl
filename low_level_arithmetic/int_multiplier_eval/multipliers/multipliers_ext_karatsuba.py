@@ -1,6 +1,6 @@
 from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optional, Tuple, Type
 
-from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
+
 from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
@@ -18,6 +18,7 @@ from testing.test_different_logic import run_vectors_io
 
 
 class KaratsubaMultiplier(StageBasedExtMultiplier):
+
     """
     Unsigned n×n multiplier constructed recursively with a Karatsuba split and a
     configurable leaf multiplier.
@@ -50,7 +51,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         self,
         *args,
         f_aag_lines: Optional[List[str]] = None,
-        use_compressor=True,
+        use_compressor=False,
         use_power_of_two_multipliers_only=False,
         karatsuba_only_at_first_level=True,
         use_preoptimized_4bit_multiplier=False,
@@ -86,6 +87,8 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         self.use_power_of_two_multipliers_only = use_power_of_two_multipliers_only
         self.karatsuba_only_at_first_level = karatsuba_only_at_first_level
         self.use_preoptimized_4bit_multiplier = use_preoptimized_4bit_multiplier
+
+        from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
 
         if self.use_preoptimized_4bit_multiplier:
 
@@ -231,27 +234,28 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
 
         # --- Embed partial products into a common 2*n-bit domain -------
         # Zero-extend on the MSB side using Concat([value, zeros])
-        p0_2n = Concat([p0_small, Const(0, UInt(total_w - 2 * lo_w))])
-        p2_2n = Concat([p2_small, Const(0, UInt(total_w - 2 * hi_w))])
-        p1_2n = Concat([p1_small, Const(0, UInt(total_w - 2 * sum_w))])
+        p0_2n = p0_small
+        p2_2n = p2_small 
+        p1_2n = p1_small
 
         # middle = p1 - p0 - p2 in 2*n bits (mod 2^(2n))
-        middle_2n = p1_2n - p0_2n - p2_2n  # stays 2*n bits in your DSL
+        middle_2n = p1_2n - (p0_2n + p2_2n)  # stays 2*n bits in your DSL
 
         # --- Shifts implemented via Concat + slicing -------------------
         # (x << k) mod 2^(2n) == take low 2n bits of Concat([zeros(k), x])
 
         # (middle << k) in 2*n bits
         middle_shift_big = Concat([Const(0, UInt(k)), middle_2n])  # width: 2*n + k
-        middle_shift_2n = middle_shift_big[0:total_w]
+        middle_shift_2n = middle_shift_big #[0:total_w]
 
         # (p2 << 2k) in 2*n bits
         p2_shift_big = Concat([Const(0, UInt(2 * k)), p2_2n])  # width: 2*n + 2k
-        p2_shift_2n = p2_shift_big[0:total_w]
+        p2_shift_2n = p2_shift_big #[0:total_w]
 
         # Final Karatsuba combination in 2*n-bit ring
         if not self.use_compressor:
-            prod_2n = p0_2n + middle_shift_2n + p2_shift_2n  # width: 2*n (or 2*n+1 → we'll slice at top)
+            # prod_2n = p0_2n + middle_shift_2n + p2_shift_2n  # width: 2*n (or 2*n+1 → we'll slice at top)
+            prod_2n = Concat([p0_small, p2_small]) + middle_shift_2n
         else:
 
             # middle_shift_big_separated=[
@@ -313,7 +317,7 @@ def test_multiplier() -> None:
     n_bits = 32
     signed = False
 
-    c = KaratsubaMultiplierFromOptimized4BitBlocks( #KaratsubaMultiplier(
+    c = KaratsubaMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=to_encoding(signed),

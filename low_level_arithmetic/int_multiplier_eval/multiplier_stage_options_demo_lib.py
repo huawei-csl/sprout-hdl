@@ -131,5 +131,9 @@ def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> Li
         return [MultiplierEncodings.with_enc(Encoding.unsigned)]
     elif multiplier_cls == OptimizedMultiplierFrom4BitBlocksStrong:
         return [MultiplierEncodings.with_enc(Encoding.unsigned)]
+    elif multiplier_cls == KaratsubaMultiplier:
+        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+    elif multiplier_cls == KaratsubaMultiplierFromOptimized4BitBlocks:
+        return [MultiplierEncodings.with_enc(Encoding.unsigned)]
     else:
         raise ValueError(f"Unknown multiplier class: {multiplier_cls}")
