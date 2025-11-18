@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import List, NamedTuple, Self, Tuple, Type, TypeVar
+from typing import List, NamedTuple, Self, Tuple, Type, TypeVar, Optional
+
 from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
@@ -96,9 +97,9 @@ class MultiplierEncodings(NamedTuple):
 class ConfigItem(NamedTuple):
     multiplier_opt: MultiplierOption
     encodings: MultiplierEncodings
-    ppg_opt: PPGOption
-    ppa_opt: PPAOption
-    fsa_opt: FSAOption
+    ppg_opt: Optional[PPGOption] = None
+    ppa_opt: Optional[PPAOption] = None
+    fsa_opt: Optional[FSAOption] = None
     all_sigma: bool = True
 
 

@@ -8,9 +8,10 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
+from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
 from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplier
+from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator
@@ -38,7 +39,7 @@ from typing import List, Optional
 # from low_level_arithmetic.int_multiplier_eval.multipliers.optimized_multiplier import OptimizedMultiplier
 
 
-class KaratsubaMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
+class KaratsubaMultiplier(StageBasedExtMultiplier):
     """
     Unsigned n×n multiplier built recursively from an optimized 4×4 block using Karatsuba.
 
@@ -86,115 +87,76 @@ class KaratsubaMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
             b=Signal(name="b", typ=UInt(self.bw), kind="input"),
             y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
         )
-        
+
         self.use_compressor = True  # Set to False to use simple '+' for final sums
+
+        # self.multiplier_core_config =  ConfigItem(MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
+        #                                           encodings=MultiplierEncodings.with_enc(Encoding.unsigned))
+
+        self.multiplier_core_config = ConfigItem(
+            MultiplierOption.STAGE_BASED_MULTIPLIER,
+            MultiplierEncodings.with_enc(Encoding.unsigned),
+            PPGOption.BOOTH_OPTIMISED,
+            PPAOption.CARRY_SAVE_TREE,
+            FSAOption.PREFIX_RCA,
+        )
 
         self.elaborate()
 
-    # ------------------------------------------------------------------ #
-    # Leaf: implement width<=4 using the optimized 4×4 block
-    # ------------------------------------------------------------------ #
-    def _mul_leaf_4bit(self, a_sig, b_sig, width: int):
-        """
-        Multiply two unsigned signals of 'width' bits (1 <= width <= 4) using a
-        4×4 OptimizedMultiplier:
-          - zero-extend each operand on the MSB side to 4 bits
-          - multiply using the 4×4 block
-          - return the low 2*width bits of the 8-bit product
-        """
-        assert 1 <= width <= 4
+    def _mul_leaf(self, a_sig, b_sig, width):
 
-        if width == 4:
-            a_ext = a_sig
-            b_ext = b_sig
-        else:
-            # Zero-extend on MSB side: [low_bits, zeros] so value is unchanged
-            a_ext = Concat([a_sig, Const(0, UInt(4 - width))])
-            b_ext = Concat([b_sig, Const(0, UInt(4 - width))])
-
-        core = OptimizedMultiplier(
-            a_encoding=Encoding.unsigned,
-            b_encoding=Encoding.unsigned,
-            a_w=4,
-            b_w=4,
-            ppg_cls=None,
-            ppa_cls=None,
-            fsa_cls=None,
-            f_aag_lines=self.f_aag_lines,
-        ).make_internal()
-
-        core.io.a <<= a_ext
-        core.io.b <<= b_ext
-
-        # Core product is 8 bits; we only need 2*width bits
-        return core.io.y
-    
-    def _mul_leave_optimized(self, a_sig, b_sig, width):
-        core = OptimizedMultiplier(
-            a_encoding=Encoding.unsigned,
-            b_encoding=Encoding.unsigned,
+        core = self.multiplier_core_config.multiplier_opt.value(
             a_w=width,
             b_w=width,
-            ppg_cls=None,
-            ppa_cls=None,
-            fsa_cls=None,
-            f_aag_lines=self.f_aag_lines,
+            a_encoding=self.multiplier_core_config.encodings.a,
+            b_encoding=self.multiplier_core_config.encodings.b,
+            ppg_cls=self.multiplier_core_config.ppg_opt.value if self.multiplier_core_config.ppg_opt else None,
+            ppa_cls=self.multiplier_core_config.ppa_opt.value if self.multiplier_core_config.ppa_opt else None,
+            fsa_cls=self.multiplier_core_config.fsa_opt.value if self.multiplier_core_config.fsa_opt else None,
+            optim_type="area",
         ).make_internal()
-        
+
         core.io.a <<= a_sig
         core.io.b <<= b_sig
-        
+
         # Core product is 8 bits; we only need 2*width bits
         return core.io.y
 
-    def _mul_5bit_from_4bit_block(self, a5, b5, width=5):
+    def _mul_nplus1_bit_from_n_bit_block(self, a5, b5, width=5):
         """
         5x5 unsigned multiply using:
           - one 4x4 OptimizedMultiplier on the low 4 bits
           - simple AND-based cross terms for the top bits
         Returns a 10-bit Expr (lower 10 bits of the full product).
         """
-        
+
         width_core = width-1
 
-        # Split into high / low parts
-        a_lo = a5[0:4]   # bits 3..0
-        a_hi = a5[4]     # bit 4
-        b_lo = b5[0:4]
-        b_hi = b5[4]
+        # # Split into high / low parts
+        a_lo = a5[0:width_core]  # bits 3..0
+        a_hi = a5[width_core]  # bit 4
+        b_lo = b5[0:width_core]
+        b_hi = b5[width_core]
 
-        # 1) 4x4 core: a_lo * b_lo  -> 8 bits
-        core = OptimizedMultiplier(
-            a_encoding=Encoding.unsigned,
-            b_encoding=Encoding.unsigned,
-            a_w=4,
-            b_w=4,
-            ppg_cls=None,
-            ppa_cls=None,
-            fsa_cls=None,
-            f_aag_lines=self.f_aag_lines,
-        ).make_internal()
-        core.io.a <<= a_lo
-        core.io.b <<= b_lo
-        p0_8 = core.io.y  # 8-bit product
+        p0_8 = self._mul_leaf(a_lo, b_lo, width)
 
         # Map to 10 bits: bits [7:0] = p0_8, bits [9:8] = 0
         t0 = Concat([p0_8, Const(0, UInt(2))])  # 10 bits
 
         # 2) Cross terms: a_hi * b_lo and b_hi * a_lo  (each 4 bits)
         # Assuming scalar&vector broadcasting in your DSL; if not, replace with Mux.
-        term_a = mux(a_hi, b_lo, Const(0, UInt(4)))  # b_lo & a_hi   # 4 bits: if a_hi==1 -> b_lo else 0
-        term_b = mux(b_hi, a_lo, Const(0, UInt(4)))  # a_lo & b_hi   # 4 bits: if b_hi==1 -> a_lo else 0
+        term_a = mux(a_hi, b_lo, Const(0, UInt(width_core)))  # b_lo & a_hi   # 4 bits: if a_hi==1 -> b_lo else 0
+        term_b = mux(b_hi, a_lo, Const(0, UInt(width_core)))  # a_lo & b_hi   # 4 bits: if b_hi==1 -> a_lo else 0
 
         # Place them at bits [7:4] (i.e., << 4) and zero-extend to 10 bits
         # bits 0..3 = 0, bits 4..7 = term_*, bits 8..9 = 0
-        t1 = Concat([Const(0, UInt(4)), term_a, Const(0, UInt(2))])  # 10 bits
-        t2 = Concat([Const(0, UInt(4)), term_b, Const(0, UInt(2))])  # 10 bits
+        t1 = Concat([Const(0, UInt(width_core)), term_a, Const(0, UInt(2))])  # 10 bits
+        t2 = Concat([Const(0, UInt(width_core)), term_b, Const(0, UInt(2))])  # 10 bits
 
         # 3) High-high term: a_hi * b_hi at bit 8 (<< 8), 10-bit wide
         term_hi = a_hi & b_hi  # 1 bit
         # bits 0..7 = 0, bit 8 = term_hi, bit 9 = 0
-        t3 = Concat([Const(0, UInt(8)), term_hi, Const(0, UInt(1))])  # 10 bits
+        t3 = Concat([Const(0, UInt(2 * width_core)), term_hi, Const(0, UInt(1))])  # 10 bits
 
         # 4) Final sum in 10-bit ring (add may create a carry, slice back to 10)
         if not self.use_compressor:
@@ -210,60 +172,7 @@ class KaratsubaMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
                 fsa_cls=RippleCarryFinalAdder,
             )
 
-        return prod_11[0:10]
-
-    # def _mul_5bit_from_4bit_block(self, a5, b5):
-    #     """
-    #     5x5 unsigned multiply using:
-    #       - one 4x4 OptimizedMultiplier on the low 4 bits
-    #       - simple AND/mux-based cross terms for the top bits
-    #     Returns exactly 10 bits.
-    #     """
-    #     # Split into high / low parts
-    #     a_lo = a5[0:4]   # a[3:0]
-    #     a_hi = a5[4]     # a[4]
-    #     b_lo = b5[0:4]   # b[3:0]
-    #     b_hi = b5[4]     # b[4]
-
-    #     # 1) 4x4 core: a_lo * b_lo  -> 8 bits
-    #     core = OptimizedMultiplier(
-    #         a_encoding=Encoding.unsigned,
-    #         b_encoding=Encoding.unsigned,
-    #         a_w=4,
-    #         b_w=4,
-    #         ppg_cls=None,
-    #         ppa_cls=None,
-    #         fsa_cls=None,
-    #         f_aag_lines=self.f_aag_lines,
-    #     ).make_internal()
-    #     core.io.a <<= a_lo
-    #     core.io.b <<= b_lo
-    #     p0_8 = core.io.y  # 8-bit product
-
-    #     # Map to 10 bits: bits [7:0] = p0_8, bits [9:8] = 0
-    #     t0 = Concat([p0_8, Const(0, UInt(2))])  # 10 bits
-
-    #     # 2) Cross terms: a_hi * b_lo and b_hi * a_lo  (each 4 bits)
-    #     # use mux to be explicit about gating
-    #     term_a = mux(a_hi, b_lo, Const(0, UInt(4)))  # if a_hi==1 -> b_lo else 0
-    #     term_b = mux(b_hi, a_lo, Const(0, UInt(4)))  # if b_hi==1 -> a_lo else 0
-
-    #     # Place them at bits [7:4] (i.e., << 4), zero-extend to 10 bits:
-    #     # bits 0..3 = 0, bits 4..7 = term_*, bits 8..9 = 0
-    #     t1 = Concat([Const(0, UInt(4)), term_a, Const(0, UInt(2))])  # 10 bits
-    #     t2 = Concat([Const(0, UInt(4)), term_b, Const(0, UInt(2))])  # 10 bits
-
-    #     # 3) High-high term: a_hi * b_hi at bit 8 (<< 8), 10-bit wide
-    #     term_hi = a_hi & b_hi  # 1 bit
-    #     # bits 0..7 = 0, bit 8 = term_hi, bit 9 = 0
-    #     t3 = Concat([Const(0, UInt(8)), term_hi, Const(0, UInt(1))])  # 10 bits
-
-    #     # 4) Final sum (may grow by a carry; slice back to 10 LSBs)
-    #     prod_11 = t0 + t1 + t2 + t3
-    #     return prod_11[0:10]
-
-    # def _mul_5bit_from_4bit_block(self, a5, b5):
-    #     return a5 * b5  # Placeholder implementation; replace with actual logic as needed
+        return prod_11[0:2*width]
 
     # ------------------------------------------------------------------ #
     # Recursive Karatsuba construction (pure-combinational in this module)
@@ -277,10 +186,17 @@ class KaratsubaMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
 
         # Base case: use 4×4 optimized core (with padding for widths < 4)
         if width <= 4:
-            return self._mul_leaf_4bit(a_sig, b_sig, width)
+            return self._mul_leaf(a_sig, b_sig, width)
 
         if width == 5:
-            return self._mul_5bit_from_4bit_block(a_sig, b_sig)
+            return self._mul_nplus1_bit_from_n_bit_block(a_sig, b_sig, width)
+
+        if width == 8 or width == 16:
+            return self._mul_leaf(a_sig, b_sig, width)
+
+        if width == 9 or width == 17:
+            # return self._mul_leaf(a_sig, b_sig, width)
+            return self._mul_nplus1_bit_from_n_bit_block(a_sig, b_sig, width)
 
         n = width
         total_w = 2 * n
@@ -361,10 +277,10 @@ class KaratsubaMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
 
 def test_multiplier_ext_optimized() -> None:
 
-    n_bits = 16
+    n_bits = 32
     signed = False
 
-    c = KaratsubaMultiplierFrom4BitBlocks(
+    c = KaratsubaMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=to_encoding(signed),
