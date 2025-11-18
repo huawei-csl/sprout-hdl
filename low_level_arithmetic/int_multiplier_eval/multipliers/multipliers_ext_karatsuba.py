@@ -1,42 +1,22 @@
-import abc
-from collections import defaultdict
-from dataclasses import dataclass
-import re
-import tempfile
 from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optional, Tuple, Type
 
-from aigverse import read_aiger_into_aig, write_aiger
-import numpy as np
-
 from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
-
-from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
-from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
-from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
-from sprouthdl.sprouthdl_aiger import AigerImporter
-from sprouthdl.sprouthdl_module import Component
-from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
-from sprouthdl.sprouthdl_module import Module
 
-from testing.aag_conv.aig_to_aag import aig_file_to_aag_lines
-from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, run_vectors_io, verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
+from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
+
+from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
+
+
 
 
 from typing import List, Optional
 
-# Assumes the following are already imported in your file:
-# from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import (
-#     StageBasedMultiplierIO,
-# )
-# from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
-# from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding
-# from sprouthdl.hdl import Signal, UInt, Const, Concat   # or your actual paths
-# from low_level_arithmetic.int_multiplier_eval.multipliers.optimized_multiplier import OptimizedMultiplier
+from testing.test_different_logic import run_vectors_io
 
 
 class KaratsubaMultiplier(StageBasedExtMultiplier):
@@ -62,8 +42,18 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         Concat + slicing to model shifts.
     """
 
-    def __init__(self, *args, f_aag_lines: Optional[List[str]] = None, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        *args,
+        f_aag_lines: Optional[List[str]] = None,
+        use_compressor=True,
+        use_power_of_two_multipliers_only=False,
+        karatsuba_only_at_first_level=True,
+        use_preoptimized_4bit_multiplier=False,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, 
+                         **kwargs)
 
         # Only unsigned supported for now
         assert (
@@ -88,18 +78,28 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             y=Signal(name="y", typ=UInt(self.aw + self.bw), kind="output"),
         )
 
-        self.use_compressor = True  # Set to False to use simple '+' for final sums
+        self.use_compressor = use_compressor
+        self.use_power_of_two_multipliers_only = use_power_of_two_multipliers_only
+        self.karatsuba_only_at_first_level = karatsuba_only_at_first_level
+        self.use_preoptimized_4bit_multiplier = use_preoptimized_4bit_multiplier
 
-        # self.multiplier_core_config =  ConfigItem(MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
-        #                                           encodings=MultiplierEncodings.with_enc(Encoding.unsigned))
+        if self.use_preoptimized_4bit_multiplier:
 
-        self.multiplier_core_config = ConfigItem(
-            MultiplierOption.STAGE_BASED_MULTIPLIER,
-            MultiplierEncodings.with_enc(Encoding.unsigned),
-            PPGOption.BOOTH_OPTIMISED,
-            PPAOption.CARRY_SAVE_TREE,
-            FSAOption.PREFIX_RCA,
-        )
+            # use optimized multiplier from 4-bit blocks
+            self.multiplier_core_config =  ConfigItem(MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
+                                                    encodings=MultiplierEncodings.with_enc(Encoding.unsigned))
+            self.use_power_of_two_multipliers_only = True # needs to be ture
+
+        else:
+
+            # use stage-based multiplier with specific options which give good results
+            self.multiplier_core_config = ConfigItem(
+                MultiplierOption.STAGE_BASED_MULTIPLIER,
+                MultiplierEncodings.with_enc(Encoding.unsigned),
+                PPGOption.BOOTH_OPTIMISED,
+                PPAOption.CARRY_SAVE_TREE,
+                FSAOption.PREFIX_RCA,
+            )
 
         self.elaborate()
 
@@ -113,15 +113,15 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             ppg_cls=self.multiplier_core_config.ppg_opt.value if self.multiplier_core_config.ppg_opt else None,
             ppa_cls=self.multiplier_core_config.ppa_opt.value if self.multiplier_core_config.ppa_opt else None,
             fsa_cls=self.multiplier_core_config.fsa_opt.value if self.multiplier_core_config.fsa_opt else None,
-            optim_type="area",
+            optim_type=self.optim_type,
         ).make_internal()
 
         core.io.a <<= a_sig
         core.io.b <<= b_sig
 
-        # Core product is 8 bits; we only need 2*width bits
         return core.io.y
 
+    # optional
     def _mul_nplus1_bit_from_n_bit_block(self, a5, b5, width=5):
         """
         5x5 unsigned multiply using:
@@ -138,7 +138,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         b_lo = b5[0:width_core]
         b_hi = b5[width_core]
 
-        p0_8 = self._mul_leaf(a_lo, b_lo, width)
+        p0_8 = self._mul_leaf(a_lo, b_lo, width_core)
 
         # Map to 10 bits: bits [7:0] = p0_8, bits [9:8] = 0
         t0 = Concat([p0_8, Const(0, UInt(2))])  # 10 bits
@@ -177,7 +177,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
     # ------------------------------------------------------------------ #
     # Recursive Karatsuba construction (pure-combinational in this module)
     # ------------------------------------------------------------------ #
-    def _build_karatsuba(self, a_sig, b_sig, width: int):
+    def _build_karatsuba(self, a_sig, b_sig, width: int, level=0) -> Expr:
         """
         Recursively build an 'width'×'width' unsigned multiplier from 4×4 blocks.
         Returns an Expr of width 2*width bits.
@@ -185,18 +185,14 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         assert width >= 1
 
         # Base case: use 4×4 optimized core (with padding for widths < 4)
-        if width <= 4:
-            return self._mul_leaf(a_sig, b_sig, width)
 
-        if width == 5:
-            return self._mul_nplus1_bit_from_n_bit_block(a_sig, b_sig, width)
+        if width <=5 or (self.karatsuba_only_at_first_level and level == 1):
+            if self.use_power_of_two_multipliers_only and width%2 == 1:
+                return self._mul_nplus1_bit_from_n_bit_block(a_sig, b_sig, width)
+            else:
+                return self._mul_leaf(a_sig, b_sig, width)  
 
-        if width == 8 or width == 16:
-            return self._mul_leaf(a_sig, b_sig, width)
-
-        if width == 9 or width == 17:
-            # return self._mul_leaf(a_sig, b_sig, width)
-            return self._mul_nplus1_bit_from_n_bit_block(a_sig, b_sig, width)
+        level += 1  
 
         n = width
         total_w = 2 * n
@@ -211,10 +207,10 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         b_hi = b_sig[lo_w:n]
 
         # --- p0 = a_lo * b_lo  (lo_w x lo_w) ---------------------------
-        p0_small = self._build_karatsuba(a_lo, b_lo, lo_w)  # width: 2*lo_w
+        p0_small = self._build_karatsuba(a_lo, b_lo, lo_w, level)  # width: 2*lo_w
 
         # --- p2 = a_hi * b_hi  (hi_w x hi_w) ---------------------------
-        p2_small = self._build_karatsuba(a_hi, b_hi, hi_w)  # width: 2*hi_w
+        p2_small = self._build_karatsuba(a_hi, b_hi, hi_w, level)  # width: 2*hi_w
 
         # --- p1 = (a_lo + a_hi) * (b_lo + b_hi) -----------------------
         # Your DSL already widens the result by one bit to hold the carry,
@@ -223,7 +219,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         b_sum = b_lo + b_hi
         sum_w = max(lo_w, hi_w) + 1
 
-        p1_small = self._build_karatsuba(a_sum, b_sum, sum_w)  # width: 2*sum_w
+        p1_small = self._build_karatsuba(a_sum, b_sum, sum_w, level)  # width: 2*sum_w
 
         # --- Embed partial products into a common 2*n-bit domain -------
         # Zero-extend on the MSB side using Concat([value, zeros])
@@ -275,7 +271,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         self.io.y <<= prod[0 : 2 * n]
 
 
-def test_multiplier_ext_optimized() -> None:
+def test_multiplier() -> None:
 
     n_bits = 32
     signed = False
@@ -316,4 +312,4 @@ def test_multiplier_ext_optimized() -> None:
 
 
 if __name__ == "__main__":
-    test_multiplier_ext_optimized()
+    test_multiplier()
