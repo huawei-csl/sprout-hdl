@@ -8,9 +8,11 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
+from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
@@ -174,7 +176,7 @@ class OptimizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
 
 class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
 
-    def __init__(self, *args, f_aag_lines: Optional[List[str]] = None,  **kwargs) -> None:
+    def __init__(self, *args, f_aag_lines: Optional[List[str]] = None, use_compressor_tree=True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         # Compose four 8x8 optimized unsigned multipliers into a 16x16->32 multiplier
@@ -194,6 +196,8 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
                 raise ValueError("f_aag_lines class attribute exists, do not pass f_aag_lines per argument")                
         else:    
             self.f_aag_lines = f_aag_lines
+
+        self.use_compressor_tree = use_compressor_tree # results are better with compressor tree
 
         self.elaborate()
 
@@ -262,21 +266,73 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
             p2 = m_hl.io.y  # a_hi * b_lo
             p3 = m_hh.io.y  # a_hi * b_hi
 
-            # # Zero-extend to 2*aw bits and align via left shifts using Concat
-            # p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
+            if not self.use_compressor_tree:
 
-            # p1 = Concat([p1, Const(0, UInt(self.aw))])
-            # p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
+                # Zero-extend to 2*aw bits and align via left shifts using Concat
+                p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
 
-            # p2 = Concat([p2, Const(0, UInt(self.aw))])
-            # p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
+                p1 = Concat([p1, Const(0, UInt(self.aw))])
+                p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
 
-            # p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
+                p2 = Concat([p2, Const(0, UInt(self.aw))])
+                p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
 
-            # # Sum partial products
-            # self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
-            
-            self.io.y <<= Concat([p0, p1]) + Concat([p2, p3])  # alternative summation order
+                p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
+
+                # Sum partial products
+                self.io.y <<= p0 + p1_sh8 + p2_sh8 + p3_sh16
+
+            else:
+
+                # use of compression tree
+                # generate dict with Dict[int, Expr] with int indicating bit weight
+                cols: DefaultDict[int, List[Expr]] = defaultdict(list)
+                for i in range(p0.typ.width):
+                    cols[i].append(p0[i])
+                for i in range(p1.typ.width):
+                    cols[i + self.aw//2].append(p1[i])
+                for i in range(p2.typ.width):
+                    cols[i + self.aw//2].append(p2[i])
+                for i in range(p3.typ.width):
+                    cols[i + self.aw].append(p3[i])
+
+                config = MultiplierConfig(
+                    a_width=self.aw,
+                    b_width=self.bw,
+                    signed_a=Encoding.unsigned,
+                    signed_b=Encoding.unsigned,
+                    optim_type=self.optim_type,
+                )
+
+                # ppg_cls = CompressorTreeAccumulator
+                ppg_cls = CarrySaveAccumulator # smaller depth same aig count for 8 bit multiplier
+                ppa = ppg_cls(config=config)
+                ppa_cols = ppa.accumulate(cols)
+                fsa = RippleCarryFinalAdder(config=config)
+                fsa_bits = fsa.resolve(ppa_cols)
+
+                # # Zero-extend to 2*aw bits and align via left shifts using Concat
+                # p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
+
+                # p1 = Concat([p1, Const(0, UInt(self.aw))])
+                # p1_sh8 = Concat([Const(0, UInt(self.aw//2)), p1[0:self.aw*3//2]])  # (p1 << aw//2)
+
+                # p2 = Concat([p2, Const(0, UInt(self.aw))])
+                # p2_sh8 = Concat([Const(0, UInt(self.aw//2)), p2[0:self.aw*3//2]])  # (p2 << aw//2)
+
+                # p3_sh16 = Concat([Const(0, UInt(self.aw)), p3])  # (p3 << aw)
+
+                # fsa_bits = compressor_sum(
+                #     config=OutputConfig(
+                #         out_width=self.aw + self.bw,
+                #         optim_type=self.optim_type,
+                #     ),
+                #     partials=[p0, p1_sh8, p2_sh8, p3_sh16],
+                #     ppg_cls=CarrySaveAccumulator,
+                #     fsa_cls=RippleCarryFinalAdder,
+                # )
+
+                self.io.y <<= Concat(fsa_bits)
 
 
 # def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
@@ -305,123 +361,122 @@ class OptimizedMultiplierFrom4BitBlocksStrong(OptimizedMultiplierFrom4BitBlocks)
 
 
 def test_multiplier_ext_optimized() -> None:
-    # n_bits = 8
-    # signed = False
+    n_bits = 8
+    signed = False
 
-    # c = OptimizedMultiplierBasic(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     a_encoding=to_encoding(signed),
-    #     b_encoding=to_encoding(signed),
-    #     ppg_cls=None,
-    #     ppa_cls=None,
-    #     fsa_cls=None,
-    #     optim_type="area",
-    # )
-    # mod = c.to_module("multiplier_ext_optimized")
-    # print(mod)
+    c = OptimizedMultiplier(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=to_encoding(signed),
+        b_encoding=to_encoding(signed),
+        ppg_cls=None,
+        ppa_cls=None,
+        fsa_cls=None,
+        optim_type="area",
+    )
+    mod = c.to_module("multiplier_ext_optimized")
+    print(mod)
 
-    # module = mod
-    # transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
-    # yosys_metrics = get_yosys_metrics(module)
-    # aig_gates = get_aig_stats(module)
-    # print(f"Yosys-reported transistor count: {transistor_count}")
-    # print(f"Yosys-reported metrics: {yosys_metrics}")
-    # print(f"AIG-reported gate count: {aig_gates}")
+    module = mod
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    yosys_metrics = get_yosys_metrics(module)
+    aig_gates = get_aig_stats(module)
+    print(f"Yosys-reported transistor count: {transistor_count}")
+    print(f"Yosys-reported metrics: {yosys_metrics}")
+    print(f"AIG-reported gate count: {aig_gates}")
 
-    # vecs = MultiplierTestVectors(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     y_w=2 * n_bits,
-    #     num_vectors=16,
-    #     tb_sigma=None,
-    #     a_encoding=to_encoding(signed),
-    #     b_encoding=to_encoding(signed),
-    #     y_encoding=to_encoding(signed),
-    # ).generate()
+    vecs = MultiplierTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=2 * n_bits,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=to_encoding(signed),
+        b_encoding=to_encoding(signed),
+        y_encoding=to_encoding(signed),
+    ).generate()
 
-    # run_vectors_io(module, vecs)
+    run_vectors_io(module, vecs)
 
-    # # sign magnitude version
+    # sign magnitude version
 
-    # n_bits = 4
+    n_bits = 4
 
-    # from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
+    from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
 
-    # encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
+    encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
 
-    # c = OptimizedSignMagnitudeMultiplier(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     a_encoding=encodings.a,
-    #     b_encoding=encodings.b,
-    #     ppg_cls=None,
-    #     ppa_cls=None,
-    #     fsa_cls=None,
-    # )
-    # mod = c.to_module("multiplier_ext_optimized_sign_magnitude")
-    # print(mod)
-    # module = mod
-    # transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
-    # yosys_metrics = get_yosys_metrics(module)
-    # aig_gates = get_aig_stats(module)
-    # print(f"Yosys-reported transistor count: {transistor_count}")
-    # print(f"Yosys-reported metrics: {yosys_metrics}")
-    # print(f"AIG-reported gate count: {aig_gates}")
+    c = OptimizedSignMagnitudeMultiplier(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=encodings.a,
+        b_encoding=encodings.b,
+        ppg_cls=None,
+        ppa_cls=None,
+        fsa_cls=None,
+    )
+    mod = c.to_module("multiplier_ext_optimized_sign_magnitude")
+    print(mod)
+    module = mod
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    yosys_metrics = get_yosys_metrics(module)
+    aig_gates = get_aig_stats(module)
+    print(f"Yosys-reported transistor count: {transistor_count}")
+    print(f"Yosys-reported metrics: {yosys_metrics}")
+    print(f"AIG-reported gate count: {aig_gates}")
 
-    # vecs = MultiplierTestVectors(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     y_w=2 * n_bits - 1,
-    #     num_vectors=16,
-    #     tb_sigma=None,
-    #     a_encoding=encodings.a,
-    #     b_encoding=encodings.b,
-    #     y_encoding=encodings.y,
-    # ).generate()
+    vecs = MultiplierTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=2 * n_bits - 1,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=encodings.a,
+        b_encoding=encodings.b,
+        y_encoding=encodings.y,
+    ).generate()
 
-    # run_vectors_io(module, vecs)
+    run_vectors_io(module, vecs)
 
-    # # assembled from 4 bit blocks
+    # assembled from 4 bit blocks
 
-    # n_bits = 16
+    n_bits = 8
 
-    # c = MultiplierFromOptimized4BitBlocks(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     a_encoding=Encoding.unsigned,
-    #     b_encoding=Encoding.unsigned,
-    #     ppg_cls=None,
-    #     ppa_cls=None,
-    #     fsa_cls=None,
-    # )
-    # mod = c.to_module("multiplier_ext_optimized_8x8_from_4x4")
-    # print(mod)
-    # module = mod
-    # transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
-    # yosys_metrics = get_yosys_metrics(module)
-    # aig_gates = get_aig_stats(module)
-    # print(f"Yosys-reported transistor count: {transistor_count}")
-    # print(f"Yosys-reported metrics: {yosys_metrics}")
-    # print(f"AIG-reported gate count: {aig_gates}")
+    c = OptimizedMultiplierFrom4BitBlocks(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        ppg_cls=None,
+        ppa_cls=None,
+        fsa_cls=None,
+    )
+    mod = c.to_module("multiplier_ext_optimized_8x8_from_4x4")
+    print(mod)
+    module = mod
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    yosys_metrics = get_yosys_metrics(module)
+    aig_gates = get_aig_stats(module)
+    print(f"Yosys-reported transistor count: {transistor_count}")
+    print(f"Yosys-reported metrics: {yosys_metrics}")
+    print(f"AIG-reported gate count: {aig_gates}")
 
-    # vecs = MultiplierTestVectors(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     y_w=2 * n_bits,
-    #     num_vectors=16,
-    #     tb_sigma=None,
-    #     a_encoding=Encoding.unsigned,
-    #     b_encoding=Encoding.unsigned,
-    #     y_encoding=Encoding.unsigned,
-    # ).generate()
-    # run_vectors_io(module, vecs)
+    vecs = MultiplierTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=2 * n_bits,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        y_encoding=Encoding.unsigned,
+    ).generate()
+    run_vectors_io(module, vecs)
 
     # use a different file
 
-    n_bits = 4
+    n_bits = 8
     signed = False
-
 
     c = OptimizedMultiplierFrom4BitBlocksStrong(
         a_w=n_bits,
@@ -445,6 +500,43 @@ def test_multiplier_ext_optimized() -> None:
     print(f"Yosys-reported metrics: {yosys_metrics}")
     print(f"AIG-reported gate count: {aig_gates}")
 
+    vecs = MultiplierTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=2 * n_bits,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=Encoding.unsigned,
+        b_encoding=Encoding.unsigned,
+        y_encoding=Encoding.unsigned,
+    ).generate()
+    run_vectors_io(module, vecs)
+    
+    n_bits = 16
+    signed = False
+    
+    c = OptimizedMultiplierFrom4BitBlocksStrong(
+        a_w=n_bits,
+        b_w=n_bits,
+        a_encoding=to_encoding(signed),
+        b_encoding=to_encoding(signed),
+        ppg_cls=None,
+        ppa_cls=None,
+        fsa_cls=None,
+        optim_type="area",
+    )
+    
+    mod = c.to_module("multiplier_ext_optimized")
+    print(mod)
+    
+    module = mod
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
+    yosys_metrics = get_yosys_metrics(module)
+    aig_gates = get_aig_stats(module)
+    print(f"Yosys-reported transistor count: {transistor_count}")
+    print(f"Yosys-reported metrics: {yosys_metrics}")
+    print(f"AIG-reported gate count: {aig_gates}")
+    
     vecs = MultiplierTestVectors(
         a_w=n_bits,
         b_w=n_bits,
