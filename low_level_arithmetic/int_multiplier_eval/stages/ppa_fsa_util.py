@@ -13,7 +13,7 @@ class OutputConfig:
 def compressor_sum(
     config: MultiplierConfig | OutputConfig,
     partials: List[Tuple[Expr, int] | Expr],
-    ppg_cls: Type[PartialProductAccumulatorBase],
+    ppa_cls: Type[PartialProductAccumulatorBase],
     fsa_cls: Type[FinalStageAdderBase],
 ) -> Expr:
     """
@@ -80,7 +80,7 @@ def compressor_sum(
             cols[i + offset].append(bit)
 
     # Partial product accumulator / compressor tree
-    ppa = ppg_cls(config=config)
+    ppa = ppa_cls(config=config)
     ppa_cols = ppa.accumulate(cols)
 
     # Final stage adder

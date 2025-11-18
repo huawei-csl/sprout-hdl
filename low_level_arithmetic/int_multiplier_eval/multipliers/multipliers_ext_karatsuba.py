@@ -4,7 +4,7 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
-from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator
+from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, WallaceTreeAccumulator
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
@@ -178,7 +178,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
                     optim_type=self.optim_type,
                 ),
                 partials=[t0, t1, t2, t3],
-                ppg_cls=CarrySaveAccumulator,
+                ppa_cls=CarrySaveAccumulator,
                 fsa_cls=RippleCarryFinalAdder,
             )
 
@@ -218,10 +218,10 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         b_hi = b_sig[lo_w:n]
 
         # --- p0 = a_lo * b_lo  (lo_w x lo_w) ---------------------------
-        p0_small = self._build_karatsuba(a_lo, b_lo, lo_w, level)  # width: 2*lo_w
+        p0 = self._build_karatsuba(a_lo, b_lo, lo_w, level)  # width: 2*lo_w
 
         # --- p2 = a_hi * b_hi  (hi_w x hi_w) ---------------------------
-        p2_small = self._build_karatsuba(a_hi, b_hi, hi_w, level)  # width: 2*hi_w
+        p2 = self._build_karatsuba(a_hi, b_hi, hi_w, level)  # width: 2*hi_w
 
         # --- p1 = (a_lo + a_hi) * (b_lo + b_hi) -----------------------
         # Your DSL already widens the result by one bit to hold the carry,
@@ -230,32 +230,22 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         b_sum = b_lo + b_hi
         sum_w = max(lo_w, hi_w) + 1
 
-        p1_small = self._build_karatsuba(a_sum, b_sum, sum_w, level)  # width: 2*sum_w
+        p1 = self._build_karatsuba(a_sum, b_sum, sum_w, level)  # width: 2*sum_w
 
-        # --- Embed partial products into a common 2*n-bit domain -------
-        # Zero-extend on the MSB side using Concat([value, zeros])
-        p0_2n = p0_small
-        p2_2n = p2_small 
-        p1_2n = p1_small
-
-        # middle = p1 - p0 - p2 in 2*n bits (mod 2^(2n))
-        middle_2n = p1_2n - (p0_2n + p2_2n)  # stays 2*n bits in your DSL
+        middle = p1 - (p0 + p2)  # stays 2*n bits in your DSL
 
         # --- Shifts implemented via Concat + slicing -------------------
         # (x << k) mod 2^(2n) == take low 2n bits of Concat([zeros(k), x])
 
-        # (middle << k) in 2*n bits
-        middle_shift_big = Concat([Const(0, UInt(k)), middle_2n])  # width: 2*n + k
-        middle_shift_2n = middle_shift_big #[0:total_w]
+        # (middle << k)
+        middle_shift = Concat([Const(0, UInt(k)), middle])  # width: 2*n + k
 
-        # (p2 << 2k) in 2*n bits
-        p2_shift_big = Concat([Const(0, UInt(2 * k)), p2_2n])  # width: 2*n + 2k
-        p2_shift_2n = p2_shift_big #[0:total_w]
+        # (p2 << 2k)
+        p2_shift = Concat([Const(0, UInt(2 * k)), p2])  # width: 2*n + 2k
 
         # Final Karatsuba combination in 2*n-bit ring
         if not self.use_compressor:
-            # prod_2n = p0_2n + middle_shift_2n + p2_shift_2n  # width: 2*n (or 2*n+1 → we'll slice at top)
-            prod_2n = Concat([p0_small, p2_small]) + middle_shift_2n
+            prod_2n = Concat([p0, p2]) + middle_shift
         else:
 
             # middle_shift_big_separated=[
@@ -263,16 +253,17 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             #                        Concat([Const(0, UInt(k)), -p0_2n]),
             #                        Concat([Const(0, UInt(k)), -p2_2n]),
             #                         ]
+            from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption
 
             prod_2n = compressor_sum(
                 config=OutputConfig(
                     out_width=self.aw + self.bw,
                     optim_type=self.optim_type,
                 ),
-                partials=[p0_2n, middle_shift_big, p2_shift_big],
-                #partials= [p0_2n, p2_shift_big] + middle_shift_big_separated, # not used, gives larger circuits
-                ppg_cls=CarrySaveAccumulator,
-                fsa_cls=RippleCarryFinalAdder,
+                partials=[p0, middle_shift, p2_shift],
+                # partials= [p0_2n, p2_shift_big] + middle_shift_big_separated, # not used, gives larger circuits
+                ppa_cls=PPAOption.CARRY_SAVE_TREE.value,
+                fsa_cls=FSAOption.RIPPLE.value,
             )
 
         return prod_2n
