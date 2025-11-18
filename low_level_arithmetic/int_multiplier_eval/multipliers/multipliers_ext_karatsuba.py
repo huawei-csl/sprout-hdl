@@ -12,8 +12,6 @@ from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transi
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 
 
-
-
 from typing import List, Optional
 
 from testing.test_different_logic import run_vectors_io
@@ -94,7 +92,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             # use optimized multiplier from 4-bit blocks
             self.multiplier_core_config =  ConfigItem(MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
                                                     encodings=MultiplierEncodings.with_enc(Encoding.unsigned))
-            self.use_power_of_two_multipliers_only = True # needs to be ture
+            self.use_power_of_two_multipliers_only = True  # needs to be true
 
         else:
 
@@ -142,32 +140,32 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         width_core = width-1
 
         # # Split into high / low parts
-        a_lo = a5[0:width_core]  # bits 3..0
-        a_hi = a5[width_core]  # bit 4
+        a_lo = a5[0:width_core]  # lower width_core bits
+        a_hi = a5[width_core]  # MSB of the width-bit operand
         b_lo = b5[0:width_core]
         b_hi = b5[width_core]
 
         p0_8 = self._mul_leaf(a_lo, b_lo, width_core)
 
-        # Map to 10 bits: bits [7:0] = p0_8, bits [9:8] = 0
-        t0 = Concat([p0_8, Const(0, UInt(2))])  # 10 bits
+        # Zero-extend so the (width-1)×(width-1) block sits in the low part of a 2*width-bit word
+        t0 = Concat([p0_8, Const(0, UInt(2))])  # 2*width bits
 
-        # 2) Cross terms: a_hi * b_lo and b_hi * a_lo  (each 4 bits)
+        # 2) Cross terms: a_hi * b_lo and b_hi * a_lo  (each width_core bits)
         # Assuming scalar&vector broadcasting in your DSL; if not, replace with Mux.
-        term_a = mux(a_hi, b_lo, Const(0, UInt(width_core)))  # b_lo & a_hi   # 4 bits: if a_hi==1 -> b_lo else 0
-        term_b = mux(b_hi, a_lo, Const(0, UInt(width_core)))  # a_lo & b_hi   # 4 bits: if b_hi==1 -> a_lo else 0
+        term_a = mux(a_hi, b_lo, Const(0, UInt(width_core)))  # b_lo & a_hi when a_hi == 1 else 0
+        term_b = mux(b_hi, a_lo, Const(0, UInt(width_core)))  # a_lo & b_hi when b_hi == 1 else 0
 
-        # Place them at bits [7:4] (i.e., << 4) and zero-extend to 10 bits
-        # bits 0..3 = 0, bits 4..7 = term_*, bits 8..9 = 0
-        t1 = Concat([Const(0, UInt(width_core)), term_a, Const(0, UInt(2))])  # 10 bits
-        t2 = Concat([Const(0, UInt(width_core)), term_b, Const(0, UInt(2))])  # 10 bits
+        # Place the cross terms in the middle bits by shifting left width_core positions
+        # and pad with zeros so every partial still spans exactly 2*width bits.
+        t1 = Concat([Const(0, UInt(width_core)), term_a, Const(0, UInt(2))])  # 2*width bits
+        t2 = Concat([Const(0, UInt(width_core)), term_b, Const(0, UInt(2))])  # 2*width bits
 
-        # 3) High-high term: a_hi * b_hi at bit 8 (<< 8), 10-bit wide
+        # 3) High-high term: a_hi * b_hi lands near the MSB region of the 2*width-bit result
         term_hi = a_hi & b_hi  # 1 bit
-        # bits 0..7 = 0, bit 8 = term_hi, bit 9 = 0
-        t3 = Concat([Const(0, UInt(2 * width_core)), term_hi, Const(0, UInt(1))])  # 10 bits
+        # Use zero padding to align it without exceeding the width budget.
+        t3 = Concat([Const(0, UInt(2 * width_core)), term_hi, Const(0, UInt(1))])  # 2*width bits
 
-        # 4) Final sum in 10-bit ring (add may create a carry, slice back to 10)
+        # 4) Final sum in a 2*width-bit ring (add may create a carry, slice back to 2*width)
         if not self.use_compressor:
             prod_11 = t0 + t1 + t2 + t3
         else:
@@ -255,13 +253,13 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         if not self.use_compressor:
             prod_2n = p0_2n + middle_shift_2n + p2_shift_2n  # width: 2*n (or 2*n+1 → we'll slice at top)
         else:
-            
+
             # middle_shift_big_separated=[
             #     Concat([Const(0, UInt(k)), p1_2n]),
-            #                        Concat([Const(0, UInt(k)), -p0_2n]), 
+            #                        Concat([Const(0, UInt(k)), -p0_2n]),
             #                        Concat([Const(0, UInt(k)), -p2_2n]),
             #                         ]
-            
+
             prod_2n = compressor_sum(
                 config=OutputConfig(
                     out_width=self.aw + self.bw,
@@ -288,12 +286,34 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         self.io.y <<= prod[0 : 2 * n]
 
 
+class KaratsubaMultiplierFromOptimized4BitBlocks(KaratsubaMultiplier):
+    """
+    Karatsuba multiplier specialized to use only 4-bit leaf multipliers.
+
+    This class configures ``KaratsubaMultiplier`` with
+    ``use_power_of_two_multipliers_only=True`` and a pre-defined
+    ``multiplier_core_config`` that uses an optimized 4-bit block multiplier.
+    """
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            *args,
+            use_power_of_two_multipliers_only=True,
+            use_preoptimized_4bit_multiplier=True,
+            **kwargs,
+        )
+
+
 def test_multiplier() -> None:
 
     n_bits = 32
     signed = False
 
-    c = KaratsubaMultiplier(
+    c = KaratsubaMultiplierFromOptimized4BitBlocks( #KaratsubaMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         a_encoding=to_encoding(signed),

@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import List, NamedTuple, Self, Tuple, Type, TypeVar, Optional
 
+from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_karatsuba import KaratsubaMultiplier, KaratsubaMultiplierFromOptimized4BitBlocks
 from low_level_arithmetic.int_multiplier_eval.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
 from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
@@ -54,6 +55,8 @@ class MultiplierOption(Enum):
     OPTIMIZED_SIGN_MAGNITUDE_MULTIPLIER = OptimizedSignMagnitudeMultiplier
     OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS = OptimizedMultiplierFrom4BitBlocks
     OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG = OptimizedMultiplierFrom4BitBlocksStrong
+    KARATSUBA_MULTIPLIER = KaratsubaMultiplier
+    KARATSUBA_MULTIPLIER_FROM_OPTIMIZED_4BIT_BLOCKS = KaratsubaMultiplierFromOptimized4BitBlocks
 
 def supports_stages(multiplier_option: MultiplierOption) -> bool:
     stages_not_supported = [
