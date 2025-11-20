@@ -896,7 +896,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scatter",
-                title=f"switches_at_target vs {area_col} (one point per configuration)",
+                title=f"switches_at_target vs {area_col} (one point per configuration; categorized by n_bits)",
                 filename=f"scatter_switches_at_target_vs_{area_col}.png",
                 x_metric=area_col,
                 y_metric="switches_at_target",
@@ -912,7 +912,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scatter",
-                title=f"switches_at_target vs {depth_y}",
+                title=f"switches_at_target vs {depth_y} (categorized by multiplier_opt)",
                 filename=f"scatter_switches_at_target_vs_{depth_y}.png",
                 x_metric=depth_y,
                 y_metric="switches_at_target",
@@ -927,7 +927,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="line",
-                title="switches vs sigma (lines per run_id)",
+                title="switches vs sigma (lines per run_id; categorized by n_bits)",
                 filename="line_switches_vs_sigma.png",
                 y_metric="switches",
                 color_by="n_bits",
@@ -941,7 +941,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="line",
-                title="switches vs sigma (colored by multiplier_opt)",
+                title="switches vs sigma (lines per run_id; categorized by multiplier_opt)",
                 filename="line_switches_vs_sigma_by_multiplier_opt.png",
                 y_metric="switches",
                 color_by="multiplier_opt",
@@ -955,7 +955,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title=f"Scaling of {area_col} vs n_bits (min per category; log–log)",
+                title=f"Scaling of {area_col} vs n_bits (min per category; log–log; categorized by multiplier_opt)",
                 filename=f"scaling_{area_col}_vs_n_bits_by_multiplier_opt.png",
                 y_metric=area_col,
                 color_by="multiplier_opt",  # change to 'enc', 'stages', etc. if you prefer
@@ -969,13 +969,14 @@ def main():
         )
 
     filter_sel = Filters(not_multiplier_opt=["STAR_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"])
+    stage_unsigned_filters = Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"])
 
     # 6) NEW: Scaling — depth vs n_bits, min per (category, n_bits), linear axes (depth often ~ O(log n) or O(n))
     if "max_depth" in design_df.columns and "n_bits" in design_df.columns:
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of max_depth vs n_bits (min per category)",
+                title="Scaling of max_depth vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_max_depth_vs_n_bits_by_multiplier_opt.png",
                 y_metric="max_depth",
                 color_by="multiplier_opt",
@@ -992,7 +993,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of num_aig_gates vs n_bits (min per category)",
+                title="Scaling of num_aig_gates vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_num_aig_gates_vs_n_bits_by_multiplier_opt.png",
                 y_metric="num_aig_gates",
                 color_by="multiplier_opt",
@@ -1008,7 +1009,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of num_aig_gates vs n_bits (min per category)",
+                title="Scaling of num_aig_gates vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_num_aig_gates_vs_n_bits_by_multiplier_opt_linear.png",
                 y_metric="num_aig_gates",
                 color_by="multiplier_opt",
@@ -1024,7 +1025,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of num_aig_gates vs n_bits (min per category)",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="rel_scaling_num_aig_gates_vs_n_bits_by_multiplier_opt.png",
                 y_metric="num_aig_gates",
                 color_by="multiplier_opt",
@@ -1042,7 +1043,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of aig_depth vs n_bits (min per category)",
+                title="Scaling of aig_depth vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_aig_depth_vs_n_bits_by_multiplier_opt.png",
                 y_metric="aig_depth",
                 color_by="multiplier_opt",
@@ -1058,7 +1059,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of aig_depth vs n_bits (min per category)",
+                title="Scaling of aig_depth vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_aig_depth_vs_n_bits_by_multiplier_opt_linear.png",
                 y_metric="aig_depth",
                 color_by="multiplier_opt",
@@ -1074,7 +1075,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of aig_depth vs n_bits (min per category)",
+                title="Relative Scaling of aig_depth vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="rel_scaling_aig_depth_vs_n_bits_by_multiplier_opt.png",
                 y_metric="aig_depth",
                 color_by="multiplier_opt",
@@ -1092,7 +1093,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of switches vs n_bits (min per category)",
+                title="Scaling of switches vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_switches_vs_n_bits_by_multiplier_opt.png",
                 y_metric="switches",
                 color_by="multiplier_opt",
@@ -1108,7 +1109,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of switches vs n_bits (min per category)",
+                title="Scaling of switches vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="scaling_switches_vs_n_bits_by_multiplier_opt_linear.png",
                 y_metric="switches",
                 color_by="multiplier_opt",
@@ -1124,7 +1125,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of switches vs n_bits (min per category)",
+                title="Relative Scaling of switches vs n_bits (min per category; categorized by multiplier_opt)",
                 filename="rel_scaling_switches_vs_n_bits_by_multiplier_opt.png",
                 y_metric="switches",
                 color_by="multiplier_opt",
@@ -1143,7 +1144,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of num_aig_gates vs n_bits (min per category)",
+                title="Scaling of num_aig_gates vs n_bits (min per category; categorized by ppg_opt)",
                 filename="scaling_num_aig_gates_vs_n_bits_by_ppg_opt.png",
                 y_metric="num_aig_gates",
                 color_by="ppg_opt",
@@ -1152,7 +1153,7 @@ def main():
                 loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
             )
         )
@@ -1160,7 +1161,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of num_aig_gates vs n_bits (min per category)",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category; categorized by ppg_opt)",
                 filename="rel_scaling_num_aig_gates_vs_n_bits_by_ppg_opt.png",
                 y_metric="num_aig_gates",
                 color_by="ppg_opt",
@@ -1169,7 +1170,7 @@ def main():
                 loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
             )
         )
@@ -1179,7 +1180,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of aig_depth vs n_bits (min per category)",
+                title="Scaling of aig_depth vs n_bits (min per category; categorized by ppg_opt)",
                 filename="scaling_aig_depth_vs_n_bits_by_ppg_opt.png",
                 y_metric="aig_depth",
                 color_by="ppg_opt",
@@ -1188,7 +1189,7 @@ def main():
                 loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
             )
         )
@@ -1196,7 +1197,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of aig_depth vs n_bits (min per category)",
+                title="Relative Scaling of aig_depth vs n_bits (min per category; categorized by ppg_opt)",
                 filename="rel_scaling_aig_depth_vs_n_bits_by_ppg_opt.png",
                 y_metric="aig_depth",
                 color_by="ppg_opt",
@@ -1205,7 +1206,7 @@ def main():
                 loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
             )
         )
@@ -1215,7 +1216,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="scaling",
-                title="Scaling of switches vs n_bits (min per category)",
+                title="Scaling of switches vs n_bits (min per category; categorized by ppg_opt)",
                 filename="scaling_switches_vs_n_bits_by_ppg_opt.png",
                 y_metric="switches",
                 color_by="ppg_opt",
@@ -1224,7 +1225,7 @@ def main():
                 loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
             )
         )
@@ -1232,7 +1233,7 @@ def main():
         PLOTS.append(
             PlotConfig(
                 kind="rel_scaling",
-                title="Relative Scaling of switches vs n_bits (min per category)",
+                title="Relative Scaling of switches vs n_bits (min per category; categorized by ppg_opt)",
                 filename="rel_scaling_switches_vs_n_bits_by_ppg_opt.png",
                 y_metric="switches",
                 color_by="ppg_opt",
@@ -1241,8 +1242,116 @@ def main():
                 loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
-                filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
                 baseline_category="AND",
+            )
+        )
+
+    if "num_aig_gates" in design_df.columns and "n_bits" in design_df.columns:
+
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of num_aig_gates vs n_bits (min per category; categorized by ppa_opt)",
+                filename="scaling_num_aig_gates_vs_n_bits_by_ppa_opt.png",
+                y_metric="num_aig_gates",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
+            )
+        )
+
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of num_aig_gates vs n_bits (min per category; categorized by ppa_opt)",
+                filename="rel_scaling_num_aig_gates_vs_n_bits_by_ppa_opt.png",
+                y_metric="num_aig_gates",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
+            )
+        )
+
+    if "aig_depth" in design_df.columns and "n_bits" in design_df.columns:
+
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of aig_depth vs n_bits (min per category; categorized by ppa_opt)",
+                filename="scaling_aig_depth_vs_n_bits_by_ppa_opt.png",
+                y_metric="aig_depth",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
+            )
+        )
+
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of aig_depth vs n_bits (min per category; categorized by ppa_opt)",
+                filename="rel_scaling_aig_depth_vs_n_bits_by_ppa_opt.png",
+                y_metric="aig_depth",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
+            )
+        )
+
+    if "switches" in design_df.columns and "n_bits" in design_df.columns:
+
+        PLOTS.append(
+            PlotConfig(
+                kind="scaling",
+                title="Scaling of switches vs n_bits (min per category; categorized by ppa_opt)",
+                filename="scaling_switches_vs_n_bits_by_ppa_opt.png",
+                y_metric="switches",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=True,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
+            )
+        )
+
+        PLOTS.append(
+            PlotConfig(
+                kind="rel_scaling",
+                title="Relative Scaling of switches vs n_bits (min per category; categorized by ppa_opt)",
+                filename="rel_scaling_switches_vs_n_bits_by_ppa_opt.png",
+                y_metric="switches",
+                color_by="ppa_opt",
+                legend=(args.legend == "on"),
+                agg="min",
+                loglog=False,  # keep linear to see ~O(n) vs ~O(log n) trends
+                fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
+                min_points=2,
+                filters=stage_unsigned_filters,  # e.g., exclude outliers
+                baseline_category="WALLACE_TREE",
             )
         )
 
