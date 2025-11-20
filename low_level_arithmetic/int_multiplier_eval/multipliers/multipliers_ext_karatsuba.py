@@ -228,7 +228,8 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         # so we don't need to manually extend the operands.
         a_sum = a_lo + a_hi  # width: sum_w = max(lo_w, hi_w) + 1
         b_sum = b_lo + b_hi
-        sum_w = max(lo_w, hi_w) + 1
+        #sum_w = max(lo_w, hi_w) + 1
+        sum_w = max(lo_w, hi_w) + int(lo_w == hi_w)
 
         p1 = self._build_karatsuba(a_sum, b_sum, sum_w, level)  # width: 2*sum_w
 

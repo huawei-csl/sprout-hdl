@@ -9,7 +9,7 @@ from testing.test_different_logic import run_vectors_io
 
 # AND partial product generator (schoolbook method)
 
-class SchoolbookPartialProductGenerator(PartialProductGeneratorBase):
+class AndPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = (
         (False, False),
         (True, True),
@@ -59,7 +59,7 @@ class ConfiguredMultiplier(StageBasedMultiplierBasic):
         signed_a: bool = False,
         signed_b: bool = False,
         optim_type: str = "area",
-        ppg_cls: type[PartialProductGeneratorBase] = SchoolbookPartialProductGenerator,
+        ppg_cls: type[PartialProductGeneratorBase] = AndPartialProductGenerator,
         ppa_cls: type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:

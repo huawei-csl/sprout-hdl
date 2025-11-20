@@ -41,7 +41,8 @@ if __name__ == "__main__":
 
     mult = Multiplier(width=width)
     print(mult)
-    mult.from_aig_file("/scratch/farnold/eda_package/fuzzy-waddle/model_60.aag", make_internal=False)
+    # mult.from_aig_file("/scratch/farnold/eda_package/fuzzy-waddle/model_60.aag", make_internal=False)
+    mult.from_aig_file("/scratch/farnold/eda_package/gate_net/circuit.aig", make_internal=False)
 
     # from_aig_file(aig_file_path, aiger_map_file_path, make_internal=False)
 
@@ -61,8 +62,6 @@ if __name__ == "__main__":
     print(f"Inputs: {sim.peek_inputs()}")
     print(f"Outputs: {sim.peek_outputs()}")
 
-    num_vectors=1000
-
     vecs = MultiplierTestVectorsExhaustive(
         a_w=width,
         b_w=width,
@@ -70,5 +69,5 @@ if __name__ == "__main__":
         b_encoding=Encoding.unsigned,
         y_encoding=Encoding.unsigned,
     ).generate()
-    
+
     run_vectors_io(m_mult, vecs)

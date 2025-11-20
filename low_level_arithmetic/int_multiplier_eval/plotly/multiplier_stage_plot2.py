@@ -1153,7 +1153,7 @@ def main():
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 
@@ -1170,7 +1170,7 @@ def main():
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 
@@ -1189,7 +1189,7 @@ def main():
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 
@@ -1206,7 +1206,7 @@ def main():
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 
@@ -1225,7 +1225,7 @@ def main():
                 fit_power=True,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 
@@ -1242,7 +1242,7 @@ def main():
                 fit_power=False,  # still fit p on linear data via log-fit (interprets as power law)
                 min_points=2,
                 filters=Filters(multiplier_opt=["STAGE_BASED_MULTIPLIER"], a_enc=["unsigned"], b_enc=["unsigned"]),  # e.g., exclude outliers
-                baseline_category="SCHOOLBOOK",
+                baseline_category="AND",
             )
         )
 

@@ -14,9 +14,9 @@ def run_stage_multiplier_demo() -> None:  # pragma: no cover - demonstration onl
 
     # define some demo combinations to try
     demos: Tuple[Tuple[PPGOption, PPAOption, FSAOption], ...] = (
-        (PPGOption.SCHOOLBOOK, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
-        (PPGOption.SCHOOLBOOK, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KOGGE_STONE),
-        (PPGOption.SCHOOLBOOK, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
+        (PPGOption.AND, PPAOption.WALLACE_TREE, FSAOption.RIPPLE),
+        (PPGOption.AND, PPAOption.CARRY_SAVE_TREE, FSAOption.PREFIX_KOGGE_STONE),
+        (PPGOption.AND, PPAOption.FOUR_TWO_COMPRESSOR, FSAOption.PREFIX_BRENT_KUNG),
         (PPGOption.BAUGH_WOOLEY, PPAOption.ACCUMULATOR_TREE, FSAOption.PREFIX_KOGGE_STONE),
         (PPGOption.BOOTH_UNOPTIMISED, PPAOption.DADDA_TREE, FSAOption.PREFIX_RCA),
         (PPGOption.BOOTH_OPTIMISED, PPAOption.ACCUMULATOR_TREE, FSAOption.PREFIX_BRENT_KUNG)

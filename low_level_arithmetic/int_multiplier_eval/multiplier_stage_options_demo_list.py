@@ -9,49 +9,49 @@ demos1: list[ConfigItem] = [
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_UP_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.unsigned),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_TO_TWOS_COMPLEMENT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER,
         MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
-        PPGOption.SCHOOLBOOK,
+        PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
@@ -76,7 +76,7 @@ def get_selection1_list(large_sweep: bool = True, multiplier_option_sigma_sweep:
 
     config_items : list[ConfigItem] = []
 
-    ppg_0 = PPGOption.SCHOOLBOOK
+    ppg_0 = PPGOption.AND
     ppa_0 = PPAOption.WALLACE_TREE
     fsa_0 = FSAOption.PREFIX_BRENT_KUNG
 

@@ -7,7 +7,7 @@ from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import 
 from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
 from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_baugh_wooley_stages import BaughWooleyPartialProductGenerator
-from low_level_arithmetic.int_multiplier_eval.stages.ppg_schoolbook_stages import SchoolbookPartialProductGenerator
+from low_level_arithmetic.int_multiplier_eval.stages.ppg_and_stages import AndPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from low_level_arithmetic.int_multiplier_eval.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
@@ -18,7 +18,7 @@ from low_level_arithmetic.int_multiplier_eval.stages.fsa_stages import BrentKung
 # Options for each stage
 
 class PPGOption(Enum):
-    SCHOOLBOOK = SchoolbookPartialProductGenerator # and partial products
+    AND = AndPartialProductGenerator # and partial products
     BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
     BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
     BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
