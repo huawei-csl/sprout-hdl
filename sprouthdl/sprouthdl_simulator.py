@@ -108,7 +108,7 @@ class Simulator:
             self._in[_sid(self.m.rst)] = 0
         return self
 
-    # Convenience, todo auto signed
+    # Peek, for raw outputs and inputs
     def peek_outputs(self, *e) -> dict[str, int]:
         return {y.name: self.peek(y) for y in self.outputs}
     

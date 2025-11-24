@@ -225,7 +225,7 @@ class Module:
         return comp
 
     # Verilog generation
-    def to_verilog(self) -> str:
+    def to_verilog_lines(self) -> list[str]:
         # Basic checks
         for s in self._signals:
             if s.kind in ("wire", "output") and s._driver is None:
@@ -291,6 +291,10 @@ class Module:
             lines.append("  end")
 
         lines.append("endmodule")
+        return lines
+    
+    def to_verilog(self) -> str:
+        lines = self.to_verilog_lines()
         return "\n".join(lines)
 
     def module_analyze(self: "Module",
