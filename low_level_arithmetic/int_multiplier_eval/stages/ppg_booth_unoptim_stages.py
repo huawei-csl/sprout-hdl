@@ -166,7 +166,7 @@ def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
 
 
 def main() -> None:
-    n_bits = 16
+    n_bits = 32
     signed = False
 
     mult = ConfiguredMultiplier(

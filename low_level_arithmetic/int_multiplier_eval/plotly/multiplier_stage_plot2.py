@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -412,16 +412,16 @@ def _category_colors(values: Sequence) -> Dict:
 # ----- new: helpers for scaling plots ----- #
 
 
-def _agg_from_name(name: str) -> Callable[[pd.Series], float]:
+def _agg_from_name(name: str) -> Union[str, Callable[[pd.Series], float]]:
     name = (name or "median").lower()
     if name == "min":
-        return np.min
+        return "min"
     if name == "max":
-        return np.max
+        return "max"
     if name == "mean":
-        return np.mean
+        return "mean"
     if name == "median":
-        return np.median
+        return "median"
     if name == "p10":
         return lambda x: float(np.quantile(x, 0.10))
     if name == "p90":
