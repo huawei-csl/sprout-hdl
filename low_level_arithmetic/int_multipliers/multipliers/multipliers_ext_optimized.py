@@ -8,12 +8,12 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
-from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
-from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator
-from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
+from low_level_arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from low_level_arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
+from low_level_arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator
+from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
 from sprouthdl.sprouthdl_aiger import AigerImporter
@@ -402,7 +402,7 @@ def test_multiplier_ext_optimized() -> None:
 
     n_bits = 4
 
-    from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
+    from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import MultiplierOption, encoding_for_multiplier
 
     encodings = encoding_for_multiplier(MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER.value)[0]
 

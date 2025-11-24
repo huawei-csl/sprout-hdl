@@ -1,11 +1,11 @@
 from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optional, Tuple, Type
 
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
-from low_level_arithmetic.int_multiplier_eval.multipliers.mutipliers_ext import StageBasedExtMultiplier
-from low_level_arithmetic.int_multiplier_eval.stages.ppa_fsa_util import OutputConfig, compressor_sum
-from low_level_arithmetic.int_multiplier_eval.stages.ppa_stages import CarrySaveAccumulator, WallaceTreeAccumulator
-from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
+from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
+from low_level_arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from low_level_arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
+from low_level_arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator, WallaceTreeAccumulator
+from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
 
@@ -88,7 +88,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
         self.karatsuba_only_at_first_level = karatsuba_only_at_first_level
         self.use_preoptimized_4bit_multiplier = use_preoptimized_4bit_multiplier
 
-        from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
+        from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
 
         if self.use_preoptimized_4bit_multiplier:
 
@@ -254,7 +254,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             #                        Concat([Const(0, UInt(k)), -p0_2n]),
             #                        Concat([Const(0, UInt(k)), -p2_2n]),
             #                         ]
-            from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption
+            from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption
 
             prod_2n = compressor_sum(
                 config=OutputConfig(

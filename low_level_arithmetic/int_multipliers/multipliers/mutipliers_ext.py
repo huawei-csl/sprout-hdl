@@ -5,8 +5,8 @@ from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, 
 
 import numpy as np
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
-from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, from_encoding, to_encoding
+from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, from_encoding, to_encoding
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module

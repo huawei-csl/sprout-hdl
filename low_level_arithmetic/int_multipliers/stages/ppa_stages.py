@@ -4,7 +4,7 @@ from collections import defaultdict
 from math import floor
 from typing import DefaultDict, Dict, List, Tuple
 
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import MultiplierConfig, PartialProductAccumulatorBase, half_adder, full_adder_fast, full_adder_low_area
+from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import MultiplierConfig, PartialProductAccumulatorBase, half_adder, full_adder_fast, full_adder_low_area
 from sprouthdl.sprouthdl import Bool, Const, Expr
 
 

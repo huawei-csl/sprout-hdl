@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
-from low_level_arithmetic.int_multiplier_eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
-from low_level_arithmetic.int_multiplier_eval.multipliers.multiplier_stage_core import StageBasedMultiplierBasic
+from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
+from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
+from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierBasic
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
 

@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - optional dependency for sigma linspace
 from tqdm import tqdm
 
 
-from low_level_arithmetic.int_multiplier_eval.multiplier_stage_options_demo_ext_stat_helper import ParquetCollector, _flatten_op_nodes
+from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_ext_stat_helper import ParquetCollector, _flatten_op_nodes
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
