@@ -1,15 +1,21 @@
 from collections import defaultdict
-from typing import DefaultDict, Dict, List
+from typing import DefaultDict, List
 
 from sprouthdl.helpers import get_yosys_transistor_count
-from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierTestVectors, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
-from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierTestVectors, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from sprouthdl.sprouthdl import Concat, Expr
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io
 
+# AND partial product generator (schoolbook method)
 
-class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
-    supported_signatures = ((True, True),)
+class AndPartialProductGenerator(PartialProductGeneratorBase):
+    supported_signatures = (
+        (False, False),
+        (True, True),
+        (True, False),
+        (False, True),
+    )
 
     def generate_columns(
         self, io: StageBasedMultiplierIO
@@ -18,34 +24,28 @@ class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
 
         a = io.a
         b = io.b
-        wa = a.typ.width
-        wb = b.typ.width
+        a_vec: Expr = a
+        b_vec: Expr = b
+
+        if a.typ.signed:
+            sign_bit = a[a.typ.width - 1]
+            a_vec = Concat([a] + [sign_bit] * a.typ.width)
+        if b.typ.signed:
+            sign_bit = b[b.typ.width - 1]
+            b_vec = Concat([b] + [sign_bit] * b.typ.width)
+
         out_bits = io.y.typ.width
 
-        for i in range(wa - 1):
-            for j in range(wb - 1):
+        for i in range(a_vec.typ.width):
+            for j in range(b_vec.typ.width):
                 weight = i + j
                 if weight >= out_bits:
                     continue
-                cols[weight].append(a[i] & b[j])
-
-        i = wa - 1
-        for j in range(wb - 1):
-            cols[i + j].append(~(a[i] & b[j]))
-
-        j = wb - 1
-        for i in range(wa - 1):
-            cols[i + j].append(~(a[i] & b[j]))
-
-        cols[wa - 1 + wb - 1].append(a[wa - 1] & b[wb - 1])
-
-        cols[wa - 1 + wb - 1 + 1].append(Const(True, Bool()))
-        cols[wa - 1].append(Const(True, Bool()))
-        cols[wb - 1].append(Const(True, Bool()))
+                cols[weight].append(a_vec[i] & b_vec[j])
 
         total_bits = sum(len(v) for v in cols.values())
         print(
-            f"PPG (Baugh-Wooley): generated {total_bits} bits across {len(cols)} columns"
+            f"PPG (Basic): generated {total_bits} bits across {len(cols)} columns"
         )
         return cols
 
@@ -59,7 +59,7 @@ class ConfiguredMultiplier(StageBasedMultiplierBasic):
         signed_a: bool = False,
         signed_b: bool = False,
         optim_type: str = "area",
-        ppg_cls: type[PartialProductGeneratorBase] = BaughWooleyPartialProductGenerator,
+        ppg_cls: type[PartialProductGeneratorBase] = AndPartialProductGenerator,
         ppa_cls: type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
@@ -78,17 +78,16 @@ class ConfiguredMultiplier(StageBasedMultiplierBasic):
         super().elaborate()
         cfg = self.config
         print(
-            f"MultiplierCompressorTree: {cfg.a_width}x{cfg.b_width} -> {cfg.out_width} bits"
+            f"MultiplierCompressorTree (Basic): {cfg.a_width}x{cfg.b_width} -> {cfg.out_width} bits"
         )
 
 
-
 def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
-    return mult.to_module(f"Mul{mult.config.a_width}_ct")
+    return mult.to_module(f"Mul{mult.config.a_width}_ct_basic")
 
 
 def main() -> None:
-    n_bits = 4
+    n_bits = 16
     signed = True
 
     mult = ConfiguredMultiplier(
@@ -100,7 +99,7 @@ def main() -> None:
     )
 
     module = gen_sprout_module(mult)
-    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10, deepsyn=False)
+    transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {transistor_count}")
 
     specs, vecs, decoder = MultiplierTestVectors(
@@ -112,7 +111,7 @@ def main() -> None:
         signed_b=signed,
     ).generate()
     _ = specs
-    run_vectors_io(module, vecs, decoder=decoder, use_signed=True)
+    run_vectors_io(module, vecs, decoder=decoder)
 
 
 if __name__ == "__main__":

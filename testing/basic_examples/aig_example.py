@@ -1,6 +1,6 @@
 from aigverse import Aig
 from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig
-from sprouthdl.floating_point.sprout_hdl_float import build_f16_mul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul
 from sprouthdl.sprouthdl_aiger import export_module_to_aiger
 
 

@@ -26,14 +26,8 @@ from sprouthdl.sprouthdl import (
 )
 from sprouthdl.sprouthdl_module import Component, Module
 
-from sprouthdl.floating_point.sprout_hdl_float import build_fp_mul
-from sprouthdl.floating_point.sprout_hdl_hif8 import (
-    _abs_sint,
-    _const_sint,
-    _const_uint,
-    _decode_operand_expr,
-    _round_bucket,
-)
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_fp_mul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import _abs_sint, _const_sint, _const_uint, _decode_operand_expr, _round_bucket
 
 
 _FP_EW = 5

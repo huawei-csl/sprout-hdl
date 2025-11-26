@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import DefaultDict, List, Literal, Tuple, Type
 
-from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase
 from sprouthdl.sprouthdl import Concat, Const, Expr
 
 

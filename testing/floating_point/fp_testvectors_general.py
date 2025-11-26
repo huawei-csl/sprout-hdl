@@ -3,8 +3,8 @@ from __future__ import annotations
 from math import frexp, copysign, isfinite, isnan, isinf, floor
 from math import ldexp
 
-from sprouthdl.floating_point.sprout_hdl_float import run_vectors
-from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 
 # -------------- core helpers: pack/unpack fields --------------
 

@@ -23,7 +23,7 @@ import os
 import math
 import uuid
 
-from sprouthdl.floating_point.sprout_hdl_hif8 import hif8_to_float
+from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import hif8_to_float
 from testing.floating_point.fp_testvectors_general import fp_decode
 
 
@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - optional dependency for sigma linspace
 from tqdm import tqdm
 
 
-from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_ext_stat_helper import ParquetCollector, _flatten_op_nodes
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_ext_stat_helper import ParquetCollector, _flatten_op_nodes
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
@@ -47,7 +47,7 @@ matplotlib.use("Agg")  # headless plotting
 import matplotlib.pyplot as plt
 
 # FP module builders
-from sprouthdl.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 
 # FP testvector generator
 from low_level_arithmetic.fp_multiplier_eval.testvector_generation_fp import (
@@ -145,7 +145,7 @@ def get_module(cfg: FPConfig):
         assert cfg.EW is not None and cfg.FW is not None, "EW/FW must be set for IEEE format"
         module = build_fp_mul_sn(f"F{1+cfg.EW+cfg.FW}Mul", EW=int(cfg.EW), FW=int(cfg.FW), subnormals=bool(cfg.subnormals))
     elif cfg.kind == FPFormatKind.HIF8:
-        from sprouthdl.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic  # type: ignore
+        from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic
         module = build_hif8_mul_logic("HiFP8Mul_Logic_Ref")
     else:
         raise ValueError(f"Unsupported format kind: {cfg.kind}")
@@ -343,7 +343,7 @@ def plot_input_output_histograms(cfg: FPConfig, vecs: list[tuple], sigma: float 
             assert cfg.EW is not None and cfg.FW is not None
             decode_val = functools.partial(fp_decode, EW=int(cfg.EW), FW=int(cfg.FW))
         else:
-            from sprouthdl.floating_point.sprout_hdl_hif8 import hif8_to_float  # type: ignore
+            from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import hif8_to_float
             decode_val = hif8_to_float
     else:
         decode_val = decoder

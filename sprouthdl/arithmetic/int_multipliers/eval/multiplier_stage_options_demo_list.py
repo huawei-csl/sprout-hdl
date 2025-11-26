@@ -1,7 +1,7 @@
 from typing import List, Tuple
-from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
-from low_level_arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks
-from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, to_encoding
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
+from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, to_encoding
 from testing.aag_conv.aig_to_aag import aig_file_to_aag_lines
 
 

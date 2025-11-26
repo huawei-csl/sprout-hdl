@@ -1,9 +1,9 @@
 from collections import defaultdict
 from typing import DefaultDict, List
 
-from low_level_arithmetic.int_multipliers.eval.testvector_generation import to_encoding, MultiplierTestVectors
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import to_encoding, MultiplierTestVectors
 from sprouthdl.helpers import get_yosys_transistor_count
-from low_level_arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 from sprouthdl.sprouthdl import Bool, Const, Expr
 from sprouthdl.sprouthdl_module import Module
 from testing.test_different_logic import run_vectors_io

@@ -5,10 +5,10 @@ from __future__ import annotations
 from enum import Enum
 from typing import NamedTuple, Self, Tuple, Type
 
-from low_level_arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.test_different_logic import run_vectors_io
-from low_level_arithmetic.int_multipliers.eval.multiplier_stage_options_demo_list import demos1
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_list import demos1
 
 
 def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration only

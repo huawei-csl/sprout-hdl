@@ -64,7 +64,7 @@ class HiF8Format:
 
     def _import(self):
         # Local import to avoid optional dependencies during module import
-        from sprouthdl.floating_point.sprout_hdl_hif8 import float_to_hif8, hif8_to_float  # type: ignore
+        from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import float_to_hif8, hif8_to_float
         return float_to_hif8, hif8_to_float
 
     def encode(self, x: float) -> int:

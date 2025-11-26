@@ -16,7 +16,7 @@
 from typing import List
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import *
-from sprouthdl.floating_point.sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
 from sprouthdl.sprouthdl_simulator import Simulator
 
 

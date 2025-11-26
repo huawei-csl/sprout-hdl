@@ -6,9 +6,9 @@ Sprout-HDL is a Python embedded domain-specific language (EDSL) for building dig
 
 Sprout-HDL revolves around a small set of core modules:
 
-- **`sprouthdl.sprouthdl`** – the expression DSL.  It provides bit-precise types such as `Bool`, `UInt`, and `SInt`, shared-expression caching, and the overloaded arithmetic / bitwise operators that make the Python syntax feel like an HDL.【F:sprouthdl/sprouthdl.py†L15-L189】
-- **`sprouthdl.sprouthdl_module`** – structural modeling helpers.  The `Module` class constructs ports, wires, and registers, produces Verilog, and exposes analysis utilities.  The `Component` base class lets you package reusable sub-designs and convert them to or from Sprout modules.  `IOCollector` can rebuild packed ports from bit-level signals when importing external netlists.【F:sprouthdl/sprouthdl_module.py†L14-L340】
-- **`sprouthdl.sprouthdl_simulator`** – a lightweight simulator that can drive inputs, tick clocks, inspect outputs or internal expressions, and capture probes for debugging—all without leaving Python.【F:sprouthdl/sprouthdl_simulator.py†L6-L420】
+- **`sprouthdl.sprouthdl`** – the expression DSL.  It provides bit-precise types such as `Bool`, `UInt`, and `SInt`, shared-expression caching, and the overloaded arithmetic / bitwise operators that make the Python syntax feel like an HDL.
+- **`sprouthdl.sprouthdl_module`** – structural modeling helpers.  The `Module` class constructs ports, wires, and registers, produces Verilog, and exposes analysis utilities.  The `Component` base class lets you package reusable sub-designs and convert them to or from Sprout modules.  `IOCollector` can rebuild packed ports from bit-level signals when importing external netlists.
+- **`sprouthdl.sprouthdl_simulator`** – a lightweight simulator that can drive inputs, tick clocks, inspect outputs or internal expressions, and capture probes for debugging—all without leaving Python.
 
 Supporting packages add reusable arithmetic building blocks and importer utilities for external netlists when you need to mix handwritten Sprout code with pre-existing IP.【F:low_level_arithmetic/multipliers_ext.py†L1-L182】【F:low_level_arithmetic/multipliers_ext_optimized.py†L1-L182】
 
@@ -97,7 +97,7 @@ These capabilities align with the standard Sprout development flow: express a de
 
 ## Examples
 
-Check out the `examples/` directory for practical examples:
+Check out the `testing/examples/` directory for practical examples:
 
 - **`simple_component.py`** – A minimal example showing how to define a Component with IO ports and generate Verilog
 - **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
@@ -107,13 +107,13 @@ See the [examples README](examples/README.md) for detailed documentation and key
 
 ## Next steps
 
-- Explore the `examples/` directory to see working examples of components and modules
+- Explore the `testing/examples/` directory to see working examples of components and modules
 - Explore the `sprouthdl/floating_point` and `low_level_arithmetic` packages for more generators.
 - Use `module_analyze()` to gauge combinational depth before synthesis.【F:sprouthdl/sprouthdl_module.py†L238-L255】
 - Integrate the simulator into your verification harness to shorten debug cycles.
 
 ## Slices
-We follow the indexing of pyton also in Sprout-HDL signals. For example `sig[4:7]` creates a new expression containing of bits 4 and 5 of the original expression `sig`.
+We follow the indexing of pyton also in Sprout-HDL signals. For example `sig[4:7]` creates a new expression containing of bits 4 and 5 (counted from lsb) of the original expression `sig`.
 
 # Running Scripts and Tests
 
