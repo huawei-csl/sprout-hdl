@@ -294,7 +294,7 @@ class Module:
         return lines
     
     def to_verilog(self) -> str:
-        lines = self.to_verilog_lines()
+        lines = self.to_verilog_lines() + [""]  # final newline
         return "\n".join(lines)
 
     def module_analyze(self: "Module",
