@@ -17,14 +17,13 @@ dynamic = [
     "dependencies"
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["sprouthdl"]
-
-
-
+# Tell hatchling what to put into the wheel
 [tool.hatch.build.targets.wheel]
-packages = ["sprouthdl"]
+packages = ["src/sprouthdl"]
+
+# Optional but nice: also define sdist the same way
+[tool.hatch.build.targets.sdist]
+packages = ["src/sprouthdl"]
 
 [tool.hatch.metadata.hooks.requirements_txt]
 files = ["requirements.txt"]
