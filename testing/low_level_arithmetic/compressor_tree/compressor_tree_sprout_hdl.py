@@ -6,7 +6,7 @@ from aigverse import DepthAig, DepthAig, aig_cut_rewriting, aig_resubstitution, 
 import numpy as np
 from tqdm import tqdm
 from sprouthdl.aig.aig_aigerverse import conv_aag_into_aig, conv_aig_into_aag
-from low_level_arithmetic.compressor_tree.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
+from testing.low_level_arithmetic.compressor_tree.compressor_tree_multiplier import Graph, build_wallace_compressor_graph, get_node_kind_counts, random_compressor_tree
 from sprouthdl.arithmetic.prefix_adders.prefix_adder import Vec
 from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl import Bool, HDLType, Op2

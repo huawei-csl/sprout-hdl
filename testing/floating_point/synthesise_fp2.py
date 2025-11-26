@@ -1,7 +1,7 @@
 import os
 import tempfile
 import time
-from low_level_arithmetic.compressor_tree.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
+from testing.low_level_arithmetic.compressor_tree.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 
 from flowy.flows.reinforce.data_collection.lib.definitions import Encodings, Policy, RecipeSelection, SelectionMetric, SimMode, StrategyName, Operations
