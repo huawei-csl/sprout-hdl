@@ -6,13 +6,13 @@ from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
 import numpy as np
 from low_level_arithmetic.compressor_tree.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
-from sprouthdl.helpers import optimize_aag
+from sprouthdl.helpers import optimize_aag, run_vectors
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Op2, SInt, UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.test_different_logic import gen_m_case, run_vectors_io
+
 
 import matplotlib.pyplot as plt
 
@@ -222,7 +222,7 @@ def main():
 
             # 1) Original sim
             print("Sim (original) …")
-            run_vectors_io(m, vecs, decoder=dec, use_signed=True)
+            run_vectors(m, vecs, decoder=dec, use_signed=True)
 
             # get AIG
             aag = AigerExporter(m).get_aag()
@@ -233,7 +233,7 @@ def main():
 
             # AIG network test sim
             print("Sim (AIG) …")
-            run_vectors_io(m_aig, vecs, decoder=dec, use_signed=True)
+            run_vectors(m_aig, vecs, decoder=dec, use_signed=True)
 
             exprs = m_aig.all_exprs()
 

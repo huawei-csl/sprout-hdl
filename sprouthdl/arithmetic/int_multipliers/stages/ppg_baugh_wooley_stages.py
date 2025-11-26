@@ -1,11 +1,10 @@
 from collections import defaultdict
 from typing import DefaultDict, Dict, List
 
-from sprouthdl.helpers import get_yosys_transistor_count
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierTestVectors, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from sprouthdl.helpers import get_yosys_transistor_count, run_vectors
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierTestVectorsInt, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Module
-from testing.test_different_logic import run_vectors_io
 
 
 class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
@@ -82,7 +81,6 @@ class ConfiguredMultiplier(StageBasedMultiplierBasic):
         )
 
 
-
 def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
     return mult.to_module(f"Mul{mult.config.a_width}_ct")
 
@@ -103,7 +101,7 @@ def main() -> None:
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10, deepsyn=False)
     print(f"Yosys-reported transistor count: {transistor_count}")
 
-    specs, vecs, decoder = MultiplierTestVectors(
+    specs, vecs, decoder = MultiplierTestVectorsInt(
         a_w=n_bits,
         b_w=n_bits,
         num_vectors=16,
@@ -112,7 +110,7 @@ def main() -> None:
         signed_b=signed,
     ).generate()
     _ = specs
-    run_vectors_io(module, vecs, decoder=decoder, use_signed=True)
+    run_vectors(module, vecs, decoder=decoder, use_signed=True, print_on_pass=True)
 
 
 if __name__ == "__main__":

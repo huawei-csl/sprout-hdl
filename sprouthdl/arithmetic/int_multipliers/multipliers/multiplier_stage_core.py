@@ -212,7 +212,7 @@ class StageBasedMultiplierBasic(Component):
         self.reduced_columns = reduced_columns
 
 @dataclass
-class MultiplierTestVectors:
+class MultiplierTestVectorsInt:
     a_w: int
     b_w: int
     num_vectors: int = 64

@@ -4,11 +4,11 @@ from dataclasses import dataclass
 import random
 from typing import Dict, Literal, Optional, Tuple, List
 import numpy as np
-from sprouthdl.helpers import get_yosys_transistor_count
+from sprouthdl.helpers import get_yosys_transistor_count, run_vectors
 from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, SInt, Signal, UInt, cast, fit_width, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
-from testing.test_different_logic import run_vectors_io
+
 
 # abstract Component Class
 class Component(abc.ABC):
@@ -373,7 +373,7 @@ def main():
 
     specs, vecs, dec = MultiplierTestVectors(a_w=n_bits, b_w=n_bits, num_vectors=1600, tb_sigma=None, signed_a=signed, signed_b=signed).generate()
     specs2 = gen_spec(mult)
-    run_vectors_io(m, vecs, decoder=dec)
+    run_vectors(m, vecs, decoder=dec)
     
     tc = get_yosys_transistor_count(m, n_iter_optimizations=10)
     print(f"Yosys-reported transistor count: {tc}")

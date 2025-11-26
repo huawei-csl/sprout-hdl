@@ -15,14 +15,16 @@ from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfi
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
-from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
+from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag, run_vectors
 from sprouthdl.sprouthdl_aiger import AigerImporter
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 
 from testing.aag_conv.aig_to_aag import aig_file_to_aag_lines
-from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, run_vectors_io, verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
+from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
+
+# ----- precomputed optimized multipliers stored as AIGs: ffile locations need to be adopted -----
 
 def get_aag_lines_default(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
 
@@ -51,11 +53,23 @@ def get_aag_lines_default(aw: int, bw: int, a_encoding: Encoding, b_encoding: En
     aig_file, map_file = get_aig_files()
     aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
 
-    # other options:
+    # other options
     # aag_lines = verilog_to_aag_lines_via_yosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True) # works but higher aig count
-    # aag_lines = aig_file_to_aag_lines_via_yosys(aag_file, map_file=map_file) # works but does not preserve exactness -> higher aig count
 
     return aag_lines
+
+
+def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
+    if not(a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 4):
+        raise NotImplementedError("Only optimized 4-bit unsigned multiplier is supported")
+    aag_root = "data/NEW_multiplier-tc_unsigned-4b-aig100mt75ys-trans344/multiplier-tc_unsigned-4b-aig100mt75ys-trans44/"
+    aig_file = aag_root + "out_aiger_yosys_iter1a6c22e9d2eb8ca7503a29263f7a1c56d31ae6b15d71a6e1b3d66d256eb4f0274_1_round_17.aig"
+    map_file = aag_root + "out_aiger_map_mod.aig"
+    aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
+    return aag_lines
+
+
+# ----- optimized multiplier classes -----
 
 
 class OptimizedMultiplier(StageBasedExtMultiplier):
@@ -311,6 +325,7 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
                 fsa = RippleCarryFinalAdder(config=config)
                 fsa_bits = fsa.resolve(ppa_cols)
 
+                # another option is to use compressor_sum for the summation
                 # # Zero-extend to 2*aw bits and align via left shifts using Concat
                 # p0 = Concat([p0, Const(0, UInt(self.aw))])  # no shift
 
@@ -334,27 +349,6 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
 
                 self.io.y <<= Concat(fsa_bits)
 
-
-# def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
-
-#     if not(a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 4):
-#         raise NotImplementedError("Only optimized 4-bit unsigned multiplier is supported")
-
-#     aag_root = "data/multiplier-tc_unsigned-4b-aig120mt72ys-trans372/"
-#     aig_file = aag_root + "out_aiger_yosys_iter0b60fc1952477e5ed946c876999c564ea5263a161538ad62bc88cf813cf891ac8_0_round_10.aig"
-#     map_file = aag_root + "out_aiger_map_mod.aig"
-#     aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
-#     return aag_lines
-
-
-def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
-    if not(a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 4):
-        raise NotImplementedError("Only optimized 4-bit unsigned multiplier is supported")
-    aag_root = "data/NEW_multiplier-tc_unsigned-4b-aig100mt75ys-trans344/multiplier-tc_unsigned-4b-aig100mt75ys-trans44/"
-    aig_file = aag_root + "out_aiger_yosys_iter1a6c22e9d2eb8ca7503a29263f7a1c56d31ae6b15d71a6e1b3d66d256eb4f0274_1_round_17.aig"
-    map_file = aag_root + "out_aiger_map_mod.aig"
-    aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
-    return aag_lines
 
 class OptimizedMultiplierFrom4BitBlocksStrong(OptimizedMultiplierFrom4BitBlocks):
     f_aag_lines = staticmethod(get_optimized_aag_lines_strong)
@@ -396,7 +390,7 @@ def test_multiplier_ext_optimized() -> None:
         y_encoding=to_encoding(signed),
     ).generate()
 
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
 
     # sign magnitude version
 
@@ -436,7 +430,7 @@ def test_multiplier_ext_optimized() -> None:
         y_encoding=encodings.y,
     ).generate()
 
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
 
     # assembled from 4 bit blocks
 
@@ -471,7 +465,7 @@ def test_multiplier_ext_optimized() -> None:
         b_encoding=Encoding.unsigned,
         y_encoding=Encoding.unsigned,
     ).generate()
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
 
     # use a different file
 
@@ -510,7 +504,7 @@ def test_multiplier_ext_optimized() -> None:
         b_encoding=Encoding.unsigned,
         y_encoding=Encoding.unsigned,
     ).generate()
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
     
     n_bits = 16
     signed = False
@@ -547,7 +541,7 @@ def test_multiplier_ext_optimized() -> None:
         b_encoding=Encoding.unsigned,
         y_encoding=Encoding.unsigned,
     ).generate()
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
 
 
 if __name__ == "__main__":

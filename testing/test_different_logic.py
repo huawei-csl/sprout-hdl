@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Tuple
 # --- your libs (adjust paths as needed) ---
 from aigverse import equivalence_checking
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines, read_aag_into_aig, conv_aag_into_aig
+from sprouthdl.helpers import run_vectors
 from sprouthdl.sprouthdl import UInt, Bool, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import Module
@@ -144,52 +145,6 @@ def roundtrip_aiger_back_to_sprout(aag_lines: List[str], *, name="Imported") -> 
     return AigerImporter(aag_for_import).get_sprout_module(name)
 
 
-def run_vectors_io(
-    m: Module,
-    vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]],
-    *,
-    decoder: Callable[[int], float] | None = None,
-    use_signed: bool = False,
-    raise_on_fail: bool = True,
-) -> None:
-    """
-    Generic runner:
-      vectors: list of (label, inputs{name->int}, expected{name->int})
-    Prints mismatches; raises AssertionError at the end if any failed.
-    """
-
-    sim = Simulator(m)
-    fails = 0
-    for i_vec, (name, ins, outs) in enumerate(vectors):
-        for k, v in ins.items():
-            if k[0] == "_":
-                continue
-            sim.set(k, v)
-        sim.eval()
-
-        bad = []
-        for oname, exp in outs.items():
-            if oname[0] == "_":
-                continue
-            got_raw = sim.peek(oname) #sim.get(oname)
-            got_signed = sim.get(oname)
-            got = got_signed if use_signed else got_raw
-            if got != exp:
-                if decoder and oname == "y":
-                    bad.append(f"{oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
-                else:
-                    bad.append(f"{oname}: got=0x{got_raw:0X} ({got}) exp=0x{exp:0X} ({exp})")
-            else:
-                if decoder and oname == "y":
-                    print(f"PASS {name}: {oname}: got=0x{got_raw:0X} ({decoder(got_raw):.8g})  exp=0x{exp:0X} ({decoder(exp):.8g})")
-                else:
-                    print(f"PASS {name}: {oname}=0x{got_raw:0X} ({got})")
-        if bad:
-            fails += 1
-            print(f"FAIL  {name}:  " + " | ".join(bad))
-    print(f"Number of vectors: {len(vectors)}, {fails} failures")
-    if fails and raise_on_fail:
-        raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
 
 # -----------------------------
 # Simple modules + vectors
@@ -302,7 +257,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
 
     # 1) Original sim
     print("Sim (original) …")
-    run_vectors_io(m, vectors, decoder=decoder)
+    run_vectors(m, vectors, decoder=decoder)
 
     # 2) Sprout → AIGER (exporter) → AIG
     aag_lines, aig_exp = sprout_to_aig_via_exporter(m)
@@ -352,7 +307,7 @@ def run_test_one_module(m: Module, spec: Dict[str, UInt], vectors, *, decoder=No
 
     # 7) Re-sim round-tripped module
     print("Sim (round-tripped) …")
-    run_vectors_io(m_back, vectors, decoder=decoder)
+    run_vectors(m_back, vectors, decoder=decoder)
 
 
 def gen_m_case(i:int) -> Tuple[Module, Dict[str, UInt], List, Callable | None]:

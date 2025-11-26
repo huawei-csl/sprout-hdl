@@ -16,7 +16,7 @@
 from typing import List
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import *
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors_local
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
@@ -390,8 +390,8 @@ if __name__ == "__main__":
     f16 = build_fp_mul_sn("F16Mul_Sub", EW=5, FW=10, subnormals=True)
     bf16 = build_fp_mul_sn("BF16Mul_Sub", EW=8, FW=7, subnormals=True)
 
-    run_vectors(f16, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors(bf16, build_bf16_vectors(), label="bfloat16 default cases", decoder=bf16_to_float)
-    run_vectors(f16,  build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors(bf16, build_bf16_subnormal_vectors(), label="bfloat16 subnormal cases", decoder=bf16_to_float)
-    run_vectors(f16, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
+    run_vectors_local(f16, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
+    run_vectors_local(bf16, build_bf16_vectors(), label="bfloat16 default cases", decoder=bf16_to_float)
+    run_vectors_local(f16,  build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
+    run_vectors_local(bf16, build_bf16_subnormal_vectors(), label="bfloat16 subnormal cases", decoder=bf16_to_float)
+    run_vectors_local(f16, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)

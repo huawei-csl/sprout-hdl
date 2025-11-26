@@ -1,6 +1,6 @@
 from aigverse import Aig, DepthAig
 from sprouthdl.sprouthdl import UInt
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_f16_vectors, build_fp_mul, half_to_float, run_vectors
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_f16_vectors, build_fp_mul, half_to_float, run_vectors_local
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_fp_mul_sn
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter, export_module_to_aiger
 from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, read_aag_into_aig
@@ -75,12 +75,12 @@ def get_size_mult(ew: int, subnormals=False) -> int:
     from aigverse import equivalence_checking
     assert equivalence_checking(aig_clone, aig2), "AIGs are not equivalent after conversion!"
 
-    run_vectors(m, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
+    run_vectors_local(m, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
+    run_vectors_local(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
 
-    run_vectors(sprout, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
+    run_vectors_local(sprout, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
+    run_vectors_local(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
+    run_vectors_local(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
 
     return aig.size(), DepthAig(aig).num_levels()
 

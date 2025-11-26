@@ -7,14 +7,12 @@ from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfi
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator, WallaceTreeAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
 
-from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag
+from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag, run_vectors
 
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 
 
 from typing import List, Optional
-
-from testing.test_different_logic import run_vectors_io
 
 
 class KaratsubaMultiplier(StageBasedExtMultiplier):
@@ -340,7 +338,7 @@ def test_multiplier() -> None:
         b_encoding=Encoding.unsigned,
         y_encoding=Encoding.unsigned,
     ).generate()
-    run_vectors_io(module, vecs)
+    run_vectors(module, vecs)
 
 
 if __name__ == "__main__":

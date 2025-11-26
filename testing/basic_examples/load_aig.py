@@ -2,12 +2,11 @@ from attr import dataclass
 
 
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectorsExhaustive, to_encoding
-from sprouthdl.helpers import get_aig_stats, get_yosys_metrics
+from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, run_vectors
 from sprouthdl.sprouthdl import Signal, UInt
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import MultiplierTestVectors
-from testing.test_different_logic import run_vectors_io
 
 # Example 1: Simple Adder Component
 # ==================================
@@ -70,4 +69,4 @@ if __name__ == "__main__":
         y_encoding=Encoding.unsigned,
     ).generate()
 
-    run_vectors_io(m_mult, vecs)
+    run_vectors(m_mult, vecs)

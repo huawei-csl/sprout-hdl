@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import frexp, copysign, isfinite, isnan, isinf, floor
 from math import ldexp
 
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_local
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 
 # -------------- core helpers: pack/unpack fields --------------
@@ -344,9 +344,9 @@ def main_test():
     # simulation
     subnormals = True
     m = build_fp_mul_sn("F16Mul", EW=ew, FW=fw, subnormals=subnormals)
-    run_vectors(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_local(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
     if subnormals:
-        run_vectors(m, build_fp_subnormal_vectors(ew, fw), label=f"float{ew+fw+1} subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+        run_vectors_local(m, build_fp_subnormal_vectors(ew, fw), label=f"float{ew+fw+1} subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
 
 
 if __name__ == "__main__":

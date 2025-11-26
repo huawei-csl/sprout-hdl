@@ -21,7 +21,6 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Enco
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors
 from sprouthdl.sprouthdl import Op2, reset_shared_cache
-from testing.test_different_logic import run_vectors_io
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_list import demos1, get_selection1_list, get_selection1_list, get_selection1_list_optimized
 
 def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
@@ -75,14 +74,14 @@ def run_configuration(
                 y_encoding=encodings.y,
             ).generate()
 
-    run_vectors_io(module, vecs[0:min(16, len(vecs))])  # smoke test
+    run_vectors(module, vecs[0:min(16, len(vecs))])  # smoke test
 
     # -- swact --
     m_aig = refactor_module_to_aig(module)
 
     # AIG network test sim
     print("Sim (AIG) …")
-    run_vectors_io(m_aig, vecs[0:min(16, len(vecs))])  # smoke test
+    run_vectors(m_aig, vecs[0:min(16, len(vecs))])  # smoke test
 
     exprs = m_aig.all_exprs()
     all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]

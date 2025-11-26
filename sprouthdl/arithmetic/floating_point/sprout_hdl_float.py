@@ -224,7 +224,7 @@ def bf16_to_float(b):
         return float("nan")
     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 7))
 
-def run_vectors(mod, vectors, *, label="", decoder=None):
+def run_vectors_local(mod, vectors, *, label="", decoder=None):
     sim = Simulator(mod)
     print(f"\n== {label} ==")
     ok = 0
@@ -297,8 +297,8 @@ if __name__ == "__main__":
     f16 = build_f16_mul("F16Mul")
     bf16 = build_bf16_mul("BF16Mul")
     
-    run_vectors(f16, build_f16_vectors(), label="float16 (binary16)", decoder=half_to_float)
-    run_vectors(bf16, build_bf16_vectors(), label="bfloat16", decoder=bf16_to_float)
+    run_vectors_local(f16, build_f16_vectors(), label="float16 (binary16)", decoder=half_to_float)
+    run_vectors_local(bf16, build_bf16_vectors(), label="bfloat16", decoder=bf16_to_float)
 
     mul16 = build_f16_mul("F16Mul")
     #print(mul16.to_verilog())

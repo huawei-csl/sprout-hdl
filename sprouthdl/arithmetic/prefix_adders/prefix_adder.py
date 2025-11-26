@@ -683,7 +683,7 @@ def build_adder_verctorsn_rand(n: int, num_random: int = 512, seed: int = 0xADDE
 
     return V
 
-def run_vectors(mod, vectors, *, label="") -> bool:
+def run_vectors_local(mod, vectors, *, label="") -> bool:
     sim = Simulator(mod)
     print(f"\n== {label} ==")
     ok = 0
@@ -728,7 +728,7 @@ def get_stats(nodes, n, name) -> Tuple[GraphReport, AigReport]:
     sim.set("a", 3).set("b", 5).eval()
     print("y =", sim.get("y"))
 
-    passed = run_vectors(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
+    passed = run_vectors_local(m, build_adder_verctorsn_rand(n, num_random=20, seed=0xADDEF), label="Prefix Adder Test Vectors 16-bit Random")
     if not passed:
         raise RuntimeError("Prefix adder test vectors failed.")
 

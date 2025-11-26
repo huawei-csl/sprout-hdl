@@ -41,7 +41,6 @@ from sprouthdl.sprouthdl import Op2, reset_shared_cache
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import gen_spec
 from sprouthdl.sprouthdl_module import IOCollector
-from testing.test_different_logic import run_vectors_io
 import matplotlib
 matplotlib.use("Agg")  # headless plotting
 import matplotlib.pyplot as plt
@@ -186,7 +185,7 @@ def run_configuration(
 
     raise_on_fail = False
 
-    run_vectors_io(module, vecs, decoder=decoder, raise_on_fail=raise_on_fail)  # smoke test
+    run_vectors(module, vecs, decoder=decoder, raise_on_fail=raise_on_fail)  # smoke test
 
     if do_flowy_optimize:
         module = flowy_optimize(module)
@@ -196,7 +195,7 @@ def run_configuration(
 
     # AIG network test sim
     print("Sim (AIG) …")
-    run_vectors_io(m_aig, vecs, decoder=decoder, raise_on_fail=raise_on_fail)  # smoke test
+    run_vectors(m_aig, vecs, decoder=decoder, raise_on_fail=raise_on_fail)  # smoke test
 
     exprs = m_aig.all_exprs()
     all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]

@@ -6,8 +6,8 @@ from enum import Enum
 from typing import NamedTuple, Self, Tuple, Type
 
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
+from sprouthdl.helpers import run_vectors
 from sprouthdl.sprouthdl import reset_shared_cache
-from testing.test_different_logic import run_vectors_io
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_list import demos1
 
 
@@ -73,7 +73,7 @@ def run_stage_multiplier_ext_demo() -> None:  # pragma: no cover - demonstration
                 y_encoding=config_item.encodings.y,
             ).generate()
 
-            run_vectors_io(module, vecs)
+            run_vectors(module, vecs)
 
             completed_demo_runs += 1
             print(f"Completed {completed_demo_runs} multiplier demos.")

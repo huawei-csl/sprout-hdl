@@ -117,16 +117,63 @@ We follow the indexing of pyton also in Sprout-HDL signals. For example `sig[4:7
 
 # Running Scripts and Tests
 
-For some scripts you might need to add `PYTHONPATH=$(pwd)` before running the command, e.g. `PYTHONPATH=$(pwd) pytest` or `PYTHONPATH=$(pwd) python <scriptname>`. 
+For some scripts you might need to add `PYTHONPATH=$(pwd)` before running the command, e.g. `PYTHONPATH=$(pwd) pytest` or `PYTHONPATH=$(pwd) python <scriptname>`.
+
+## Arithmetic Evaluations
+### Integers
+Run the evaluation script 
+```bash
+python sprouthdl/arithmetic/int_multipliers/eval/run_multiplier_stage_options_eval_ext_stat.py
+```
+This will generate a parquet file in the folder `data`. Visualization can be done with the plotly app via 
+```bash
+python sprouthdl/arithmetic/int_multipliers/eval/plot/plotly_app.py --file data/data_file.parquet
+``` 
+or with the script 
+```bash
+python sprouthdl/arithmetic/int_multipliers/eval/plot/multiplier_stage_plot.py --file  data/data_file.parquet`.
+```
+Replace `data_file.parquet` with the file produced by the evaluate script.
+
+If desired, new multiplier options can be added here: `sprouthdl/arithmetic/int_multipliers/eval/multiplier_stage_options_demo_lib.py`.
+
+#### Optimized Multipliers
+The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py` required aig (and aig map) file. The can for example be produced and optimized with Flowy, for 4-bit unsigned with with the command:
+```bash
+# 4 bit unsigned star starting point
+python flowy/flows/reinforce/run/statistical/run_flows_in_docker.py\
+  --experiment unsigned_optim_8bit_star_1\
+  --bitwidth 4\
+  --iterations 50\
+  --mockturtle_chains 5\
+  --mockturtle_chain_workers 5\
+  --mockturtle_chain_len 15\
+  --compression_scripts_per_step 3\
+  --scripts_per_step 2\
+  --nb_runs 100\
+  --nb_workers 50\
+  --recipe_selection PERFORMANCE_SAMPLING\
+  --selection_metric aig_count\
+  --output_encoding unsigned\
+  --input_encoding unsigned\
+  --strategy_name equal\
+  --verilog_file resources/sources/mydesign_comb_star_unsigned.v.template
+
+PYTHONPATH=$(pwd) python flowy/flows/sim/visualize_histograms.py --experiment unsigned_optim_4bit_star_1
+PYTHONPATH=$(pwd) python flowy/flows/sim/extract_best_design.py --experiment unsigned_optim_4bit_star_1
+PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --experiment unsigned_optim_4bit_star_1
+```
+
+
 
 ## Todo
 
-- create package out of this
-- add pytest to gitlab to be run automatically
+- create package out of this --> done
+- add pytest to gitlab to be run automatically --> done
 - remove _SHARED object (now used for verilog generation)
 - remove is_bool flag, probably not necessary, just use length of 1
 - parse wires and regs from graph
-- test peek / watch logic
+- test peek / watch logic --> done
 - add better hierarchy capablities / all in graph.  m.wire / m.reg not necessary.
 - type conversions: sint, uint, etc
 - Uint(value), optional length bit?

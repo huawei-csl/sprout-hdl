@@ -259,7 +259,7 @@ def build_mul_verctor_rand(n: int, num_random: int = 512, seed: int = 0xADDEF) -
         
     return V
 
-def run_vectors(mod, vectors, *, label="") -> bool:
+def run_vectors_local(mod, vectors, *, label="") -> bool:
     sim = Simulator(mod)
     print(f"\n== {label} ==")
     ok = 0
@@ -306,7 +306,7 @@ def main():
     n_bits = 4
 
     g, m = gen_compressor_tree_graph_and_sprout_module(n_bits, policy="wallace")
-    run_vectors(m, build_mul_verctor_rand(n_bits), label="8x8 Wallace Multiplier")
+    run_vectors_local(m, build_mul_verctor_rand(n_bits), label="8x8 Wallace Multiplier")
     s, d = get_size_and_depth("8x8 Wallace Multiplier", m)
 
     c_n = get_node_kind_counts(g.nodes)
@@ -357,7 +357,7 @@ def main():
     # we get 1740
 
     g, m = gen_compressor_tree_graph_and_sprout_module(n_bits, policy="random")
-    run_vectors(m, build_mul_verctor_rand(n_bits), label="8x8 Random Compressor Multiplier")
+    run_vectors_local(m, build_mul_verctor_rand(n_bits), label="8x8 Random Compressor Multiplier")
     s, d = get_size_and_depth("8x8 Random Compressor Multiplier", m)
 
     # Generate and compare n random compressor trees
@@ -383,7 +383,7 @@ def main():
                 m = build_multiplier_from_compressor_graph(name, A, nodes)
 
                 # Verify correctness with test vectors
-                if run_vectors(m, vectors, label=f"Tree {i}"):
+                if run_vectors_local(m, vectors, label=f"Tree {i}"):
                     # Get metrics
                     size, depth = get_size_and_depth(name, m)
                     sizes.append(size)
