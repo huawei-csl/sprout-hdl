@@ -165,9 +165,8 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Testbench emission
     # ------------------------------------------------------------------
-    def write_testbench(
+    def to_testbench_lines(
         self,
-        path: Union[str, Path],
         *,
         tb_module_name: Optional[str] = None,
         timescale: Optional[str] = "1ns/1ps",
@@ -178,7 +177,7 @@ class VerilogTestbenchSimulator:
             raise RuntimeError("No events recorded – nothing to write.")
 
         tb_name = tb_module_name or f"{self.m.name}_tb"
-        path = Path(path)
+
         lines: List[str] = []
 
         if timescale:
@@ -236,6 +235,20 @@ class VerilogTestbenchSimulator:
         lines.append("  end")
         lines.append("endmodule")
 
+        return lines
+    
+    def write_testbench(
+        self,
+        path: Union[str, Path],
+        *,
+        tb_module_name: Optional[str] = None,
+        timescale: Optional[str] = "1ns/1ps",
+    ) -> Path:
+        lines = self.to_testbench_lines(
+            tb_module_name=tb_module_name,
+            timescale=timescale,
+        )
+        path = Path(path)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return path
 

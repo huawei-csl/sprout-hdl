@@ -49,55 +49,22 @@ class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
         return cols
 
 
-class ConfiguredMultiplier(StageBasedMultiplierBasic):
-    def __init__(
-        self,
-        a_w: int,
-        b_w: int,
-        *,
-        signed_a: bool = False,
-        signed_b: bool = False,
-        optim_type: str = "area",
-        ppg_cls: type[PartialProductGeneratorBase] = BaughWooleyPartialProductGenerator,
-        ppa_cls: type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
-        fsa_cls: type[FinalStageAdderBase] = RippleCarryFinalAdder,
-    ) -> None:
-        super().__init__(
-            a_w,
-            b_w,
-            signed_a=signed_a,
-            signed_b=signed_b,
-            optim_type=optim_type,
-            ppg_cls=ppg_cls,
-            ppa_cls=ppa_cls,
-            fsa_cls=fsa_cls,
-        )
-
-    def elaborate(self) -> None:
-        super().elaborate()
-        cfg = self.config
-        print(
-            f"MultiplierCompressorTree: {cfg.a_width}x{cfg.b_width} -> {cfg.out_width} bits"
-        )
-
-
-def gen_sprout_module(mult: ConfiguredMultiplier) -> Module:
-    return mult.to_module(f"Mul{mult.config.a_width}_ct")
-
-
 def main() -> None:
     n_bits = 4
     signed = True
 
-    mult = ConfiguredMultiplier(
+    mult = StageBasedMultiplierBasic(
         a_w=n_bits,
         b_w=n_bits,
         signed_a=signed,
         signed_b=signed,
         optim_type="area",
+        ppg_cls=BaughWooleyPartialProductGenerator,
+        ppa_cls=CompressorTreeAccumulator,
+        fsa_cls=RippleCarryFinalAdder,
     )
+    module = mult.to_module(f"Mul{n_bits}")
 
-    module = gen_sprout_module(mult)
     transistor_count = get_yosys_transistor_count(module, n_iter_optimizations=10, deepsyn=False)
     print(f"Yosys-reported transistor count: {transistor_count}")
 

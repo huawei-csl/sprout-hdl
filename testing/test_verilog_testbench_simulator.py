@@ -29,7 +29,10 @@ def test_verilog_testbench_basic_sequence(tmp_path: Path):
     tb.set(a, 1)
     tb.set(b, 2)
     tb.eval()
+    assert tb._sim.peek_outputs()['out'] == 0
     tb.step()
+    assert tb._sim.peek_outputs()["out"] == 3
+    tb.eval()
     tb.set(acc, 5)
     tb.eval()
 
@@ -44,7 +47,7 @@ def test_verilog_testbench_basic_sequence(tmp_path: Path):
     assert "dut.acc = 8'h05" in text
     assert "$fatal" in text  # expectations are emitted
     assert "#5" in text  # half-period delay
-    
+
     # module to file
     str_m = m.to_verilog()
     verilog_path = tmp_path / "mac.v"
@@ -62,8 +65,8 @@ def test_verilog_testbench_requires_events(tmp_path):
 
     with pytest.raises(RuntimeError):
         tb.step()
-        
-        
+
+
 if __name__ == "__main__":
     
     # make local tempdir for testing with os tempdir
@@ -73,5 +76,3 @@ if __name__ == "__main__":
     #pytest.main([__file__])
     test_verilog_testbench_basic_sequence(Path(tmpdir))
     test_verilog_testbench_requires_events(Path(tmpdir))
-        
-

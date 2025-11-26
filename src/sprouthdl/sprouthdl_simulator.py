@@ -57,6 +57,7 @@ class Simulator:
         self._invalidate()
         return self
 
+    # converted to signed number in case signed=True
     def get(self, ref, *, signed: bool | None = None) -> int:
         s = self._resolve(ref)
         bits = self._eval_signal_bits(s)
