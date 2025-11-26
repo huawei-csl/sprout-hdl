@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
     # Then read into aigverse AIG:
     from aigverse import Aig  # or whatever your AIG class is called
-    from aigerverse_aag_loader_writer import conv_aag_into_aig
+    from sprouthdl.aig.aig_aigerverse import conv_aag_into_aig
     from aigverse import equivalence_checking
 
     aig = Aig()

@@ -9,7 +9,7 @@ from sprouthdl.arithmetic.prefix_adders.prefix_adder_transform import get_multis
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_analyzer import GraphReport
 from sprouthdl.sprouthdl_module import Module
-from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
+from sprouthdl.aig.aig_aigerverse import conv_aag_into_aig, read_aag_into_aig
 from sprouthdl.sprouthdl import UInt, cat
 from sprouthdl.sprouthdl_aiger import AigerExporter
 from sprouthdl.sprouthdl_simulator import Simulator

@@ -1,5 +1,5 @@
 from aigverse import equivalence_checking
-from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig
+from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float import half_to_float, run_vectors_local

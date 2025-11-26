@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Optional, Any, Iterable
 
 from sprouthdl.sprouthdl_module import Module
-from sprouthdl.aigerverse_aag_loader_writer import AbstractAdapter, conv_aag_into_graph
+from sprouthdl.aig.aig_aigerverse import AbstractAdapter, conv_aag_into_graph
 from sprouthdl.sprouthdl import SInt, Signal, UInt, Bool, Const, Op1, Op2, cat, mux
 
 # ---- AIGER literals helpers -------------------------------------------------

@@ -8,7 +8,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from pyosys import libyosys as ys
 
-from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
+from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
 from sprouthdl.sprouthdl import Expr
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import IOCollector

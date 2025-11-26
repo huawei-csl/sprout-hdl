@@ -8,6 +8,8 @@ from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat
 
 from typing import Any, Dict, List, Optional
 
+from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys
+
 try:  # Python 3.10 compatibility
     from typing import Self  # type: ignore
 except ImportError:
@@ -69,13 +71,13 @@ class Component(abc.ABC):
             self.make_internal()
 
     def from_verilog(self, verilog_str: str, top=None, group=True) -> Self:
-        from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys
+        from sprouthdl.aig.aig_yosys import aig_file_to_aag_lines_via_yosys
 
         aag_lines = verilog_to_aag_lines_via_yosys(verilog_str, top=top, embed_symbols=True, no_startoffset=True)
         self.from_aag_lines(aag_lines, group=group)
 
     def from_aig_file(self, aig_path: str, map_file: str|None = None, group=True, make_internal=False) -> Self:
-        from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys
+        from sprouthdl.aig.aig_yosys import aig_file_to_aag_lines_via_yosys
 
         aag_lines = aig_file_to_aag_lines_via_yosys(aig_path, map_file=map_file)
         self.from_aag_lines(aag_lines, group=group, make_internal=make_internal)

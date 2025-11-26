@@ -14,15 +14,16 @@ from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import Stag
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
-from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, file_to_lines
+from sprouthdl.aig.aig_aigerverse import _get_aag_sym, file_to_lines
 from sprouthdl.helpers import get_aig_stats, get_yosys_metrics, get_yosys_transistor_count, optimize_aag, run_vectors
 from sprouthdl.sprouthdl_aiger import AigerImporter
 from sprouthdl.sprouthdl_module import Component
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, mux, mux_if
 from sprouthdl.sprouthdl_module import Module
 
-from testing.aag_conv.aig_to_aag import aig_file_to_aag_lines
-from testing.test_different_logic import aig_file_to_aag_lines_via_yosys, verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
+from sprouthdl.aig.aig_to_aag import aig_file_to_aag_lines
+from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
+from sprouthdl.aig.aig_yosys import aig_file_to_aag_lines_via_yosys
 
 # ----- precomputed optimized multipliers stored as AIGs: ffile locations need to be adopted -----
 

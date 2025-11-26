@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from aigverse import aig_cut_rewriting, aig_resubstitution, sop_refactoring
 import numpy as np
 from low_level_arithmetic.compressor_tree.compressor_tree_sprout_hdl import gen_compressor_tree_graph_and_sprout_module
-from sprouthdl.aigerverse_aag_loader_writer import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
+from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
 from sprouthdl.helpers import optimize_aag, run_vectors
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Op2, SInt, UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter

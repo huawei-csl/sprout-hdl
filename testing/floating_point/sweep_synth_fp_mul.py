@@ -6,7 +6,7 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul
 from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic
 from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl_aiger import AigerExporter, export_module_to_aiger
-from sprouthdl.aigerverse_aag_loader_writer import conv_aag_into_aig, read_aag_into_aig
+from sprouthdl.aig.aig_aigerverse import conv_aag_into_aig, read_aag_into_aig
 
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
