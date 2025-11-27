@@ -160,7 +160,7 @@ class VerilogTestbenchSimulator:
         return self._sim.peek_next(reg_name)
 
     def log_expression_states(self, expr_list: Iterable[Expr]):
-        return self._sim.log_expression_states(expr_list)
+        return self._sim._get_expression_states(expr_list)
 
     # ------------------------------------------------------------------
     # Testbench emission

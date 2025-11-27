@@ -133,6 +133,20 @@ def run_vectors(
     raise_on_fail: bool = True,
     print_on_pass: bool = False,
 ) -> None:
+    return run_vectors_on_simulator(
+        Simulator(m), vectors, decoder=decoder, exprs=exprs, use_signed=use_signed,
+        raise_on_fail=raise_on_fail, print_on_pass=print_on_pass,
+    )
+    
+    
+def run_vectors_on_simulator(
+    sim: Simulator, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
+    decoder: Callable[[int], float] | None = None, exprs: Optional[List[Expr]] = None,
+    use_signed: bool = False,
+    raise_on_fail: bool = True,
+    print_on_pass: bool = False,
+) -> None:
+    
     """
     Generic runner:
       vectors: list of (label, inputs{name->int}, expected{name->int})
@@ -141,7 +155,6 @@ def run_vectors(
 
     states_list = []
 
-    sim = Simulator(m)
     fails = 0
     for name, ins, outs in vectors:
         for k, v in ins.items():
@@ -172,7 +185,7 @@ def run_vectors(
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
         if exprs is not None:
-            state = sim.log_expression_states(exprs)
+            state = sim._get_expression_states(exprs)
             # convert expr to id
             state = [(id(e), v) for e, v in state]
             # and convert to dict for easy comparison
