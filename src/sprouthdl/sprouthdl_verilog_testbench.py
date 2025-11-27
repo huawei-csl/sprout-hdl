@@ -168,6 +168,8 @@ class VerilogTestbenchSimulator:
     def to_testbench_lines(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> List[str]:
         """Emit a Verilog testbench that replays the recorded events."""
 
+        dump_vcd = True
+
         if not self._events:
             raise RuntimeError("No events recorded – nothing to write.")
 
@@ -198,6 +200,13 @@ class VerilogTestbenchSimulator:
         lines.append("")
 
         lines.append("  initial begin")
+
+        if dump_vcd:
+            lines.append("")
+            lines.append('    $dumpfile("dump.vcd");')
+            lines.append('    $dumpvars();')
+
+        lines.append("")
         # Initialise all inputs to zero
         for s in self.inputs:
             init_literal = self._literal(0, s.typ.width)
@@ -231,14 +240,14 @@ class VerilogTestbenchSimulator:
         lines.append("endmodule")
 
         return lines
-    
+
     def to_testbench_str(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> str:
         lines = self.to_testbench_lines(
             tb_module_name=tb_module_name,
             timescale=timescale,
         )
         return "\n".join(lines) + "\n"
-    
+
     def to_testbench_file(self, filepath: Union[str, Path], tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> None:
         verilog_str = self.to_testbench_str(
             tb_module_name=tb_module_name,

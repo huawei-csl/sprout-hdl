@@ -56,9 +56,11 @@ def int_tb_sim():
 
     trace_history = sim.trace_history
     trace_names = sim.get_traced_expr_names()
+    
+    vcd_filename = "int_multiplier_tb_sim.vcd"
     write_vcd(trace_history=trace_history, 
               trace_names=trace_names, 
-              filename="int_multiplier_tb_sim.vcd",
+              filename=vcd_filename,
               top_module=module.name, 
               timescale="1ns")
 
@@ -67,8 +69,10 @@ def int_tb_sim():
 
     print("\n".join(sim_tb.to_testbench_lines()))
 
-    sim_tb.to_testbench_file("int_multiplier_tb_sim.v", tb_module_name=module.name+"_tb")
-    module.to_verilog_file("int_multiplier.v")
+    tb_filename = "int_multiplier_tb_sim.v"
+    verilog_filename = "int_multiplier.v"
+    sim_tb.to_testbench_file(tb_filename, tb_module_name=module.name+"_tb")
+    module.to_verilog_file(verilog_filename)
 
     # tb = VerilogTestbenchSimulator.from_multiplier_module(
     #     module,
