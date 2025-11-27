@@ -8,7 +8,7 @@ from sprouthdl.various.vcd_writer import write_vcd
 
 
 def int_tb_sim():
-    n_bits = 4
+    n_bits = 16
     signed = True  
 
     mult = StageBasedMultiplierBasic(
@@ -56,6 +56,7 @@ def int_tb_sim():
 
     trace_history = sim.trace_history
     trace_names = sim.get_traced_expr_names()
+    print(f"Traced signals: {list(trace_names.values())}")
     
     vcd_filename = "int_multiplier_tb_sim.vcd"
     write_vcd(trace_history=trace_history, 

@@ -34,11 +34,11 @@ class Component(abc.ABC):
 
     # convenience helpers -------------------------------------------------------
 
-    def to_module(self, name: Optional[str] = None) -> 'Module':
+    def to_module(self, name: Optional[str] = None, with_clock: bool = False, with_reset: bool = False) -> 'Module':
         module = Module(
             name or f"comp_{get_rand_hash()}",
-            with_clock=False,
-            with_reset=False,
+            with_clock=with_clock,
+            with_reset=with_reset,
         )
         for sig in self.io.__dict__.values():
             if sig.kind == "input":
@@ -334,6 +334,10 @@ class Module:
                 exprs.append(e)
     
         def visit(e: Expr):
+            
+            if id(e) in seen:
+                return
+            
             add_expr(e)
             # Recurse through children
             if hasattr(e, "a"):
