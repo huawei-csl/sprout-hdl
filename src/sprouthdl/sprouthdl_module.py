@@ -298,6 +298,11 @@ class Module:
     def to_verilog(self) -> str:
         lines = self.to_verilog_lines() + [""]  # final newline
         return "\n".join(lines)
+    
+    def to_verilog_file(self, filepath: str) -> None:
+        verilog_str = self.to_verilog()
+        with open(filepath, "w") as f:
+            f.write(verilog_str)
 
     def module_analyze(self: "Module",
                         *,
@@ -322,12 +327,14 @@ class Module:
         """Depth-first traversal of every expression in the module."""
         seen = set()
         exprs = []
+        
+        def add_expr(e: Expr):
+            if id(e) not in seen:
+                seen.add(id(e))
+                exprs.append(e)
     
         def visit(e: Expr):
-            if id(e) in seen:
-                return
-            seen.add(id(e))
-            exprs.append(e)
+            add_expr(e)
             # Recurse through children
             if hasattr(e, "a"):
                 visit(e.a)
@@ -343,6 +350,9 @@ class Module:
                     visit(e._driver)
     
         for s in self._signals:
+            # outputs
+            if s.kind == "output":
+                add_expr(s)
             if s._driver is not None:
                 visit(s._driver)
             if s.kind == "reg" and s._next is not None:

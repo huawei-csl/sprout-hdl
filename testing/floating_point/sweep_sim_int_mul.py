@@ -56,7 +56,7 @@ def run_vectors_io_log(
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
-        state = sim._get_expression_states(exprs)
+        state = sim._get_expr_snapshot(exprs)
         # convert expr to id
         state = [(id(e), v) for e, v in state]
         # and convert to dict for easy comparison

@@ -27,9 +27,9 @@ class Simulator:
         self._time_steps = 0
 
         # logging
-        self.state_logging = False
-        self.expressions_to_log = self.m.all_exprs()
-        self._expression_states = []
+        self.trace_enabled = False
+        self.traced_expressions = self.m.all_exprs()
+        self.trace_history = []
 
         # Use ids instead of Signal objects
         self._in: dict[int, int] = {_sid(i): 0 for i in self.inputs}
@@ -77,7 +77,7 @@ class Simulator:
         for y in self.outputs:
             _ = self._eval_signal_bits(y)
         self._capture_watches()
-        self.log_expression_states()
+        self.record_expr_snapshot()
         return self
 
     def step(self, n: int = 1):
@@ -92,7 +92,7 @@ class Simulator:
                 self._in[_sid(self.m.clk)] = 0
             self._time_steps += 1
             self._capture_watches()
-            self.log_expression_states()
+            self.record_expr_snapshot()
             self._invalidate()
         return self
 
@@ -446,24 +446,24 @@ class Simulator:
         self._watch_values = out
 
     # logging
-    def _get_expression_states(self, expr_list):
+    def _get_expr_snapshot(self, expr_list):
         values = []
         for e in expr_list:
             v_bits = self._eval_signal_bits(e) if isinstance(e, Signal) else self._eval_expr_bits(e)
             values.append((e, self._bits_to_int(v_bits)))
         return values
 
-    def log_expression_states(self):
-        if self.state_logging:
-            state = self._get_expression_states(self.expressions_to_log)
+    def record_expr_snapshot(self):
+        if self.trace_enabled:
+            state = self._get_expr_snapshot(self.traced_expressions)
             state_id_dict = dict([(id(e), v) for e, v in state])
-            self._expression_states.append(state_id_dict)
+            self.trace_history.append(state_id_dict)
 
-    def get_expressions_to_log_names(self):
-        names = []
-        for e in self.expressions_to_log:
+    def get_traced_expr_names(self):
+        names_dict = {}
+        for e in self.traced_expressions:
             if hasattr(e, 'name'):
-                names.append(e.name)
+                names_dict[id(e)] = e.name
             else:
-                names.append(f"expr_{id(e)}")
-        return names
+                names_dict[id(e)] = f"expr_{id(e)}"
+        return names_dict

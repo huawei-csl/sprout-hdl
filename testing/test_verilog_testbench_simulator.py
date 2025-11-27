@@ -37,7 +37,7 @@ def test_verilog_testbench_basic_sequence(tmp_path: Path):
     tb.eval()
 
     out_path = tmp_path / "mac_tb.v"
-    tb.write_testbench(out_path)
+    tb.to_testbench_file(out_path)
     text = out_path.read_text()
 
     assert "module Mac32_tb" in text
@@ -61,7 +61,7 @@ def test_verilog_testbench_requires_events(tmp_path):
 
     tb = VerilogTestbenchSimulator(m)
     with pytest.raises(RuntimeError):
-        tb.write_testbench(tmp_path / "comb_tb.v")
+        tb.to_testbench_file(tmp_path / "comb_tb.v")
 
     with pytest.raises(RuntimeError):
         tb.step()

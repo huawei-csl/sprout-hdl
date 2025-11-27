@@ -160,17 +160,12 @@ class VerilogTestbenchSimulator:
         return self._sim.peek_next(reg_name)
 
     def log_expression_states(self, expr_list: Iterable[Expr]):
-        return self._sim._get_expression_states(expr_list)
+        return self._sim._get_expr_snapshot(expr_list)
 
     # ------------------------------------------------------------------
     # Testbench emission
     # ------------------------------------------------------------------
-    def to_testbench_lines(
-        self,
-        *,
-        tb_module_name: Optional[str] = None,
-        timescale: Optional[str] = "1ns/1ps",
-    ) -> Path:
+    def to_testbench_lines(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> List[str]:
         """Emit a Verilog testbench that replays the recorded events."""
 
         if not self._events:
@@ -237,20 +232,20 @@ class VerilogTestbenchSimulator:
 
         return lines
     
-    def write_testbench(
-        self,
-        path: Union[str, Path],
-        *,
-        tb_module_name: Optional[str] = None,
-        timescale: Optional[str] = "1ns/1ps",
-    ) -> Path:
+    def to_testbench_str(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> str:
         lines = self.to_testbench_lines(
             tb_module_name=tb_module_name,
             timescale=timescale,
         )
-        path = Path(path)
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return path
+        return "\n".join(lines) + "\n"
+    
+    def to_testbench_file(self, filepath: Union[str, Path], tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> None:
+        verilog_str = self.to_testbench_str(
+            tb_module_name=tb_module_name,
+            timescale=timescale,
+        )
+        with open(filepath, "w") as f:
+            f.write(verilog_str)
 
     # ------------------------------------------------------------------
     # Internals

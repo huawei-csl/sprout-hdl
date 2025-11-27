@@ -4,11 +4,12 @@ from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core impo
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import VerilogTestbenchSimulator
+from sprouthdl.various.vcd_writer import write_vcd
 
 
 def int_tb_sim():
     n_bits = 4
-    signed = False  
+    signed = True  
 
     mult = StageBasedMultiplierBasic(
         a_w=n_bits,
@@ -22,16 +23,18 @@ def int_tb_sim():
     )
     module = mult.to_module(f"Mul{n_bits}")
 
-    specs, vecs, decoder = MultiplierTestVectorsInt(
-        a_w=n_bits,
-        b_w=n_bits,
-        num_vectors=16,
-        tb_sigma=None,
-        signed_a=signed,
-        signed_b=signed,
-    ).generate()
+    # specs, vecs, decoder = MultiplierTestVectorsInt(
+    #     a_w=n_bits,
+    #     b_w=n_bits,
+    #     num_vectors=16,
+    #     tb_sigma=None,
+    #     signed_a=signed,
+    #     signed_b=signed,
+    # ).generate()
 
-    encodings = MultiplierEncodings.with_enc(Encoding.unsigned)
+    decoder = None
+
+    encodings = MultiplierEncodings.with_enc(Encoding.unsigned if not signed else Encoding.twos_complement,)
     vecs = MultiplierTestVectors(
                 a_w=n_bits,
                 b_w=n_bits,
@@ -43,13 +46,29 @@ def int_tb_sim():
                 y_encoding=encodings.y,
             ).generate()
 
-    run_vectors(module, vecs, print_on_pass=True, use_signed=True)
-    
+    use_signed = False
+
+    run_vectors(module, vecs, print_on_pass=True, use_signed=use_signed)
+
     sim = Simulator(module)
-    sim.state_logging = True
-    run_vectors_on_simulator(sim, vecs, decoder=decoder, use_signed=True, print_on_pass=True)
-    
-    print("All test vectors passed!")
+    sim.trace_enabled = True
+    run_vectors_on_simulator(sim, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=True)
+
+    trace_history = sim.trace_history
+    trace_names = sim.get_traced_expr_names()
+    write_vcd(trace_history=trace_history, 
+              trace_names=trace_names, 
+              filename="int_multiplier_tb_sim.vcd",
+              top_module=module.name, 
+              timescale="1ns")
+
+    sim_tb = VerilogTestbenchSimulator(module)
+    run_vectors_on_simulator(sim_tb, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=False)
+
+    print("\n".join(sim_tb.to_testbench_lines()))
+
+    sim_tb.to_testbench_file("int_multiplier_tb_sim.v", tb_module_name=module.name+"_tb")
+    module.to_verilog_file("int_multiplier.v")
 
     # tb = VerilogTestbenchSimulator.from_multiplier_module(
     #     module,

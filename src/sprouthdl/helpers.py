@@ -133,15 +133,19 @@ def run_vectors(
     raise_on_fail: bool = True,
     print_on_pass: bool = False,
 ) -> None:
-    return run_vectors_on_simulator(
-        Simulator(m), vectors, decoder=decoder, exprs=exprs, use_signed=use_signed,
+    sim = Simulator(m)
+    sim.trace_enabled = True if exprs is not None else False
+    sim.traced_expressions = exprs if exprs is not None else []
+    run_vectors_on_simulator(
+        sim, vectors, decoder=decoder, use_signed=use_signed,
         raise_on_fail=raise_on_fail, print_on_pass=print_on_pass,
     )
+    return sim.trace_history
     
     
 def run_vectors_on_simulator(
     sim: Simulator, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
-    decoder: Callable[[int], float] | None = None, exprs: Optional[List[Expr]] = None,
+    decoder: Callable[[int], float] | None = None,
     use_signed: bool = False,
     raise_on_fail: bool = True,
     print_on_pass: bool = False,
@@ -184,20 +188,20 @@ def run_vectors_on_simulator(
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
-        if exprs is not None:
-            state = sim._get_expression_states(exprs)
-            # convert expr to id
-            state = [(id(e), v) for e, v in state]
-            # and convert to dict for easy comparison
-            state = dict(state)
-            states_list.append(state)
+        # if exprs is not None:
+        #     state = sim._get_expr_snapshot(exprs)
+        #     # convert expr to id
+        #     state = [(id(e), v) for e, v in state]
+        #     # and convert to dict for easy comparison
+        #     state = dict(state)
+        #     states_list.append(state)
         
     print(f"Number of vectors: {len(vectors)}, {fails} failures")
     if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
 
 
-    return states_list
+    #return states_list
 
 def get_switch_count(states_list) -> float:
     # get all ids from step 0
