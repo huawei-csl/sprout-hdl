@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase
-from sprouthdl.arithmetic.prefix_adders.prefix_adder import P_brent_kung, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, analyze_prefix_matrix, legalize_P
+from sprouthdl.arithmetic.prefix_adders.prefix_adder import P_brent_kung, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
 from sprouthdl.sprouthdl import Bool, Const, Expr
 
 
@@ -99,19 +99,18 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
 
 
 class BrentKungPrefixFinalStage(PrefixAdderFinalStage):
-    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(
-        P_brent_kung
-    )
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_brent_kung)
 
 
 class SklanskyPrefixFinalStage(PrefixAdderFinalStage):
-    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(
-        P_sklansky
-    )
-
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_sklansky)
 
 class RipplePrefixFinalStage(PrefixAdderFinalStage):
-    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(
-        P_ripple_carry
-    )
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_ripple_carry)
     depth_optimize: ClassVar[bool] = False
+
+class MultiScanPrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(multi_scan_n)
+
+class ZCGPrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(ZCG_n)

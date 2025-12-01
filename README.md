@@ -180,5 +180,6 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - simulation: get any signal in graph wich is there implicitly, run simulation just on function and after setting starting nodes to a value
 - unify get and peek (same thing but one is with sign conversion, the other is not)
 - unify log_expression_states and watches in the Simulator.
+- clean up two versions of testvector generation and the exhaustive testvector generation
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.

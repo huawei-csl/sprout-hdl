@@ -9,7 +9,7 @@ from sprouthdl.various.vcd_writer import write_vcd
 
 def int_tb_sim():
     n_bits = 16
-    signed = True  
+    signed = False  
 
     mult = StageBasedMultiplierBasic(
         a_w=n_bits,
@@ -19,7 +19,7 @@ def int_tb_sim():
         optim_type="area",
         ppg_cls=PPGOption.AND.value,
         ppa_cls=PPAOption.WALLACE_TREE.value,
-        fsa_cls=FSAOption.RIPPLE.value,
+        fsa_cls=FSAOption.PREFIX_MULTI_SCAN.value #FSAOption.RIPPLE.value,
     )
     module = mult.to_module(f"Mul{n_bits}")
 
@@ -56,7 +56,7 @@ def int_tb_sim():
 
     trace_history = sim.trace_history
     trace_names = sim.get_traced_expr_names()
-    print(f"Traced signals: {list(trace_names.values())}")
+    #print(f"Traced signals: {list(trace_names.values())}")
     
     vcd_filename = "int_multiplier_tb_sim.vcd"
     write_vcd(trace_history=trace_history, 

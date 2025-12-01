@@ -203,6 +203,8 @@ class StageBasedMultiplierBasic(Component):
     def elaborate(self) -> None:
         columns = self.ppg.generate_columns(self.io)
         reduced_columns = self.ppa.accumulate(columns)
+        if max(reduced_columns.keys()) > self.io.y.typ.width:
+            reduced_columns = {k: v[:self.io.y.typ.width] for k, v in reduced_columns.items() if k < self.io.y.typ.width}
         result_bits = self.fsa.resolve(reduced_columns)
         expected_width = self.io.y.typ.width
         self.io.y <<= Concat(result_bits[:expected_width])

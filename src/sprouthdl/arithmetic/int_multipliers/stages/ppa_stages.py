@@ -20,6 +20,7 @@ class WallaceTreeAccumulator(PartialProductAccumulatorBase):
         )
 
     def accumulate(self, columns: Dict[int, List[Expr]]) -> DefaultDict[int, List[Expr]]:
+        # copy columns
         cols: DefaultDict[int, List[Expr]] = defaultdict(list)
         for weight, bits in columns.items():
             cols[weight].extend(bits)

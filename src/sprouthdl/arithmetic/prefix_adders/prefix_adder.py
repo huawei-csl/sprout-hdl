@@ -530,6 +530,28 @@ def ParallelScan_16_b(n: int) -> Set[Pair]:
 
     return nodes
 
+def multi_scan_n(n: int)-> Set[Pair]:
+    
+    if n ==8:
+        return ParallelScan_8_b(n)
+    elif n==16:
+        return ParallelScan_16_b(n)
+    elif n==24:
+        return get_multiscan_nodes_24()
+    elif n==32:
+        return get_multiscan_nodes_32()
+    else:
+        raise ValueError(f"ParallelScan_n not defined for n={n}")
+    
+def ZCG_n(n: int) -> Set[Pair]:
+    
+    if n==24:
+        return zcg_24()
+    elif n==32:
+        return zcg_32()
+    else:
+        raise ValueError(f"ZCG not defined for n={n}")
+
 def get_num_nodes(P: Set[Pair], n: int, cleanup=True) -> int:
     
     # check if legal
