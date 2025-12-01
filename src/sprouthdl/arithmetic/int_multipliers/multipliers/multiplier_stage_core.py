@@ -193,22 +193,21 @@ class StageBasedMultiplierBasic(Component):
             b=Signal(name="b", typ=base_typ_b(b_w), kind="input"),
             y=Signal(name="y", typ=base_type_y(self.config.out_width), kind="output"),
         )
-        
+
         self.ppg = ppg_cls(self.config)
         self.ppa = ppa_cls(self.config)
         self.fsa = fsa_cls(self.config)
-        
+
         self.elaborate()
 
     def elaborate(self) -> None:
         columns = self.ppg.generate_columns(self.io)
         reduced_columns = self.ppa.accumulate(columns)
-        if max(reduced_columns.keys()) > self.io.y.typ.width:
-            reduced_columns = {k: v[:self.io.y.typ.width] for k, v in reduced_columns.items() if k < self.io.y.typ.width}
+        if max(reduced_columns.keys()) >= self.config.out_width:
+            reduced_columns = {k: v for k, v in reduced_columns.items() if k < self.config.out_width}
         result_bits = self.fsa.resolve(reduced_columns)
-        expected_width = self.io.y.typ.width
-        self.io.y <<= Concat(result_bits[:expected_width])
-        
+        self.io.y <<= Concat(result_bits[:self.config.out_width])
+
         # debugging
         self.colums = columns
         self.reduced_columns = reduced_columns

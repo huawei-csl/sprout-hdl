@@ -17,9 +17,9 @@ def int_tb_sim():
         signed_a=signed,
         signed_b=signed,
         optim_type="area",
-        ppg_cls=PPGOption.AND.value,
-        ppa_cls=PPAOption.WALLACE_TREE.value,
-        fsa_cls=FSAOption.PREFIX_MULTI_SCAN.value #FSAOption.RIPPLE.value,
+        ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
+        ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
+        fsa_cls=FSAOption.PREFIX_MULTI_SCAN.value,  # FSAOption.RIPPLE.value,
     )
     module = mult.to_module(f"Mul{n_bits}")
 
@@ -56,8 +56,8 @@ def int_tb_sim():
 
     trace_history = sim.trace_history
     trace_names = sim.get_traced_expr_names()
-    #print(f"Traced signals: {list(trace_names.values())}")
-    
+    # print(f"Traced signals: {list(trace_names.values())}")
+
     vcd_filename = "int_multiplier_tb_sim.vcd"
     write_vcd(trace_history=trace_history, 
               trace_names=trace_names, 
