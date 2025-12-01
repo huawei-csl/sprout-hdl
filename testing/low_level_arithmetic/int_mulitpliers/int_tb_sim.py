@@ -19,7 +19,7 @@ def int_tb_sim():
         optim_type="area",
         ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
         ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
-        fsa_cls=FSAOption.PREFIX_MULTI_SCAN.value,  # FSAOption.RIPPLE.value,
+        fsa_cls=FSAOption.PREFIX_ZCG.value,  # FSAOption.RIPPLE.value,
     )
     module = mult.to_module(f"Mul{n_bits}")
 

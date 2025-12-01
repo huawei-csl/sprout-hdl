@@ -542,13 +542,13 @@ def multi_scan_n(n: int)-> Set[Pair]:
         return get_multiscan_nodes_32()
     else:
         raise ValueError(f"ParallelScan_n not defined for n={n}")
-    
+
 def ZCG_n(n: int) -> Set[Pair]:
-    
+
     if n==24:
-        return zcg_24()
+        return prefix_nodes_to_ranges(zcg_24)
     elif n==32:
-        return zcg_32()
+        return prefix_nodes_to_ranges(zcg_32)
     else:
         raise ValueError(f"ZCG not defined for n={n}")
 
