@@ -3,9 +3,9 @@
 *.v
 *.aig
 !src/sprouthdl/arithmetic/int_multipliers/data/optimized/*/*.aig
-!src/sprouthdl/arithmetic/int_multipliers/data/optimized/*/*.map
 *.aag
 *.map
+!src/sprouthdl/arithmetic/int_multipliers/data/optimized/*/*.map
 *.dot
 *.vscode
 */__pycache__/*
