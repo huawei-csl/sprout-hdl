@@ -48,6 +48,7 @@ class Component(abc.ABC):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         module.component = self # can be used for debugging
+        module._collect_signals_from_outputs([s for s in self.io.__dict__.values() if s.kind == "output"])
         return module 
 
     def from_module(self, module: 'Module', make_internal=False, group=False) -> Self:
@@ -181,6 +182,78 @@ class Module:
         for p in self._ports:
             spec[p.name] = p.typ
         return spec
+
+    def _collect_signals_from_outputs(self, outputs: List[Signal]) -> None:
+        """
+        Walk the design starting from outputs and registers, pulling every reachable
+        Signal into _signals. Internal signals must be wire/reg; encountering an
+        input/output that is not a port raises. Name collisions are avoided by
+        suffixing internal signal names.
+        """
+        # Track names already in use (ports first, keep their names stable)
+        name_to_sig: Dict[str, Signal] = {p.name: p for p in self._ports}
+        visited_signals = set()
+        visited_exprs = set()
+        port_ids = {id(p) for p in self._ports}
+
+        def uniquify_internal(sig: Signal) -> None:
+            if id(sig) in port_ids:
+                return
+            base = sig.name
+            if name_to_sig.get(base, None) is sig:
+                return
+            if base not in name_to_sig:
+                name_to_sig[base] = sig
+                return
+            idx = 1
+            while True:
+                candidate = f"{base}_{idx}"
+                if candidate not in name_to_sig:
+                    sig.name = candidate
+                    name_to_sig[candidate] = sig
+                    return
+                idx += 1
+
+        def visit_expr(e: Expr | None) -> None:
+            if e is None:
+                return
+            if isinstance(e, Signal):
+                visit_signal(e)
+                return
+            if id(e) in visited_exprs:
+                return
+            visited_exprs.add(id(e))
+            # Recurse through common expression fields
+            for attr in ("a", "b", "sel"):
+                if hasattr(e, attr):
+                    visit_expr(getattr(e, attr))
+            if hasattr(e, "parts"):
+                for p in e.parts:
+                    visit_expr(p)
+            if hasattr(e, "_driver"):
+                visit_expr(getattr(e, "_driver"))
+            if hasattr(e, "_next"):
+                visit_expr(getattr(e, "_next"))
+
+        def visit_signal(sig: Signal) -> None:
+            if id(sig) in visited_signals:
+                return
+            visited_signals.add(id(sig))
+
+            if id(sig) not in port_ids:
+                if sig.kind in ("input", "output"):
+                    raise ValueError(f"Internal signal '{sig.name}' has port kind '{sig.kind}'. Use wire/reg for internals.")
+                uniquify_internal(sig)
+                if not any(sig is s for s in self._signals):
+                    self._signals.append(sig)
+
+            if sig._driver is not None:
+                visit_expr(sig._driver)
+            if sig.kind == "reg" and sig._next is not None:
+                visit_expr(sig._next)
+
+        for out in outputs:
+            visit_signal(out)
     
     def to_component(self) -> Component:
         """

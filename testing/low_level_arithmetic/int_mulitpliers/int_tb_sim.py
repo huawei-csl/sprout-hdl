@@ -1,6 +1,7 @@
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, MultiplierEncodings, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import MultiplierTestVectorsInt, StageBasedMultiplierBasic
+from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocksStrong
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import VerilogTestbenchSimulator
@@ -8,18 +9,27 @@ from sprouthdl.various.vcd_writer import write_vcd
 
 
 def int_tb_sim():
-    n_bits = 16
+    n_bits = 4
     signed = False  
 
-    mult = StageBasedMultiplierBasic(
+    # mult = StageBasedMultiplierBasic(
+    #     a_w=n_bits,
+    #     b_w=n_bits,
+    #     signed_a=signed,
+    #     signed_b=signed,
+    #     optim_type="area",
+    #     ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
+    #     ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
+    #     fsa_cls=FSAOption.PLUS_OPERATOR.value #FSAOption.PREFIX_ZCG.value,  # FSAOption.RIPPLE.value,
+    # )
+    # module = mult.to_module(f"Mul{n_bits}")
+
+    #mult = OptimizedMultiplierFrom4BitBlocksStrong(
+    mult = OptimizedMultiplier(
         a_w=n_bits,
         b_w=n_bits,
-        signed_a=signed,
-        signed_b=signed,
         optim_type="area",
-        ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
-        ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
-        fsa_cls=FSAOption.PLUS_OPERATOR.value #FSAOption.PREFIX_ZCG.value,  # FSAOption.RIPPLE.value,
+        ppg_cls=PPGOption.NONE.value,
     )
     module = mult.to_module(f"Mul{n_bits}")
 
