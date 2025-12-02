@@ -323,7 +323,7 @@ class Module:
         lines.append(f"module {self.name} ({ports_csv});")
 
         # Declarations
-        lines.append("# Ports")
+        lines.append("// Ports")
         for p in self._ports:
             dir_ = "input" if p.kind == "input" else "output"
             sign = "signed " if p.typ.signed else ""
@@ -337,25 +337,25 @@ class Module:
         wires += [s for s in _SHARED.wires if not any(s is w for w in wires)]
         
         regs = self._internals_of("reg")
-        lines.append('# Wires')
+        lines.append('// Wires')
         for w in wires:
             sign = "signed " if w.typ.signed else ""
             rng = w.typ.range_str()
             lines.append(f"  wire {sign}{rng} {clean_name(w.name)};")
-        lines.append('# Registers')
+        lines.append('// Registers')
         for r in regs:
             sign = "signed " if r.typ.signed else ""
             rng = r.typ.range_str()
             lines.append(f"  reg {sign}{rng} {clean_name(r.name)};")
         # Combinational assigns for wires/outputs
-        lines.append("# Combinational assignments")
+        lines.append("// Combinational assignments")
         for s in [*wires, *self._ports_of("output")]:
             if s._driver is not None:
                 rhs = fit_width(s._driver, s.typ).to_verilog()
                 lines.append(f"  assign {clean_name(s.name)} = {rhs};")
 
         # Sequential logic
-        lines.append("# Sequential logic")
+        lines.append("// Sequential logic")
         if regs:
             if not self.with_clock:
                 raise ValueError("Registers present but module has no clock input.")
