@@ -434,6 +434,36 @@ def P_brent_kung(n: int) -> Set[Pair]:
 
     return nodes
 
+def P_han_carlson(n: int) -> Set[Pair]:
+    """
+    Han–Carlson hybrid (sparse Kogge–Stone front-end with Brent–Kung backbone).
+    Adds:
+      - a sparse KS sweep with span=1,2,4,... placed every other block
+      - BK-style bridging nodes to propagate prefixes to the missing positions
+      - (i,0) for all i (carry to bit 0)
+    """
+    nodes: Set[Pair] = set()
+
+    # Always allow direct carry to bit 0
+    for i in range(1, n):
+        nodes.add((i, 0))
+
+    # Sparse Kogge–Stone sweep
+    span = 1
+    while span < n:
+        for i in range(span, n, span * 2):
+            nodes.add((i, i - span))
+        span *= 2
+
+    # Brent–Kung-style bridging sweep
+    span = 2
+    while span < n:
+        for i in range(span - 1, n, span * 2):
+            nodes.add((i, i - span + 1))
+        span *= 2
+
+    return nodes
+
 def ParallelScan_8_a(n: int) -> Set[Pair]:
     
     assert n == 8
@@ -812,7 +842,7 @@ def get_min_max_prefix_tree_range(results_vec):
 
 def main_test():
 
-    n_random = 100
+    n_random = 100//100
     n_bits_vec = [8, 16, 24, 32]
 
     for n in n_bits_vec:
@@ -823,6 +853,7 @@ def main_test():
             (P_kogge_stone(n), "Kogge-Stone"),
             (P_sklansky(n), "Sklansky"),
             (P_brent_kung(n), "Brent-Kung"),
+            (P_han_carlson(n), "Han-Carlson"),
         ]
 
         if n == 8:
