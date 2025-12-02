@@ -165,10 +165,8 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Testbench emission
     # ------------------------------------------------------------------
-    def to_testbench_lines(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> List[str]:
+    def to_testbench_lines(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps", dump_vcd: bool = True) -> List[str]:
         """Emit a Verilog testbench that replays the recorded events."""
-
-        dump_vcd = True
 
         if not self._events:
             raise RuntimeError("No events recorded – nothing to write.")
@@ -269,6 +267,7 @@ class VerilogTestbenchSimulator:
         output_name: str = "y",
         timescale: Optional[str] = "1ns/1ps",
         with_clk: bool = False,
+        dump_vcd: bool = True,
     ) -> None:
         """
         Emit a Verilog testbench that reads test vectors from a data file and
@@ -320,6 +319,13 @@ class VerilogTestbenchSimulator:
         lines.append("  integer fail_cnt;")
         lines.append("")
         lines.append("  initial begin")
+        
+        if dump_vcd:
+            lines.append("")
+            lines.append('    $dumpfile("dump.vcd");')
+            lines.append('    $dumpvars();')
+            lines.append("")
+            
         # Initialize clock if present
         clk_sig = next((s for s in all_inputs if s.name == "clk"), None)
         if clk_sig is not None:
