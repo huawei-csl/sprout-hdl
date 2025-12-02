@@ -462,7 +462,8 @@ def P_han_carlson(n: int) -> Set[Pair]:
             nodes.add((i, i - span + 1))
         span *= 2
 
-    return nodes
+    # Some widths (non–powers of two) miss interior support nodes; legalize to repair.
+    return legalize_P(n, nodes)
 
 def ParallelScan_8_a(n: int) -> Set[Pair]:
     

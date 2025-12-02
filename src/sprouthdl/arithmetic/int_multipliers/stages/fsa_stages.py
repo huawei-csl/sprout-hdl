@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase
-from sprouthdl.arithmetic.prefix_adders.prefix_adder import P_brent_kung, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
-from sprouthdl.sprouthdl import Bool, Const, Expr
+from sprouthdl.arithmetic.prefix_adders.prefix_adder import P_brent_kung, P_han_carlson, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
+from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, UInt, cast
 
 
 def _exists(nodes: Set[Pair], i: int, j: int) -> bool:
@@ -16,6 +16,38 @@ def _find_split(nodes: Set[Pair], i: int, j: int) -> int | None:
         if _exists(nodes, i, k + 1) and _exists(nodes, k, j):
             return k
     return None
+
+class PlusOperatorAdderFinalStage(FinalStageAdderBase):
+
+    def resolve(self, columns: Dict[int, List[Expr]]) -> List[Expr]:
+
+        # columns to UInt inputs
+        width = self.config.out_width
+        max_col = max(columns.keys(), default=width - 1)
+        working_width = max(width, max_col + 1)
+        row_a: List[Expr] = []
+        row_b: List[Expr] = []
+        zero = Const(False, Bool())
+        for idx in range(working_width):
+            bits = list(columns.get(idx, []))
+            if len(bits) > 2:
+                raise ValueError(
+                    f"Column {idx} has {len(bits)} bits; expected at most 2 before addition"
+                )
+            if len(bits) == 0:
+                row_a.append(zero)
+                row_b.append(zero)
+            elif len(bits) == 1:
+                row_a.append(bits[0])
+                row_b.append(zero)
+            else:  # len == 2
+                row_a.append(bits[0])
+                row_b.append(bits[1])
+
+        a_unit = cast(Concat(row_a), UInt(working_width))
+        b_unit = cast(Concat(row_b), UInt(working_width))
+        sum_unit = a_unit + b_unit
+        return [sum_unit[i] for i in range(sum_unit.typ.width)]
 
 
 class PrefixAdderFinalStage(FinalStageAdderBase):
@@ -114,3 +146,6 @@ class MultiScanPrefixFinalStage(PrefixAdderFinalStage):
 
 class ZCGPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(ZCG_n)
+
+class HanCarlsonPrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_han_carlson)

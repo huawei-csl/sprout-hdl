@@ -12,7 +12,7 @@ from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import B
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplierBasic
-from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPrefixFinalStage, MultiScanPrefixFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage, ZCGPrefixFinalStage
+from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPrefixFinalStage, HanCarlsonPrefixFinalStage, MultiScanPrefixFinalStage, PlusOperatorAdderFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage, ZCGPrefixFinalStage
 
 
 # Options for each stage
@@ -42,6 +42,8 @@ class FSAOption(Enum):
     PREFIX_RCA = RipplePrefixFinalStage
     PREFIX_MULTI_SCAN = MultiScanPrefixFinalStage
     PREFIX_ZCG = ZCGPrefixFinalStage
+    PREFIX_HAN_CARLSON = HanCarlsonPrefixFinalStage
+    PLUS_OPERATOR = PlusOperatorAdderFinalStage
     NONE = None
 
 class MultiplierOption(Enum):

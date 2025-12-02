@@ -60,7 +60,7 @@ def _maybe_share(e: "Expr", force_share=False) -> "Expr":
     cnt = _SHARED.counts.get(nid, 0) + 1
     _SHARED.counts[nid] = cnt
     cnt_share = 1 # at what count start sharing
-    if cnt == cnt_share or force_share:
+    if cnt == cnt_share or (force_share and cnt <= 1):
         # Create the shared wire
         # name = f"sig_{_SHARED.index}"
         # _SHARED.index += 1
