@@ -138,7 +138,15 @@ Replace `data_file.parquet` with the file produced by the evaluate script.
 If desired, new multiplier options can be added here: `sprouthdl/arithmetic/int_multipliers/eval/multiplier_stage_options_demo_lib.py`.
 
 #### Optimized Multipliers
-The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py` required aig (and aig map) file. The can for example be produced and optimized with Flowy, for 4-bit unsigned with with the command:
+The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py` rely on precomputed AIGs (and map files). By default they load packaged assets from `sprouthdl/arithmetic/int_multipliers/data/optimized/` using the following filenames:
+
+- `unsigned_3b|4b|8b/{out_aiger.aig,aiger_map_cleaned.map}`
+- `signed_3b|4b|8b/{out_aiger.aig,aiger_map_cleaned.map}`
+- `unsigned_4b_strong/{out_aiger_strong.aig,out_aiger_map_strong.map}`
+
+To point at your own artifacts, set `SPROUTHDL_OPT_MULT_DIR=/path/to/optimized` (keep the same subdirectory names/files) or pass a custom `f_aag_lines` callable when constructing the multiplier. Clear errors are raised if neither packaged nor user-supplied assets are found.
+
+You can produce and optimize these files with Flowy; for 4-bit unsigned, for example:
 ```bash
 # 4 bit unsigned star starting point
 python flowy/flows/reinforce/run/statistical/run_flows_in_docker.py\

@@ -1,6 +1,9 @@
 import abc
 from collections import defaultdict
 from dataclasses import dataclass
+import os
+import importlib.resources as resources
+from pathlib import Path
 import re
 import tempfile
 from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Literal, Optional, Tuple, Type
@@ -25,49 +28,102 @@ from sprouthdl.aig.aig_to_aag import aig_file_to_aag_lines
 from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys, verilog_to_aag_via_yosys
 from sprouthdl.aig.aig_yosys import aig_file_to_aag_lines_via_yosys
 
+# Package data locations for precomputed multipliers
+RESOURCE_PACKAGE = "sprouthdl.arithmetic.int_multipliers.data"
+RESOURCE_BASE = Path("optimized")
+AIG_FILENAME = "out_aiger.aig"
+MAP_FILENAME = "aiger_map_cleaned.map"
+
+DEFAULT_MULTIPLIER_RESOURCE_ROOTS: Dict[Tuple[Encoding, Encoding, int], Path] = {
+    (Encoding.unsigned, Encoding.unsigned, 4): RESOURCE_BASE / "unsigned_4b",
+    (Encoding.unsigned, Encoding.unsigned, 3): RESOURCE_BASE / "unsigned_3b",
+    (Encoding.twos_complement, Encoding.twos_complement, 4): RESOURCE_BASE / "signed_4b",
+    (Encoding.twos_complement, Encoding.twos_complement, 3): RESOURCE_BASE / "signed_3b",
+    (Encoding.unsigned, Encoding.unsigned, 8): RESOURCE_BASE / "unsigned_8b",
+    (Encoding.twos_complement, Encoding.twos_complement, 8): RESOURCE_BASE / "signed_8b",
+}
+
+STRONG_UNSIGNED_4B_RESOURCE_ROOT = RESOURCE_BASE / "unsigned_4b_strong"
+
+
+def _encoding_label(enc: Encoding) -> str:
+    return getattr(enc, "name", str(enc))
+
+
+def _load_aag_lines_from_resources(aig_rel: Path, map_rel: Path, desc: str) -> List[str]:
+    # Allow users to point to their own asset directory via env var
+    env_base = os.environ.get("SPROUTHDL_OPT_MULT_DIR")
+    if env_base:
+        base_path = Path(env_base).expanduser()
+        aig_path = base_path / aig_rel
+        map_path = base_path / map_rel
+
+        missing_env: List[str] = []
+        if not aig_path.is_file():
+            missing_env.append(aig_path.as_posix())
+        if not map_path.is_file():
+            missing_env.append(map_path.as_posix())
+
+        if missing_env:
+            raise FileNotFoundError(
+                f"Missing optimized multiplier asset(s) for {desc} using SPROUTHDL_OPT_MULT_DIR={base_path}: "
+                f"{', '.join(missing_env)}. "
+                f"Expected layout: {base_path}/{aig_rel.parent}."
+            )
+
+        return aig_file_to_aag_lines(str(aig_path), map_file=str(map_path))
+
+    # Fall back to packaged resources
+    base = resources.files(RESOURCE_PACKAGE)
+    aig_resource = base.joinpath(aig_rel)
+    map_resource = base.joinpath(map_rel)
+
+    missing: List[str] = []
+    if not aig_resource.is_file():
+        missing.append(aig_rel.as_posix())
+    if not map_resource.is_file():
+        missing.append(map_rel.as_posix())
+
+    if missing:
+        raise FileNotFoundError(
+            f"Missing optimized multiplier asset(s) for {desc}: {', '.join(missing)}. "
+            "Add the files under 'src/sprouthdl/arithmetic/int_multipliers/data/optimized/' "
+            "or set SPROUTHDL_OPT_MULT_DIR to point to your own asset directory."
+        )
+
+    with resources.as_file(aig_resource) as aig_path, resources.as_file(map_resource) as map_path:
+        return aig_file_to_aag_lines(str(aig_path), map_file=str(map_path))
+    
+    # other options
+    # aag_lines = verilog_to_aag_lines_via_yosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True) # works but higher aig count
+    
+
 # ----- precomputed optimized multipliers stored as AIGs: ffile locations need to be adopted -----
 
 def get_aag_lines_default(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
 
-    # verilog_file_name = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1/analysis/minima_histogram/final_gen_design_files_best_design_aig_count/mydesign_mockturtle_cleaned.v"
+    root = DEFAULT_MULTIPLIER_RESOURCE_ROOTS.get((a_encoding, b_encoding, aw))
+    if root is None or aw != bw:
+        raise NotImplementedError(
+            f"No precomputed AIG packaged for aw={aw}, bw={bw}, encodings ({_encoding_label(a_encoding)}, {_encoding_label(b_encoding)}). "
+            "Provide 'f_aag_lines' or add the expected AIG files under 'sprouthdl/arithmetic/int_multipliers/data/'."
+        )
 
-    def get_aig_files() -> Tuple[str, str]:
-        if a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 4:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_4bit_star_1"
-        elif a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 3:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_3bit_star_1"
-        elif a_encoding == Encoding.twos_complement and b_encoding == Encoding.twos_complement and aw == bw and aw == 4:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_4bit_star_1"
-        elif a_encoding == Encoding.twos_complement and b_encoding == Encoding.twos_complement and aw == bw and aw == 3:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_3bit_star_1"
-        elif a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 8:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/unsigned_optim_8bit_star_1"
-        elif a_encoding == Encoding.twos_complement and b_encoding == Encoding.twos_complement and aw == bw and aw == 8:
-            aag_root = "/scratch/farnold/eda_package/flow_sim2_merged/output/db/signed_optim_8bit_star_1"
-        else:
-            raise NotImplementedError("No precomputed AIG for this configuration")
-
-        aig_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/out_aiger.aig"
-        map_file = aag_root + "/analysis/minima_histogram/final_mockturtle_design_best_design_aig_count/aiger_map_cleaned.map"
-        return aig_file, map_file
-
-    aig_file, map_file = get_aig_files()
-    aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
-
-    # other options
-    # aag_lines = verilog_to_aag_lines_via_yosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True) # works but higher aig count
-
-    return aag_lines
+    return _load_aag_lines_from_resources(
+        root / AIG_FILENAME,
+        root / MAP_FILENAME,
+        f"{_encoding_label(a_encoding)}/{_encoding_label(b_encoding)} {aw}x{bw}",
+    )
 
 
 def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_encoding: Encoding) -> List[str]:
     if not(a_encoding == Encoding.unsigned and b_encoding == Encoding.unsigned and aw == bw and aw == 4):
         raise NotImplementedError("Only optimized 4-bit unsigned multiplier is supported")
-    aag_root = "data/NEW_multiplier-tc_unsigned-4b-aig100mt75ys-trans344/multiplier-tc_unsigned-4b-aig100mt75ys-trans44/"
-    aig_file = aag_root + "out_aiger_yosys_iter1a6c22e9d2eb8ca7503a29263f7a1c56d31ae6b15d71a6e1b3d66d256eb4f0274_1_round_17.aig"
-    map_file = aag_root + "out_aiger_map_mod.aig"
-    aag_lines = aig_file_to_aag_lines(aig_file, map_file=map_file)
-    return aag_lines
+    return _load_aag_lines_from_resources(
+        STRONG_UNSIGNED_4B_RESOURCE_ROOT / AIG_FILENAME,
+        STRONG_UNSIGNED_4B_RESOURCE_ROOT / MAP_FILENAME,
+        "strong optimized 4-bit unsigned multiplier",
+    )
 
 
 # ----- optimized multiplier classes -----

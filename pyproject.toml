@@ -20,10 +20,16 @@ dynamic = [
 # Tell hatchling what to put into the wheel
 [tool.hatch.build.targets.wheel]
 packages = ["src/sprouthdl"]
+include = [
+    "src/sprouthdl/arithmetic/int_multipliers/data/**",
+]
 
 # Optional but nice: also define sdist the same way
 [tool.hatch.build.targets.sdist]
 packages = ["src/sprouthdl"]
+include = [
+    "src/sprouthdl/arithmetic/int_multipliers/data/**",
+]
 
 [tool.hatch.metadata.hooks.requirements_txt]
 files = ["requirements.txt"]
