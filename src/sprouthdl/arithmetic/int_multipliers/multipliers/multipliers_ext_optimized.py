@@ -96,7 +96,7 @@ def _load_aag_lines_from_resources(aig_rel: Path, map_rel: Path, desc: str) -> L
     
     # other options
     # aag_lines = verilog_to_aag_lines_via_yosys(verilog_file_name, top="mydesign_comb", embed_symbols=True, no_startoffset=True) # works but higher aig count
-    
+
 
 # ----- precomputed optimized multipliers stored as AIGs: ffile locations need to be adopted -----
 
@@ -250,6 +250,13 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
     def __init__(self, *args, f_aag_lines: Optional[List[str]] = None, use_compressor_tree=True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        # assign default PPA/FSA if not provided
+        if use_compressor_tree:
+            if self.ppa_cls is None:
+                self.ppa_cls = CarrySaveAccumulator  # smaller depth same aig count for 8 bit multiplier
+            if self.fsa_cls is None:
+                self.fsa_cls = RippleCarryFinalAdder
+
         # Compose four 8x8 optimized unsigned multipliers into a 16x16->32 multiplier
         assert self.a_encoding == Encoding.unsigned and self.b_encoding == Encoding.unsigned, "Only unsigned encoding is supported"
         # assert aw and bw are >=4 and powers of two
@@ -375,11 +382,9 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
                     optim_type=self.optim_type,
                 )
 
-                # ppg_cls = CompressorTreeAccumulator
-                ppg_cls = CarrySaveAccumulator # smaller depth same aig count for 8 bit multiplier
-                ppa = ppg_cls(config=config)
+                ppa = self.ppa_cls(config=config)
                 ppa_cols = ppa.accumulate(cols)
-                fsa = RippleCarryFinalAdder(config=config)
+                fsa = self.fsa_cls(config=config)
                 fsa_bits = fsa.resolve(ppa_cols)
 
                 # another option is to use compressor_sum for the summation

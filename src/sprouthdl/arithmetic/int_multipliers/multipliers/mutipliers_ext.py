@@ -22,9 +22,9 @@ class StageBasedExtMultiplier(Component):
         a_encoding: Encoding = Encoding.unsigned,
         b_encoding: Encoding = Encoding.unsigned,
         optim_type: Literal["area", "speed"] = "area",
-        ppg_cls: Type[PartialProductGeneratorBase],
-        ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
-        fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
+        ppg_cls: Optional[Type[PartialProductGeneratorBase]] = None,
+        ppa_cls: Optional[Type[PartialProductAccumulatorBase]] = None,
+        fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
     ) -> None:
 
         self.a_encoding = a_encoding
