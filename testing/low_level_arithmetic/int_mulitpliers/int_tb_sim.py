@@ -24,14 +24,15 @@ def int_tb_sim():
     # )
     # module = mult.to_module(f"Mul{n_bits}")
 
-    #mult = OptimizedMultiplierFrom4BitBlocksStrong(
+    # mult = OptimizedMultiplierFrom4BitBlocksStrong(
     mult = OptimizedMultiplier(
         a_w=n_bits,
         b_w=n_bits,
         optim_type="area",
         ppg_cls=PPGOption.NONE.value,
     )
-    module = mult.to_module(f"Mul{n_bits}")
+    with_clk = True
+    module = mult.to_module(f"Mul{n_bits}", with_clock=with_clk)
 
     # specs, vecs, decoder = MultiplierTestVectorsInt(
     #     a_w=n_bits,
@@ -62,7 +63,7 @@ def int_tb_sim():
 
     sim = Simulator(module)
     sim.trace_enabled = True
-    run_vectors_on_simulator(sim, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=True)
+    run_vectors_on_simulator(sim, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=True, with_clk=with_clk)
 
     trace_history = sim.trace_history
     trace_names = sim.get_traced_expr_names()
@@ -76,13 +77,28 @@ def int_tb_sim():
               timescale="1ns")
 
     sim_tb = VerilogTestbenchSimulator(module)
-    run_vectors_on_simulator(sim_tb, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=False)
+    run_vectors_on_simulator(sim_tb, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=False, with_clk=with_clk)
 
     print("\n".join(sim_tb.to_testbench_lines()))
 
     tb_filename = "int_multiplier_tb_sim.v"
+    data_tb_filename = "int_multiplier_tb_data.v"
+    data_filename = "int_multiplier_vectors.dat"
+
+    # Dump vectors for use in data-driven testbenches (one line: a b expected_y)
+    with open(data_filename, "w") as f:
+        for _, inputs, outputs in vecs:
+            f.write(f"{inputs['a']} {inputs['b']} {outputs['y']}\n")
+
     verilog_filename = "int_multiplier.v"
     sim_tb.to_testbench_file(tb_filename, tb_module_name=module.name+"_tb")
+    sim_tb.to_testbench_file_from_data(
+        data_tb_filename,
+        data_file=data_filename,
+        input_order=["a", "b"],
+        output_name="y",
+        with_clk=with_clk
+    )
     module.to_verilog_file(verilog_filename)
 
     # tb = VerilogTestbenchSimulator.from_multiplier_module(

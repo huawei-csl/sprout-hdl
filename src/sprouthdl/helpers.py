@@ -149,6 +149,7 @@ def run_vectors_on_simulator(
     use_signed: bool = False,
     raise_on_fail: bool = True,
     print_on_pass: bool = False,
+    with_clk: bool = False,
 ) -> None:
     
     """
@@ -165,6 +166,8 @@ def run_vectors_on_simulator(
             if k[0] == "_":
                 continue
             sim.set(k, v)
+        if with_clk:
+            sim.step()
         sim.eval()
         bad = []
         for oname, exp in outs.items():

@@ -194,6 +194,7 @@ class VerilogTestbenchSimulator:
         # DUT instantiation
         ports = []
         for p in self.m._ports:
+            # Wire clock first if present
             ports.append(f"    .{p.name}({p.name})")
         ports_csv = ",\n".join(ports)
         lines.append(f"  {self.m.name} dut (\n{ports_csv}\n  );")
@@ -255,6 +256,119 @@ class VerilogTestbenchSimulator:
         )
         with open(filepath, "w") as f:
             f.write(verilog_str)
+
+    # ------------------------------------------------------------------
+    # Data-driven Verilog testbench (reads vectors from file)
+    # ------------------------------------------------------------------
+    def to_testbench_file_from_data(
+        self,
+        filepath: Union[str, Path],
+        *,
+        data_file: Union[str, Path],
+        input_order: Optional[List[str]] = None,
+        output_name: str = "y",
+        timescale: Optional[str] = "1ns/1ps",
+        with_clk: bool = False,
+    ) -> None:
+        """
+        Emit a Verilog testbench that reads test vectors from a data file and
+        checks the DUT. Each line of the data file should contain whitespace-
+        separated values for the inputs (in the given order) followed by the
+        expected output.
+
+        input_order: optional list of input signal names matching the column order
+                     in the data file (do NOT include clk/rst here).
+        output_name: name of the output signal carrying the expected value column.
+        """
+        data_inputs = self.inputs if input_order is None else [self._by_name[nm] for nm in input_order]
+        if len(data_inputs) < 2:
+            raise ValueError("Expected at least two inputs for the multiplier testbench.")
+        if output_name not in self._by_name:
+            raise ValueError(f"Output '{output_name}' not found in module ports.")
+
+        # Ensure clock/reset are declared/connected even if not part of data file
+        data_input_ids = {id(s) for s in data_inputs}
+        control_inputs = [s for s in self.inputs if id(s) not in data_input_ids]
+        all_inputs: List[Signal] = data_inputs + control_inputs
+
+        out_sig = self._by_name[output_name]
+        tb_name = f"{self.m.name}_tb"
+
+        lines: List[str] = []
+        if timescale:
+            lines.append(f"`timescale {timescale}")
+            lines.append("")
+        lines.append(f"module {tb_name};")
+        for s in all_inputs:
+            lines.append(f"  reg  {s.typ.range_str()} {s.name};")
+        lines.append(f"  reg  {out_sig.typ.range_str()} expected;")
+        for s in self.outputs:
+            lines.append(f"  wire {s.typ.range_str()} {s.name};")
+        lines.append("")
+        # DUT instantiation
+        ports = []
+        for p in [*self.inputs, *self.outputs]:
+            ports.append(f"    .{p.name}({p.name})")
+        ports_csv = ",\n".join(ports)
+        lines.append(f"  {self.m.name} dut (\n{ports_csv}\n  );")
+        lines.append("")
+
+        lines.append("  integer fd;")
+        lines.append("  integer rc;")
+        lines.append("  integer line;")
+        lines.append("  integer pass_cnt;")
+        lines.append("  integer fail_cnt;")
+        lines.append("")
+        lines.append("  initial begin")
+        # Initialize clock if present
+        clk_sig = next((s for s in all_inputs if s.name == "clk"), None)
+        if clk_sig is not None:
+            lines.append(f"    {clk_sig.name} = 1'b0;")
+        rst_sig = next((s for s in all_inputs if s.name == "rst"), None)
+        if rst_sig is not None:
+            lines.append(f"    {rst_sig.name} = 1'b0;")
+        lines.append(f"    fd = $fopen(\"{data_file}\", \"r\");")
+        lines.append("    if (fd == 0) begin")
+        lines.append(f"      $display(\"Failed to open {data_file}\");")
+        lines.append("      $finish;")
+        lines.append("    end")
+        lines.append("    line = 0; pass_cnt = 0; fail_cnt = 0;")
+        lines.append("    while (!$feof(fd)) begin")
+        fmt_parts = ["%d"] * (len(data_inputs) + 1)
+        fmt = " ".join(fmt_parts) + "\\n"
+        lvalues = ", ".join([s.name for s in data_inputs] + ["expected"])
+        lines.append(f"      rc = $fscanf(fd, \"{fmt}\", {lvalues});")
+        lines.append("      line = line + 1;")
+        lines.append("      if (rc != {n}) begin".format(n=len(data_inputs) + 1))
+        lines.append("        $display(\"Skipping line %0d (rc=%0d)\", line, rc);")
+        lines.append("        continue;")
+        lines.append("      end")
+        if with_clk and clk_sig is not None:
+            lines.append("      #1;")
+            lines.append(f"      {clk_sig.name} = 1'b1;")
+            lines.append("      #1;")
+            lines.append(f"      {clk_sig.name} = 1'b0;")
+        else:
+            lines.append("      #1; // allow combinational settle")
+        lines.append(f"      if ({out_sig.name} !== expected) begin")
+        lines.append("        fail_cnt = fail_cnt + 1;")
+        fmt_parts = [f" {s.name}=%0d" for s in data_inputs]
+        fmt_parts.append(" expected=%0d")
+        fmt_parts.append(f" got={out_sig.name}=%0d")
+        fmt_str = "Mismatch line %0d:" + "".join(fmt_parts)
+        fmt_args = ", ".join(["line"] + [s.name for s in data_inputs] + ["expected", out_sig.name])
+        lines.append(f"        $display(\"{fmt_str}\", {fmt_args});")
+        lines.append("      end else begin")
+        lines.append("        pass_cnt = pass_cnt + 1;")
+        lines.append("      end")
+        lines.append("    end")
+        lines.append("    $display(\"Finished: %0d passed, %0d failed\", pass_cnt, fail_cnt);")
+        lines.append("    $finish;")
+        lines.append("  end")
+        lines.append("endmodule")
+
+        with open(filepath, "w") as f:
+            f.write("\n".join(lines) + "\n")
 
     # ------------------------------------------------------------------
     # Internals
