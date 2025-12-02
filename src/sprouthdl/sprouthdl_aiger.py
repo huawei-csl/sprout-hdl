@@ -745,9 +745,13 @@ class AigerImporter:
     def get_sprout_module(self, name: str | None = None) -> Module:
         if name is None:
             name = "ImportedModule"
-        return conv_aag_into_graph(self.lines,
-                                   Module(name, with_clock=False, with_reset=False),
-                                   adapter=SproutHDLAdapter)
+        m = conv_aag_into_graph(self.lines,
+                                Module(name, with_clock=False, with_reset=False),
+                                adapter=SproutHDLAdapter)
+        #   # sanitized names: for all m._ports replace [ and ] with _ in their names
+        for p in m._ports:
+            p.name = p.name.replace("[", "_").replace("]", "_")
+        return m
 
 
 def main_small_tst():

@@ -301,20 +301,13 @@ class Module:
 
     # Verilog generation
     def to_verilog_lines(self) -> list[str]:
-        
-        def clean_name(n: str) -> str:
-            return n.replace('[', '_').replace(']', '_')
-        
         # Basic checks
         for s in self._signals:
             if s.kind in ("wire", "output") and s._driver is None:
-                # allow un-driven outputs if the user plans to wire them later,
-                # but it's safer to warn early.
                 if s.kind == "output":
-                    raise ValueError(f"Output '{clean_name(s.name)}' has no driver.")
+                    raise ValueError(f"Output '{s.name}' has no driver.")
             if s.kind == "reg" and s._next is None:
-                # regs must have next state
-                raise ValueError(f"Register '{clean_name(s.name)}' has no next-state assignment. Set s.next = ...")
+                raise ValueError(f"Register '{s.name}' has no next-state assignment. Set s.next = ...")
 
         lines: List[str] = []
         # Ports list
@@ -328,7 +321,7 @@ class Module:
             dir_ = "input" if p.kind == "input" else "output"
             sign = "signed " if p.typ.signed else ""
             rng = p.typ.range_str()
-            lines.append(f"  {dir_} {sign}{rng} {clean_name(p.name)};")
+            lines.append(f"  {dir_} {sign}{rng} {p.name};")
 
         # Internals
         #wires = self._internals_of("wire") + _SHARED.wires
@@ -341,18 +334,18 @@ class Module:
         for w in wires:
             sign = "signed " if w.typ.signed else ""
             rng = w.typ.range_str()
-            lines.append(f"  wire {sign}{rng} {clean_name(w.name)};")
+            lines.append(f"  wire {sign}{rng} {w.name};")
         lines.append('// Registers')
         for r in regs:
             sign = "signed " if r.typ.signed else ""
             rng = r.typ.range_str()
-            lines.append(f"  reg {sign}{rng} {clean_name(r.name)};")
+            lines.append(f"  reg {sign}{rng} {r.name};")
         # Combinational assigns for wires/outputs
         lines.append("// Combinational assignments")
         for s in [*wires, *self._ports_of("output")]:
             if s._driver is not None:
                 rhs = fit_width(s._driver, s.typ).to_verilog()
-                lines.append(f"  assign {clean_name(s.name)} = {rhs};")
+                lines.append(f"  assign {s.name} = {rhs};")
 
         # Sequential logic
         lines.append("// Sequential logic")
@@ -367,14 +360,14 @@ class Module:
                 lines.append(f"    if ({self.rst.name}) begin")
                 for r in regs:
                     init = r._init.to_verilog() if r._init is not None else f"{r.typ.width}'d0"
-                    lines.append(f"      {clean_name(r.name)} <= {init};")
+                    lines.append(f"      {r.name} <= {init};")
                 lines.append("    end else begin")
                 for r in regs:
-                    lines.append(f"      {clean_name(r.name)} <= {fit_width(r._next, r.typ).to_verilog()};")
+                    lines.append(f"      {r.name} <= {fit_width(r._next, r.typ).to_verilog()};")
                 lines.append("    end")
             else:
                 for r in regs:
-                    lines.append(f"    {clean_name(r.name)} <= {fit_width(r._next, r.typ).to_verilog()};")
+                    lines.append(f"    {r.name} <= {fit_width(r._next, r.typ).to_verilog()};")
             lines.append("  end")
 
         lines.append("endmodule")
@@ -510,7 +503,7 @@ class IOCollector:
         name_to_sig = {p.name: p for p in m._ports}
         bits = []
         for i in range(width):
-            nm = f"{base}[{i}]"
+            nm = f"{base}_{i}_"
             s = name_to_sig.get(nm)
             if s is None:
                 raise ValueError(f"Missing bit-port '{nm}'")
