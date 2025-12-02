@@ -101,7 +101,7 @@ class KaratsubaMultiplier(StageBasedExtMultiplier):
             self.multiplier_core_config = ConfigItem(
                 MultiplierOption.STAGE_BASED_MULTIPLIER,
                 MultiplierEncodings.with_enc(Encoding.unsigned),
-                PPGOption.BOOTH_OPTIMISED,
+                PPGOption.BOOTH_OPTIMISED, # use the options from self
                 PPAOption.CARRY_SAVE_TREE,
                 FSAOption.PREFIX_RCA,
             )
