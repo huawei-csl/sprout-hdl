@@ -24,7 +24,7 @@ def int_adders_tb_sim():
         fsa_cls=RippleCarryFinalAdder,
         full_output_bit=full_output_bit,
     )
-    module = adder.to_module(f"PrefixAdder{n_bits}")
+    module = adder.to_module(f"PrefixAdder{n_bits}", with_clock=True, with_reset=True)
 
 
     vecs = AdderTestVectors(
@@ -74,8 +74,6 @@ def int_adders_tb_sim():
     sim_tb.to_testbench_file_from_data(
         data_tb_filename,
         data_file=data_filename,
-        input_order=["a", "b"],
-        output_name="y",
         with_clk=False,
     )
     module.to_verilog_file(verilog_filename)

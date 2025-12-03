@@ -93,8 +93,8 @@ def int_tb_sim():
     sim_tb.to_testbench_file_from_data(
         data_tb_filename,
         data_file=data_filename,
-        input_order=["a", "b"],
-        output_name="y",
+        input_stimuli=["a", "b"],
+        outputs_expected=["y"],
         with_clk=with_clk
     )
     module.to_verilog_file(verilog_filename)

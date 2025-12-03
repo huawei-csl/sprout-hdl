@@ -281,14 +281,13 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Data-driven Verilog testbench (reads vectors from file)
     # ------------------------------------------------------------------
-    # todo remove input_order (how to detect clock), output_name
     def to_testbench_file_from_data(
         self,
         filepath: Union[str, Path],
         *,
         data_file: Union[str, Path],
-        input_order: Optional[List[str]] = None,
-        output_name: str = "y",
+        input_stimuli: Optional[List[str]] = None,
+        outputs_expected: Optional[List[str]] = None,
         timescale: Optional[str] = "1ns/1ps",
         with_clk: bool = False,
         dump_vcd: bool = True,
@@ -298,24 +297,33 @@ class VerilogTestbenchSimulator:
         Emit a Verilog testbench that reads test vectors from a data file and
         checks the DUT. Each line of the data file should contain whitespace-
         separated values for the inputs (in the given order) followed by the
-        expected output.
+        expected output(s).
 
-        input_order: optional list of input signal names matching the column order
-                     in the data file (do NOT include clk/rst here).
-        output_name: name of the output signal carrying the expected value column.
+        input_stimuli: optional list of input signal names matching the column order
+                       in the data file (do NOT include clk/rst here). If None,
+                       defaults to all data inputs except clk/rst. Some inputs may
+                       intentionally remain unstimulated.
+        outputs_expected: optional list of output signal names corresponding to
+                          expected value columns. If None, all outputs are checked.
         """
-        data_inputs = self.inputs if input_order is None else [self._by_name[nm] for nm in input_order]
-        if len(data_inputs) < 2:
-            raise ValueError("Expected at least two inputs for the multiplier testbench.")
-        if output_name not in self._by_name:
-            raise ValueError(f"Output '{output_name}' not found in module ports.")
+        if input_stimuli is None:
+            data_inputs = [s for s in self.inputs if s.name not in ("clk", "rst")]
+        else:
+            data_inputs = [self._by_name[nm] for nm in input_stimuli]
+        if not data_inputs:
+            raise ValueError("No input stimuli specified or inferred.")
 
-        # Ensure clock/reset are declared/connected even if not part of data file
-        data_input_ids = {id(s) for s in data_inputs}
-        control_inputs = [s for s in self.inputs if id(s) not in data_input_ids]
-        all_inputs: List[Signal] = data_inputs + control_inputs
+        control_inputs = [s for s in self.inputs if s.name in ("clk", "rst")]
+        # Include control signals for declaration/connection even if not in the data file
+        all_inputs: List[Signal] = self.inputs
 
-        out_sig = self._by_name[output_name]
+        if outputs_expected is None:
+            expected_outputs = list(self.outputs)
+        else:
+            expected_outputs = [self._by_name[nm] for nm in outputs_expected]
+        if not expected_outputs:
+            raise ValueError("No outputs specified for checking.")
+
         tb_name = f"{self.m.name}_tb"
 
         lines: List[str] = []
@@ -325,7 +333,8 @@ class VerilogTestbenchSimulator:
         lines.append(f"module {tb_name};")
         for s in all_inputs:
             lines.append(f"  reg  {s.typ.range_str()} {s.name};")
-        lines.append(f"  reg  {out_sig.typ.range_str()} expected;")
+        for s in expected_outputs:
+            lines.append(f"  reg  {s.typ.range_str()} expected_{s.name};")
         for s in self.outputs:
             lines.append(f"  wire {s.typ.range_str()} {s.name};")
         lines.append("")
@@ -342,6 +351,7 @@ class VerilogTestbenchSimulator:
         lines.append("  integer line;")
         lines.append("  integer pass_cnt;")
         lines.append("  integer fail_cnt;")
+        lines.append("  reg mismatch;")
         lines.append("")
         lines.append("  initial begin")
         
@@ -365,12 +375,13 @@ class VerilogTestbenchSimulator:
         lines.append("    end")
         lines.append("    line = 0; pass_cnt = 0; fail_cnt = 0;")
         lines.append("    while (!$feof(fd)) begin")
-        fmt_parts = ["%d"] * (len(data_inputs) + 1)
+        fmt_parts = ["%d"] * (len(data_inputs) + len(expected_outputs))
         fmt = " ".join(fmt_parts) + "\\n"
-        lvalues = ", ".join([s.name for s in data_inputs] + ["expected"])
+        expected_names = [f"expected_{s.name}" for s in expected_outputs]
+        lvalues = ", ".join([s.name for s in data_inputs] + expected_names)
         lines.append(f"      rc = $fscanf(fd, \"{fmt}\", {lvalues});")
         lines.append("      line = line + 1;")
-        lines.append("      if (rc != {n}) begin".format(n=len(data_inputs) + 1))
+        lines.append("      if (rc != {n}) begin".format(n=len(data_inputs) + len(expected_outputs)))
         lines.append("        $display(\"Skipping line %0d (rc=%0d)\", line, rc);")
         lines.append("        continue;")
         lines.append("      end")
@@ -381,14 +392,20 @@ class VerilogTestbenchSimulator:
             lines.append(f"      {clk_sig.name} = 1'b0;")
         else:
             lines.append("      #1; // allow combinational settle")
-        lines.append(f"      if ({out_sig.name} !== expected) begin")
+        lines.append("      mismatch = 0;")
+        for s in expected_outputs:
+            exp_name = f"expected_{s.name}"
+            fmt_parts = [f" {inp.name}=%0d" for inp in data_inputs]
+            fmt_parts.append(f" expected_{s.name}=%0d")
+            fmt_parts.append(f" got={s.name}=%0d")
+            fmt_str = "Mismatch line %0d:" + "".join(fmt_parts)
+            fmt_args = ", ".join(["line"] + [inp.name for inp in data_inputs] + [exp_name, s.name])
+            lines.append(f"      if ({s.name} !== {exp_name}) begin")
+            lines.append("        mismatch = 1;")
+            lines.append(f"        $display(\"{fmt_str}\", {fmt_args});")
+            lines.append("      end")
+        lines.append("      if (mismatch) begin")
         lines.append("        fail_cnt = fail_cnt + 1;")
-        fmt_parts = [f" {s.name}=%0d" for s in data_inputs]
-        fmt_parts.append(" expected=%0d")
-        fmt_parts.append(f" got={out_sig.name}=%0d")
-        fmt_str = "Mismatch line %0d:" + "".join(fmt_parts)
-        fmt_args = ", ".join(["line"] + [s.name for s in data_inputs] + ["expected", out_sig.name])
-        lines.append(f"        $display(\"{fmt_str}\", {fmt_args});")
         lines.append("      end else begin")
         lines.append("        pass_cnt = pass_cnt + 1;")
         lines.append("      end")
