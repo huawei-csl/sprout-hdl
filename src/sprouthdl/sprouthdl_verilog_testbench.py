@@ -165,7 +165,13 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Testbench emission
     # ------------------------------------------------------------------
-    def to_testbench_lines(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps", dump_vcd: bool = True) -> List[str]:
+    def to_testbench_lines(
+        self,
+        tb_module_name: Optional[str] = None,
+        timescale: Optional[str] = "1ns/1ps",
+        dump_vcd: bool = True,
+        dumpfile: str = "dump.vcd",
+    ) -> List[str]:
         """Emit a Verilog testbench that replays the recorded events."""
 
         if not self._events:
@@ -202,7 +208,7 @@ class VerilogTestbenchSimulator:
 
         if dump_vcd:
             lines.append("")
-            lines.append('    $dumpfile("dump.vcd");')
+            lines.append(f'    $dumpfile("{dumpfile}");')
             lines.append('    $dumpvars();')
 
         lines.append("")
@@ -240,17 +246,34 @@ class VerilogTestbenchSimulator:
 
         return lines
 
-    def to_testbench_str(self, tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> str:
+    def to_testbench_str(
+        self,
+        tb_module_name: Optional[str] = None,
+        timescale: Optional[str] = "1ns/1ps",
+        dump_vcd: bool = True,
+        dumpfile: str = "dump.vcd",
+    ) -> str:
         lines = self.to_testbench_lines(
             tb_module_name=tb_module_name,
             timescale=timescale,
+            dump_vcd=dump_vcd,
+            dumpfile=dumpfile,
         )
         return "\n".join(lines) + "\n"
 
-    def to_testbench_file(self, filepath: Union[str, Path], tb_module_name: Optional[str] = None, timescale: Optional[str] = "1ns/1ps") -> None:
+    def to_testbench_file(
+        self,
+        filepath: Union[str, Path],
+        tb_module_name: Optional[str] = None,
+        timescale: Optional[str] = "1ns/1ps",
+        dump_vcd: bool = True,
+        dumpfile: str = "dump.vcd",
+    ) -> None:
         verilog_str = self.to_testbench_str(
             tb_module_name=tb_module_name,
             timescale=timescale,
+            dump_vcd=dump_vcd,
+            dumpfile=dumpfile,
         )
         with open(filepath, "w") as f:
             f.write(verilog_str)
@@ -258,6 +281,7 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Data-driven Verilog testbench (reads vectors from file)
     # ------------------------------------------------------------------
+    # todo remove input_order (how to detect clock), output_name
     def to_testbench_file_from_data(
         self,
         filepath: Union[str, Path],
@@ -268,6 +292,7 @@ class VerilogTestbenchSimulator:
         timescale: Optional[str] = "1ns/1ps",
         with_clk: bool = False,
         dump_vcd: bool = True,
+        dumpfile: str = "dump.vcd",
     ) -> None:
         """
         Emit a Verilog testbench that reads test vectors from a data file and
@@ -322,7 +347,7 @@ class VerilogTestbenchSimulator:
         
         if dump_vcd:
             lines.append("")
-            lines.append('    $dumpfile("dump.vcd");')
+            lines.append(f'    $dumpfile("{dumpfile}");')
             lines.append('    $dumpvars();')
             lines.append("")
             

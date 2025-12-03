@@ -44,9 +44,7 @@ def from_encoding(fmt: Encoding) -> bool:
     assert fmt in {Encoding.twos_complement, Encoding.unsigned}, f"Cannot convert encoding {fmt} to bool"
     return fmt == Encoding.twos_complement
 
-class TwoInputArithmeticTestVectors:
-    
-
+class TwoInputArithmeticTestVectors:   
 
     def __init__(
         self,
