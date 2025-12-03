@@ -13,7 +13,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, TwoInputAritEncodings, MultiplierOption, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
@@ -38,7 +38,7 @@ def get_target_sigma_index(sigmas: list, n_bits: int) -> int:
 
 def run_configuration(
     multiplier_opt: MultiplierOption,
-    encodings: MultiplierEncodings,
+    encodings: TwoInputAritEncodings,
     ppg_opt: PPGOption,
     ppa_opt: PPAOption,
     fsa_opt: FSAOption,

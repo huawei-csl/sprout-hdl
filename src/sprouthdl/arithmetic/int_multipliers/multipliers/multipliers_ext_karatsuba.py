@@ -86,13 +86,13 @@ class KaratsubaMultiplier(StageBasedMultiplierBase):
         self.karatsuba_only_at_first_level = karatsuba_only_at_first_level
         self.use_preoptimized_4bit_multiplier = use_preoptimized_4bit_multiplier
 
-        from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
+        from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, TwoInputAritEncodings, MultiplierOption, PPAOption, PPGOption
 
         if self.use_preoptimized_4bit_multiplier:
 
             # use optimized multiplier from 4-bit blocks
             self.multiplier_core_config =  ConfigItem(MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
-                                                    encodings=MultiplierEncodings.with_enc(Encoding.unsigned))
+                                                    encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned))
             self.use_power_of_two_multipliers_only = True  # needs to be true
 
         else:
@@ -100,7 +100,7 @@ class KaratsubaMultiplier(StageBasedMultiplierBase):
             # use stage-based multiplier with specific options which give good results
             self.multiplier_core_config = ConfigItem(
                 MultiplierOption.STAGE_BASED_MULTIPLIER,
-                MultiplierEncodings.with_enc(Encoding.unsigned),
+                TwoInputAritEncodings.with_enc(Encoding.unsigned),
                 PPGOption.BOOTH_OPTIMISED, # use the options from self
                 PPAOption.CARRY_SAVE_TREE,
                 FSAOption.PREFIX_RCA,

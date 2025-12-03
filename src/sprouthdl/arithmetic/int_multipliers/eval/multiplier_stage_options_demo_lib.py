@@ -80,7 +80,7 @@ def get_list_from_enum(enum_cls: Type[E]) -> list[E]:
     return result
 
 
-class MultiplierEncodings(NamedTuple):
+class TwoInputAritEncodings(NamedTuple):
     a: Encoding
     b: Encoding
     y: Encoding
@@ -103,41 +103,41 @@ class MultiplierEncodings(NamedTuple):
 
 class ConfigItem(NamedTuple):
     multiplier_opt: MultiplierOption
-    encodings: MultiplierEncodings
+    encodings: TwoInputAritEncodings
     ppg_opt: Optional[PPGOption] = None
     ppa_opt: Optional[PPAOption] = None
     fsa_opt: Optional[FSAOption] = None
     all_sigma: bool = True
 
 
-def encoding_for_multiplier(multiplier_cls: type[StageBasedMultiplierBase]) -> List[MultiplierEncodings]:
+def encoding_for_multiplier(multiplier_cls: type[StageBasedMultiplierBase]) -> List[TwoInputAritEncodings]:
     if multiplier_cls == StageBasedSignMagnitudeMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude)]
     elif multiplier_cls == StageBasedSignMagnitudeExtMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext)]
     elif multiplier_cls == StageBasedSignMagnitudeExtUpMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up)]
     elif multiplier_cls == StageBasedMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned), TwoInputAritEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == StageBasedSignMagnitudeToTwosComplementMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement)]
     elif multiplier_cls == StageBasedSignMagnitudeExtToTwosComplementMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement)]
     elif multiplier_cls == StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper)]
     elif multiplier_cls == StarMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned), TwoInputAritEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == OptimizedMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned), TwoInputAritEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == OptimizedSignMagnitudeMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
+        return [TwoInputAritEncodings.with_enc(Encoding.sign_magnitude)]
     elif multiplier_cls == OptimizedMultiplierFrom4BitBlocks:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned)]
     elif multiplier_cls == OptimizedMultiplierFrom4BitBlocksStrong:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned)]
     elif multiplier_cls == KaratsubaMultiplier:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned), MultiplierEncodings.with_enc(Encoding.twos_complement)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned), TwoInputAritEncodings.with_enc(Encoding.twos_complement)]
     elif multiplier_cls == KaratsubaMultiplierFromOptimized4BitBlocks:
-        return [MultiplierEncodings.with_enc(Encoding.unsigned)]
+        return [TwoInputAritEncodings.with_enc(Encoding.unsigned)]
     else:
         raise ValueError(f"Unknown multiplier class: {multiplier_cls}")

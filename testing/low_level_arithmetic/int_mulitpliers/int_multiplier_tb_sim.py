@@ -1,4 +1,4 @@
-from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, MultiplierEncodings, PPAOption, PPGOption
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, TwoInputAritEncodings, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import MultiplierTestVectorsInt, StageBasedMultiplierBasic
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocksStrong
@@ -45,7 +45,7 @@ def int_tb_sim():
 
     decoder = None
 
-    encodings = MultiplierEncodings.with_enc(Encoding.unsigned if not signed else Encoding.twos_complement,)
+    encodings = TwoInputAritEncodings.with_enc(Encoding.unsigned if not signed else Encoding.twos_complement,)
     vecs = MultiplierTestVectors(
                 a_w=n_bits,
                 b_w=n_bits,

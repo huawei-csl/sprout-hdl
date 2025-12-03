@@ -31,9 +31,8 @@ def from_encoding(fmt: Encoding) -> bool:
     assert fmt in {Encoding.twos_complement, Encoding.unsigned}, f"Cannot convert encoding {fmt} to bool"
     return fmt == Encoding.twos_complement
 
-
-class MultiplierTestVectors:
-
+class TwoInputArithmeticTestVectors:
+    
     _SIGNED_encodings = {
         Encoding.twos_complement,
         Encoding.twos_complement_symmetric,
@@ -60,11 +59,12 @@ class MultiplierTestVectors:
         self.a_encoding = a_encoding
         self.b_encoding = b_encoding
         self.y_encoding = y_encoding
-
+        
+    
     @classmethod
     def _is_signed(cls, fmt: Encoding) -> bool:
         return fmt in cls._SIGNED_encodings
-
+    
     @staticmethod
     def _value_range(fmt: Encoding, width: int) -> Tuple[int, int]:
         if fmt in [Encoding.twos_complement, Encoding.sign_magnitude_ext]:
@@ -83,11 +83,11 @@ class MultiplierTestVectors:
             return (0, max(width - 1, 0))
         # unsigned-like encodings (unsigned, gray)
         return (0, (1 << width) - 1)
-
+    
     @staticmethod
     def _clamp(value: int, lo: int, hi: int) -> int:
         return max(min(value, hi), lo)
-
+    
     @staticmethod
     def _encode_value(fmt: Encoding, value: int, width: int) -> int:
         # to be sure lets clamp
@@ -116,7 +116,7 @@ class MultiplierTestVectors:
         if fmt == Encoding.unsigned_overflow:
             return value % (1 << width)
         return clamped
-
+    
     def get_normal_sample(self, fmt: Encoding, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
         if fmt == Encoding.onehot:
@@ -124,12 +124,12 @@ class MultiplierTestVectors:
             raw_value = int(np.round(np.random.normal(center, self.tb_sigma)))
             raw_value = self._clamp(raw_value, lo, hi)
             return raw_value
-
+    
         mean = 0 if self._is_signed(fmt) else (lo + hi) / 2
         raw_value = int(np.round(np.random.normal(mean, self.tb_sigma)))
         raw_value = self._clamp(raw_value, lo, hi)
         return raw_value
-
+    
     def get_uniform_sample(self, fmt: Encoding, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
         if fmt == Encoding.onehot:
@@ -140,8 +140,10 @@ class MultiplierTestVectors:
         raw_value = random.randint(lo, hi)
         return raw_value
 
+class MultiplierTestVectors(TwoInputArithmeticTestVectors):
+
     def generate(self) -> Tuple:
-        
+
         if self.num_vectors is None:
             self.num_vectors = 64  # default number of vectors
 
@@ -168,8 +170,8 @@ class MultiplierTestVectors:
         return vecs
 
 
-class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
-    
+class MultiplierTestVectorsExhaustive(TwoInputArithmeticTestVectors):
+
     def generate_encoding_tables(self) -> Tuple[dict, dict, dict]:
         a_table = {}
         b_table = {}
@@ -179,12 +181,12 @@ class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
         for val in range(a_lo, a_hi + 1):
             enc = self._encode_value(self.a_encoding, val, self.a_w)
             a_table[enc] = val
-            
+
         b_lo, b_hi = self._value_range(self.b_encoding, self.b_w)
         for val in range(b_lo, b_hi + 1):
             enc = self._encode_value(self.b_encoding, val, self.b_w)
             b_table[enc] = val
-        
+
         y_lo, y_hi = self._value_range(self.y_encoding, self.y_w)
         for val in range(y_lo, y_hi + 1):
             enc = self._encode_value(self.y_encoding, val, self.y_w)
@@ -193,7 +195,7 @@ class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
         return a_table, b_table, y_table
 
     def generate(self) -> Tuple:
-        
+
         if self.num_vectors is not None or self.tb_sigma is not None:
             raise ValueError("num_vectors must be None for exhaustive test vector generation")       
 
@@ -203,7 +205,7 @@ class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
 
         vecs = []
         for i in range(self.num_vectors):
-           
+
             # get encoded value
             va_encoded = i % (1 << self.a_w)
             vb_encoded = i // (1 << self.a_w)
@@ -221,7 +223,8 @@ class MultiplierTestVectorsExhaustive(MultiplierTestVectors):
         return vecs
 
 
-class AdderTestVectors(MultiplierTestVectors):
+class AdderTestVectors(TwoInputArithmeticTestVectors):
+
     def __init__(
         self,
         a_w: int,

@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, MultiplierEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, FSAOption, TwoInputAritEncodings, PPAOption, PPGOption, MultiplierOption, encoding_for_multiplier, get_list_from_enum, supports_stages
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, to_encoding
 from sprouthdl.aig.aig_to_aag import aig_file_to_aag_lines
@@ -8,63 +8,63 @@ from sprouthdl.aig.aig_to_aag import aig_file_to_aag_lines
 demos1: list[ConfigItem] = [
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_UP_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.sign_magnitude_ext_up),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.unsigned),
+        TwoInputAritEncodings.with_enc(Encoding.unsigned),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_TO_TWOS_COMPLEMENT_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude).set_output(Encoding.twos_complement),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_TO_TWOS_COMPLEMENT_UPPER_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
+        TwoInputAritEncodings.with_enc(Encoding.sign_magnitude_ext).set_output(Encoding.twos_complement_upper),
         PPGOption.AND,
         PPAOption.WALLACE_TREE,
         FSAOption.RIPPLE,
     ),
     ConfigItem(
         MultiplierOption.STAR_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.twos_complement),
+        TwoInputAritEncodings.with_enc(Encoding.twos_complement),
         PPGOption.NONE,
         PPAOption.NONE,
         FSAOption.NONE,
     ),
     ConfigItem(
         MultiplierOption.STAR_MULTIPLIER,
-        MultiplierEncodings.with_enc(Encoding.unsigned),
+        TwoInputAritEncodings.with_enc(Encoding.unsigned),
         PPGOption.NONE,
         PPAOption.NONE,
         FSAOption.NONE,
@@ -153,7 +153,7 @@ def get_selection1_list_optimized() -> List[ConfigItem]:
     config_items = [
         ConfigItem(
             MultiplierOption.OPTIMIZED_MULTIPLIER_FROM_4BIT_BLOCKS_STRONG,
-            MultiplierEncodings.with_enc(Encoding.unsigned),
+            TwoInputAritEncodings.with_enc(Encoding.unsigned),
             PPGOption.NONE,
             PPAOption.NONE,
             FSAOption.NONE,
