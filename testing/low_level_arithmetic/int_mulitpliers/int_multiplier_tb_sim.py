@@ -65,13 +65,11 @@ def int_tb_sim():
     sim.trace_enabled = True
     run_vectors_on_simulator(sim, vecs, decoder=decoder, use_signed=use_signed, print_on_pass=True, with_clk=with_clk)
 
-    trace_history = sim.trace_history
-    trace_names = sim.get_traced_expr_names()
-    # print(f"Traced signals: {list(trace_names.values())}")
+    trace_by_names = sim.get_trace_by_names()
+    # print(f"Traced signals: {list(trace_by_names.keys())}")
 
     vcd_filename = "int_multiplier_tb_sim.vcd"
-    write_vcd(trace_history=trace_history, 
-              trace_names=trace_names, 
+    write_vcd(trace_by_names=trace_by_names, 
               filename=vcd_filename,
               top_module=module.name, 
               timescale="1ns")

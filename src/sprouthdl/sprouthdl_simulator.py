@@ -467,3 +467,17 @@ class Simulator:
             else:
                 names_dict[id(e)] = f"expr_{id(e)}"
         return names_dict
+    
+    def get_trace_by_names(self) -> dict[str, list[int]]:
+        """
+        Return trace history as a dict mapping signal/expression names to lists of values over time.
+        """
+        trace_names = self.get_traced_expr_names()
+        history_by_name: dict[str, list[int]] = {name: [] for name in trace_names.values()}
+
+        for snapshot in self.trace_history:
+            for eid, value in snapshot.items():
+                name = trace_names.get(eid, f"expr_{eid}")
+                history_by_name[name].append(value)
+        return history_by_name
+        

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Mapping, Iterable
+from typing import Dict, List, Mapping
 
 
 def write_vcd(
-    trace_history: List[Mapping[int, int]],
-    trace_names: Mapping[int, str],
+    trace_by_names: Mapping[str, List[int]],
     filename: str,
     timescale: str = "1ns",
     top_module: str = "top",
@@ -17,14 +16,10 @@ def write_vcd(
 
     Parameters
     ----------
-    trace_history:
-        List of time steps. Each element is a dict:
-            { signal_id (int) -> value (int) }
-        The list index is the time step (0, 1, 2, ...).
-        Missing signal_ids in a step are treated as "no change".
-
-    trace_names:
-        Mapping from signal_id (int) to signal name (str) to be used in VCD.
+    trace_by_names:
+        Mapping from signal/expression name (str) to a list of integer values,
+        one per time step. All lists must have the same length (the number of
+        captured cycles).
 
     filename:
         Path to the output .vcd file.
@@ -37,41 +32,44 @@ def write_vcd(
 
     time_step:
         Time step in VCD time units between consecutive entries
-        in `trace_history`. For example:
+        in `trace_by_names`. For example:
           - timescale="1ns", time_step=10 → each cycle = 10 ns.
           - timescale="1ns", time_step=1  → each cycle = 1 ns.
     """
-    if not trace_history:
-        raise ValueError("trace_history is empty")
+    if not trace_by_names:
+        raise ValueError("trace_by_names is empty")
 
-    # Collect all signal IDs we ever see
-    all_ids = set(trace_names.keys())
-    for step in trace_history:
-        all_ids.update(step.keys())
+    lengths = {len(v) for v in trace_by_names.values()}
+    if not lengths:
+        raise ValueError("trace_by_names is empty")
+    if len(lengths) > 1:
+        raise ValueError("All traces must have the same length")
 
-    if not all_ids:
-        raise ValueError("No signals found in trace_history / trace_names")
+    num_steps = lengths.pop()
+    if num_steps == 0:
+        raise ValueError("trace_by_names contains no samples")
 
     # Compute bit-width for each signal from the maximum value seen
-    max_values: Dict[int, int] = {sid: 0 for sid in all_ids}
-    for step in trace_history:
-        for sid, value in step.items():
+    max_values: Dict[str, int] = {name: 0 for name in trace_by_names}
+    for name, values in trace_by_names.items():
+        for value in values:
             if value < 0:
                 raise ValueError(
-                    f"Negative value {value} for signal {sid}. "
+                    f"Negative value {value} for signal '{name}'. "
                     "Convert to unsigned / two's-complement bits first."
                 )
-            if value > max_values[sid]:
-                max_values[sid] = value
+            if value > max_values[name]:
+                max_values[name] = value
 
-    widths: Dict[int, int] = {
-        sid: max(1, max_values[sid].bit_length()) for sid in all_ids
+    widths: Dict[str, int] = {
+        name: max(1, max_values[name].bit_length()) for name in trace_by_names
     }
 
     # Generate VCD identifier codes (can be any printable non-whitespace)
     # Here we just use s0, s1, s2, ...
-    id_codes: Dict[int, str] = {
-        sid: f"s{idx}" for idx, sid in enumerate(sorted(all_ids))
+    signal_names = sorted(trace_by_names)
+    id_codes: Dict[str, str] = {
+        name: f"s{idx}" for idx, name in enumerate(signal_names)
     }
 
     def _safe_name(name: str) -> str:
@@ -90,28 +88,25 @@ def write_vcd(
 
         # Scope and variable declarations
         f.write(f"$scope module {top_module} $end\n")
-        for sid in sorted(all_ids):
-            name = _safe_name(trace_names.get(sid, f"sig_{sid}"))
-            width = widths[sid]
-            code = id_codes[sid]
-            f.write(f"$var wire {width} {code} {name} $end\n")
+        for name in signal_names:
+            width = widths[name]
+            code = id_codes[name]
+            safe_name = _safe_name(name)
+            f.write(f"$var wire {width} {code} {safe_name} $end\n")
         f.write("$upscope $end\n")
         f.write("$enddefinitions $end\n")
 
         # Initial values (#0, $dumpvars)
-        current_values: Dict[int, int] = {}
-        first_step = trace_history[0]
+        current_values: Dict[str, int] = {}
 
         f.write("#0\n")
         f.write("$dumpvars\n")
-        for sid in sorted(all_ids):
-            if sid not in first_step:
-                # No initial value → remain 'x' until first assignment
-                continue
-            value = first_step[sid]
-            current_values[sid] = value
-            width = widths[sid]
-            code = id_codes[sid]
+        for name in signal_names:
+            # All traces are assumed to have at least one sample (validated above)
+            value = trace_by_names[name][0]
+            current_values[name] = value
+            width = widths[name]
+            code = id_codes[name]
 
             if width == 1:
                 bit = "1" if value else "0"
@@ -123,18 +118,19 @@ def write_vcd(
         f.write("$end\n")
 
         # Subsequent time steps
-        for step_idx, step in enumerate(trace_history[1:], start=1):
+        for step_idx in range(1, num_steps):
             vcd_time = step_idx * time_step
             changes: List[str] = []
 
-            for sid, value in step.items():
-                prev = current_values.get(sid, None)
+            for name in signal_names:
+                value = trace_by_names[name][step_idx]
+                prev = current_values.get(name, None)
                 if prev == value:
                     continue  # no change to dump
 
-                current_values[sid] = value
-                width = widths[sid]
-                code = id_codes[sid]
+                current_values[name] = value
+                width = widths[name]
+                code = id_codes[name]
 
                 if width == 1:
                     bit = "1" if value else "0"
