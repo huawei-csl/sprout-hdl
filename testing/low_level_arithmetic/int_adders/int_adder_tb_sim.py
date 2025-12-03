@@ -7,17 +7,19 @@ from sprouthdl.various.vcd_writer import write_vcd
 
 
 def int_adders_tb_sim():
-    
+
     n_bits = 8
+    full_output_bit = False
     adder = StageBasedPrefixAdder(
         a_w=n_bits,
         b_w=n_bits,
         optim_type="area",
         fsa_cls=RippleCarryFinalAdder,
+        full_output_bit=full_output_bit,
     )
     module = adder.to_module(f"PrefixAdder{n_bits}")
 
-    enc = Encoding.unsigned
+    enc = Encoding.unsigned if full_output_bit else Encoding.unsigned_overflow
     vecs = AdderTestVectors(
         a_w=n_bits,
         b_w=n_bits,
@@ -52,7 +54,7 @@ def int_adders_tb_sim():
     sim_tb = VerilogTestbenchSimulator(module)
     run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False)
 
-    print("\n".join(sim_tb.to_testbench_lines()))
+    # print("\n".join(sim_tb.to_testbench_lines()))
 
     tb_filename = "int_adder_tb_sim.v"
     data_tb_filename = "int_adder_tb_data.v"

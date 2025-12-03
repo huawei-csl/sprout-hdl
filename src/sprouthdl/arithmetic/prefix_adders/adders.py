@@ -18,10 +18,11 @@ class AdderConfig(MultiplierConfig):
     signed_a: Optional[bool]
     signed_b: Optional[bool]
     optim_type: Literal["area", "speed"]
+    full_output_bit: bool = False
 
     @property
     def out_width(self) -> int:
-        return max(self.a_width, self.b_width) + 1
+        return max(self.a_width, self.b_width) + (1 if self.full_output_bit else 0)
 
 
 class StageBasedAdderBase(Component):
@@ -33,12 +34,13 @@ class StageBasedAdderBase(Component):
         *,
         optim_type: Literal["area", "speed"] = "area",
         fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
+        full_output_bit: bool = False,
     ) -> None:
         self.aw = a_w
         self.bw = b_w
         self.optim_type = optim_type  
         self.fsa_cls = fsa_cls
-        self.config = AdderConfig(a_w, b_w, signed_a=None, signed_b=None, optim_type=optim_type)
+        self.config = AdderConfig(a_w, b_w, signed_a=None, signed_b=None, optim_type=optim_type, full_output_bit=full_output_bit)
 
 
 class StageBasedPrefixAdder(StageBasedAdderBase):
@@ -50,14 +52,15 @@ class StageBasedPrefixAdder(StageBasedAdderBase):
         *,
         optim_type: Literal["area", "speed"] = "area",
         fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
+        full_output_bit: bool = False, # True corresponds to output type Encoding.unsigned_overflow
     ) -> None:
-        super().__init__(a_w, b_w, optim_type=optim_type, fsa_cls=fsa_cls)
+        super().__init__(a_w, b_w, optim_type=optim_type, fsa_cls=fsa_cls, full_output_bit=full_output_bit)
         # Additional initialization for prefix adder can go here
 
         self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(
             a=Signal(name="a", typ=UInt(self.aw), kind="input"),
             b=Signal(name="b", typ=UInt(self.bw), kind="input"),
-            y=Signal(name="y", typ=UInt(max(self.aw, self.bw) + int(self.aw==self.bw)), kind="output"),
+            y=Signal(name="y", typ=UInt(self.config.out_width), kind="output"),
         )
 
         self.fsa = self.fsa_cls(self.config) if self.fsa_cls is not None else RippleCarryFinalAdder(self.config)

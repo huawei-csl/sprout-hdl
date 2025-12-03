@@ -18,6 +18,7 @@ class Encoding(Enum):
     sign_magnitude_ext = "sign_magnitude_ext"
     gray = "gray"
     unsigned = "unsigned"
+    unsigned_overflow = "unsigned_overflow"
     onehot = "onehot"
     sign_magnitude_ext_up = "sign_magnitude_ext_up"
 
@@ -112,7 +113,9 @@ class MultiplierTestVectors:
                 return (1 << width) + clamped  # two's complement representation
             else:
                 return clamped
-        return value
+        if fmt == Encoding.unsigned_overflow:
+            return value % (1 << width)
+        return clamped
 
     def get_normal_sample(self, fmt: Encoding, width: int) -> int:
         lo, hi = self._value_range(fmt, width)
