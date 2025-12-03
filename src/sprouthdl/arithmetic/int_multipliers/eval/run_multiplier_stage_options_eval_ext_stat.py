@@ -16,7 +16,7 @@ from tqdm import tqdm
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import ConfigItem, MultiplierEncodings, MultiplierOption, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_ext_stat_helper import MultiplierRow, ParquetCollector, _flatten_op_nodes
-from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
 
 from sprouthdl.helpers import get_aig_stats, get_switch_count, get_yosys_metrics, get_yosys_transistor_count, refactor_module_to_aig, run_vectors

@@ -3,7 +3,7 @@ from typing import List, NamedTuple, Self, Tuple, Type, TypeVar, Optional
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_karatsuba import KaratsubaMultiplier, KaratsubaMultiplierFromOptimized4BitBlocks
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplierFrom4BitBlocks, OptimizedMultiplierFrom4BitBlocksStrong, OptimizedMultiplier, OptimizedSignMagnitudeMultiplier
-from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier, StageBasedMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase, StageBasedMultiplier, StageBasedSignMagnitudeExtMultiplier, StageBasedSignMagnitudeExtToTwosComplementMultiplier, StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier, StageBasedSignMagnitudeExtUpMultiplier, StageBasedSignMagnitudeMultiplier, StageBasedSignMagnitudeToTwosComplementMultiplier, StarMultiplier
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator, DaddaTreeAccumulator, FourTwoCompressorAccumulator, WallaceTreeAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, to_encoding
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_baugh_wooley_stages import BaughWooleyPartialProductGenerator
@@ -110,7 +110,7 @@ class ConfigItem(NamedTuple):
     all_sigma: bool = True
 
 
-def encoding_for_multiplier(multiplier_cls: type[StageBasedExtMultiplier]) -> List[MultiplierEncodings]:
+def encoding_for_multiplier(multiplier_cls: type[StageBasedMultiplierBase]) -> List[MultiplierEncodings]:
     if multiplier_cls == StageBasedSignMagnitudeMultiplier:
         return [MultiplierEncodings.with_enc(Encoding.sign_magnitude)]
     elif multiplier_cls == StageBasedSignMagnitudeExtMultiplier:

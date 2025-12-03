@@ -2,7 +2,7 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import RippleCarryFinalAdder, StageBasedMultiplierIO
-from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator, WallaceTreeAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
@@ -15,7 +15,7 @@ from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, m
 from typing import List, Optional
 
 
-class KaratsubaMultiplier(StageBasedExtMultiplier):
+class KaratsubaMultiplier(StageBasedMultiplierBase):
 
     """
     Unsigned n×n multiplier constructed recursively with a Karatsuba split and a

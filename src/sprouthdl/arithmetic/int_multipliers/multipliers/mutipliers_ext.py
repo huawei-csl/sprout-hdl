@@ -12,7 +12,7 @@ from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, Signal, SInt, UInt, m
 from sprouthdl.sprouthdl_module import Module
 
 
-class StageBasedExtMultiplier(Component):
+class StageBasedMultiplierBase(Component):
 
     def __init__(
         self,
@@ -36,7 +36,7 @@ class StageBasedExtMultiplier(Component):
         self.ppa_cls = ppa_cls
         self.fsa_cls = fsa_cls
 
-class StageBasedMultiplier(StageBasedExtMultiplier):
+class StageBasedMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -81,7 +81,7 @@ class StageBasedMultiplier(StageBasedExtMultiplier):
         self.io.y <<= mult.io.y
 
 
-class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -135,7 +135,7 @@ class StageBasedSignMagnitudeMultiplier(StageBasedExtMultiplier):
         self.io.y <<= Concat([mag_y[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 
-class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeExtMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -225,7 +225,7 @@ class StageBasedSignMagnitudeExtMultiplier(StageBasedExtMultiplier):
 
         self.io.y <<= Concat([mag_y_mod[0 : 2 * W - 2], h, sy])  # sign + magnitude (drop overflow bit)
 
-class StageBasedSignMagnitudeExtUpMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeExtUpMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -349,7 +349,7 @@ class SignMagnitudeToTwosComplementEncoder(Component):
                 else_expr=Concat([(~mag + 1)[0 : W - 1], Const(1, Bool())]),
             )
 
-class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -388,7 +388,7 @@ class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedExtMultiplier)
 
         self.enc = enc
 
-class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -428,7 +428,7 @@ class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedExtMultipli
 
         self.enc = enc
 
-class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedExtMultiplier):
+class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -468,7 +468,7 @@ class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedExtMul
 
         self.enc = enc
 
-class StarMultiplier(StageBasedExtMultiplier):
+class StarMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

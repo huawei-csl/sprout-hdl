@@ -13,7 +13,7 @@ import numpy as np
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
-from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedExtMultiplier
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_stages import CarrySaveAccumulator
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors, from_encoding, to_encoding
@@ -129,7 +129,7 @@ def get_optimized_aag_lines_strong(aw: int, bw: int, a_encoding: Encoding, b_enc
 # ----- optimized multiplier classes -----
 
 
-class OptimizedMultiplier(StageBasedExtMultiplier):
+class OptimizedMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, f_aag_lines: Optional[Callable[[int, int, Encoding, Encoding], list[str]]] = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -186,7 +186,7 @@ class OptimizedMultiplier(StageBasedExtMultiplier):
         self.io.y <<= self.mult.io.result_o
 
 
-class OptimizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
+class OptimizedSignMagnitudeMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, f_aag_lines: Optional[List[str]] = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -245,7 +245,7 @@ class OptimizedSignMagnitudeMultiplier(StageBasedExtMultiplier):
         self.io.y <<= Concat([mag_y[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
 
-class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
+class OptimizedMultiplierFrom4BitBlocks(StageBasedMultiplierBase):
 
     def __init__(self, *args, f_aag_lines: Optional[List[str]] = None, use_compressor_tree=True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -307,7 +307,7 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedExtMultiplier):
             b_hi = self.io.b[self.bw//2 : self.bw]
 
             # Instantiate four optimized 8x8 multipliers
-            multipliers: List[StageBasedExtMultiplier] = []
+            multipliers: List[StageBasedMultiplierBase] = []
             mult_cls = OptimizedMultiplierFrom4BitBlocks if (self.aw//2 > 4 and self.bw//2 > 4) else OptimizedMultiplier
 
             for _ in range(4):
