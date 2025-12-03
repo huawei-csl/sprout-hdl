@@ -1,0 +1,80 @@
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import AdderTestVectors, Encoding
+from sprouthdl.arithmetic.prefix_adders.adders import RippleCarryFinalAdder, StageBasedPrefixAdder
+from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
+from sprouthdl.sprouthdl_simulator import Simulator
+from sprouthdl.sprouthdl_verilog_testbench import VerilogTestbenchSimulator
+from sprouthdl.various.vcd_writer import write_vcd
+
+
+def int_adders_tb_sim():
+    
+    n_bits = 8
+    adder = StageBasedPrefixAdder(
+        a_w=n_bits,
+        b_w=n_bits,
+        optim_type="area",
+        fsa_cls=RippleCarryFinalAdder,
+    )
+    module = adder.to_module(f"PrefixAdder{n_bits}")
+
+    enc = Encoding.unsigned
+    vecs = AdderTestVectors(
+        a_w=n_bits,
+        b_w=n_bits,
+        y_w=adder.io.y.typ.width,
+        num_vectors=16,
+        tb_sigma=None,
+        a_encoding=enc,
+        b_encoding=enc,
+        y_encoding=enc,
+    ).generate()
+
+    use_signed = False
+
+    run_vectors(module, vecs, print_on_pass=True, use_signed=use_signed)
+
+    sim = Simulator(module)
+    sim.trace_enabled = True
+    run_vectors_on_simulator(sim, vecs, use_signed=use_signed, print_on_pass=True, with_clk=False)
+
+    trace_history = sim.trace_history
+    trace_names = sim.get_traced_expr_names()
+
+    vcd_filename = "int_adder_tb_sim.vcd"
+    write_vcd(
+        trace_history=trace_history,
+        trace_names=trace_names,
+        filename=vcd_filename,
+        top_module=module.name,
+        timescale="1ns",
+    )
+
+    sim_tb = VerilogTestbenchSimulator(module)
+    run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False)
+
+    print("\n".join(sim_tb.to_testbench_lines()))
+
+    tb_filename = "int_adder_tb_sim.v"
+    data_tb_filename = "int_adder_tb_data.v"
+    data_filename = "int_adder_vectors.dat"
+
+    with open(data_filename, "w") as f:
+        for _, inputs, outputs in vecs:
+            f.write(f"{inputs['a']} {inputs['b']} {outputs['y']}\n")
+
+    verilog_filename = "int_adder.v"
+    sim_tb.to_testbench_file(tb_filename, tb_module_name=module.name + "_tb")
+    sim_tb.to_testbench_file_from_data(
+        data_tb_filename,
+        data_file=data_filename,
+        input_order=["a", "b"],
+        output_name="y",
+        with_clk=False,
+    )
+    module.to_verilog_file(verilog_filename)
+
+    return
+
+
+if __name__ == "__main__":
+    int_adders_tb_sim()
