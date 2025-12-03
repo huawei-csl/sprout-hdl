@@ -1,4 +1,4 @@
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import AdderTestVectors, Encoding
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import AdderTestVectors, Encoding, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import RippleCarryFinalAdder, StageBasedPrefixAdder
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -9,17 +9,24 @@ from sprouthdl.various.vcd_writer import write_vcd
 def int_adders_tb_sim():
 
     n_bits = 8
-    full_output_bit = False
+    full_output_bit = True
+    #enc = Encoding.unsigned if full_output_bit else Encoding.unsigned_overflow
+    enc = Encoding.twos_complement if full_output_bit else Encoding.twos_complement_overflow
+    signed = is_signed(enc)
+    
+    
     adder = StageBasedPrefixAdder(
         a_w=n_bits,
         b_w=n_bits,
+        signed_a = signed,
+        signed_b = signed,
         optim_type="area",
         fsa_cls=RippleCarryFinalAdder,
         full_output_bit=full_output_bit,
     )
     module = adder.to_module(f"PrefixAdder{n_bits}")
 
-    enc = Encoding.unsigned if full_output_bit else Encoding.unsigned_overflow
+
     vecs = AdderTestVectors(
         a_w=n_bits,
         b_w=n_bits,

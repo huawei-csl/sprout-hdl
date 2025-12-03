@@ -32,6 +32,8 @@ class StageBasedAdderBase(Component):
         a_w: int,
         b_w: int,
         *,
+        signed_a: bool = False, # maybe we need to use encoding instead
+        signed_b: bool = False,
         optim_type: Literal["area", "speed"] = "area",
         fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
         full_output_bit: bool = False,
@@ -40,7 +42,7 @@ class StageBasedAdderBase(Component):
         self.bw = b_w
         self.optim_type = optim_type  
         self.fsa_cls = fsa_cls
-        self.config = AdderConfig(a_w, b_w, signed_a=None, signed_b=None, optim_type=optim_type, full_output_bit=full_output_bit)
+        self.config = AdderConfig(a_w, b_w, signed_a=signed_a, signed_b=signed_b, optim_type=optim_type, full_output_bit=full_output_bit)
 
 
 class StageBasedPrefixAdder(StageBasedAdderBase):
@@ -50,11 +52,13 @@ class StageBasedPrefixAdder(StageBasedAdderBase):
         a_w: int,
         b_w: int,
         *,
+        signed_a: bool = False, # maybe we need to use encoding instead
+        signed_b: bool = False,
         optim_type: Literal["area", "speed"] = "area",
         fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
         full_output_bit: bool = True, # True corresponds to output type Encoding.unsigned_overflow
     ) -> None:
-        super().__init__(a_w, b_w, optim_type=optim_type, fsa_cls=fsa_cls, full_output_bit=full_output_bit)
+        super().__init__(a_w, b_w, signed_a=signed_a, signed_b=signed_b, optim_type=optim_type, fsa_cls=fsa_cls, full_output_bit=full_output_bit)
         # Additional initialization for prefix adder can go here
 
         self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(
@@ -72,13 +76,19 @@ class StageBasedPrefixAdder(StageBasedAdderBase):
         for i in range(self.io.y.typ.width):
             if i < self.aw:
                 reduced_columns[i].append(self.io.a[i])
+            else: 
+                if self.config.signed_a:  # sign-extend
+                    reduced_columns[i].append(self.io.a[self.aw - 1])
             if i < self.bw:
                 reduced_columns[i].append(self.io.b[i])
-            
+            else:
+                if self.config.signed_b:  # sign-extend
+                    reduced_columns[i].append(self.io.b[self.bw - 1])
+
         result_bits = self.fsa.resolve(reduced_columns)
         self.io.y <<= Concat(result_bits[:self.config.out_width])
-        
-        
+
+
 def smoke_test():
     
     n_bits = 8
@@ -92,6 +102,6 @@ def smoke_test():
     
     # create module
     print(adder.to_module(f"PrefixAdder{n_bits}").to_verilog())
-    
+
 if __name__ == "__main__":
     smoke_test()

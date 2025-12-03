@@ -19,8 +19,21 @@ class Encoding(Enum):
     gray = "gray"
     unsigned = "unsigned"
     unsigned_overflow = "unsigned_overflow"
+    twos_complement_overflow = "twos_complement_overflow"
     onehot = "onehot"
     sign_magnitude_ext_up = "sign_magnitude_ext_up"
+    
+_SIGNED_encodings = {
+    Encoding.twos_complement,
+    Encoding.twos_complement_symmetric,
+    Encoding.sign_magnitude,
+    Encoding.sign_magnitude_ext,
+    Encoding.sign_magnitude_ext_up,
+    Encoding.twos_complement_overflow
+}
+
+def is_signed(fmt: Encoding) -> bool:
+    return fmt in _SIGNED_encodings
 
 def to_encoding(signed: bool | Encoding) -> Encoding:
     if isinstance(signed, Encoding):
@@ -33,12 +46,7 @@ def from_encoding(fmt: Encoding) -> bool:
 
 class TwoInputArithmeticTestVectors:
     
-    _SIGNED_encodings = {
-        Encoding.twos_complement,
-        Encoding.twos_complement_symmetric,
-        Encoding.sign_magnitude,
-        Encoding.sign_magnitude_ext,
-    }
+
 
     def __init__(
         self,
@@ -58,12 +66,7 @@ class TwoInputArithmeticTestVectors:
         self.tb_sigma = tb_sigma
         self.a_encoding = a_encoding
         self.b_encoding = b_encoding
-        self.y_encoding = y_encoding
-        
-    
-    @classmethod
-    def _is_signed(cls, fmt: Encoding) -> bool:
-        return fmt in cls._SIGNED_encodings
+        self.y_encoding = y_encoding           
     
     @staticmethod
     def _value_range(fmt: Encoding, width: int) -> Tuple[int, int]:
@@ -113,7 +116,7 @@ class TwoInputArithmeticTestVectors:
                 return (1 << width) + clamped  # two's complement representation
             else:
                 return clamped
-        if fmt == Encoding.unsigned_overflow:
+        if fmt == Encoding.unsigned_overflow or fmt == Encoding.twos_complement_overflow:
             return value % (1 << width)
         return clamped
     
@@ -125,7 +128,7 @@ class TwoInputArithmeticTestVectors:
             raw_value = self._clamp(raw_value, lo, hi)
             return raw_value
     
-        mean = 0 if self._is_signed(fmt) else (lo + hi) / 2
+        mean = 0 if is_signed(fmt) else (lo + hi) / 2
         raw_value = int(np.round(np.random.normal(mean, self.tb_sigma)))
         raw_value = self._clamp(raw_value, lo, hi)
         return raw_value
