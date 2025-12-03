@@ -52,7 +52,7 @@ class StageBasedPrefixAdder(StageBasedAdderBase):
         *,
         optim_type: Literal["area", "speed"] = "area",
         fsa_cls: Optional[Type[FinalStageAdderBase]] = None,
-        full_output_bit: bool = False, # True corresponds to output type Encoding.unsigned_overflow
+        full_output_bit: bool = True, # True corresponds to output type Encoding.unsigned_overflow
     ) -> None:
         super().__init__(a_w, b_w, optim_type=optim_type, fsa_cls=fsa_cls, full_output_bit=full_output_bit)
         # Additional initialization for prefix adder can go here
