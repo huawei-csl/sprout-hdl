@@ -2,7 +2,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Adde
 from sprouthdl.arithmetic.prefix_adders.adders import RippleCarryFinalAdder, StageBasedPrefixAdder
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_verilog_testbench import VerilogTestbenchSimulator
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.various.vcd_writer import write_vcd
 
 
@@ -44,7 +44,7 @@ def int_adders_tb_sim():
 
     sim = Simulator(module)
     sim.trace_enabled = True
-    run_vectors_on_simulator(sim, vecs, use_signed=use_signed, print_on_pass=True, with_clk=False, test_name="Sprout Simulator, Int Adder Simulation Test -")
+    run_vectors_on_simulator(sim, vecs, use_signed=use_signed, print_on_pass=True, with_clk=False, test_name="Sprout Simulator      , Int Adder Test -")
 
     trace_by_names = sim.get_trace_by_names()
 
@@ -56,8 +56,8 @@ def int_adders_tb_sim():
         timescale="1ns",
     )
 
-    sim_tb = VerilogTestbenchSimulator(module)
-    run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False, test_name="Verilog Testbench Dry Run, Int Adder Simulation Test -")
+    sim_tb = TestbenchGenSimulator(module)
+    run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False, test_name="TestbenchGen Simulator, Int Adder Test -")
 
     # print("\n".join(sim_tb.to_testbench_lines()))
 

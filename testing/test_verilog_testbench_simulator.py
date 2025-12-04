@@ -4,7 +4,7 @@ import pytest
 
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_module import Module
-from sprouthdl.sprouthdl_verilog_testbench import VerilogTestbenchSimulator
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 
 
 def build_accumulator():
@@ -22,7 +22,7 @@ def build_accumulator():
 def test_verilog_testbench_basic_sequence(tmp_path: Path):
     m, a, b, acc, _ = build_accumulator()
 
-    tb = VerilogTestbenchSimulator(m, clock_period=10.0, eval_delay=1.0)
+    tb = TestbenchGenSimulator(m, clock_period=10.0, eval_delay=1.0)
     tb.reset(True)
     tb.step()  # capture reset behaviour
     tb.deassert_reset()
@@ -59,7 +59,7 @@ def test_verilog_testbench_requires_events(tmp_path):
     y = m.output(UInt(4), "y")
     y <<= a
 
-    tb = VerilogTestbenchSimulator(m)
+    tb = TestbenchGenSimulator(m)
     with pytest.raises(RuntimeError):
         tb.to_testbench_file(tmp_path / "comb_tb.v")
 

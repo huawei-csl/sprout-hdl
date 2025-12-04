@@ -23,7 +23,7 @@ class _Event:
     payload: dict
 
 
-class VerilogTestbenchSimulator:
+class TestbenchGenSimulator:
     """Record Simulator-like interactions and emit a Verilog testbench.
 
     The public API mirrors :class:`~sprouthdl.sprouthdl_simulator.Simulator`.  The methods
@@ -53,7 +53,7 @@ class VerilogTestbenchSimulator:
     # ------------------------------------------------------------------
     # Simulator compatible API
     # ------------------------------------------------------------------
-    def set(self, ref: Union[str, Signal], value: int) -> "VerilogTestbenchSimulator":
+    def set(self, ref: Union[str, Signal], value: int) -> "TestbenchGenSimulator":
         sig = self._resolve(ref)
         if sig.kind not in {"input", "reg"}:
             raise ValueError("Only inputs and regs can be set directly.")
@@ -73,7 +73,7 @@ class VerilogTestbenchSimulator:
     def get(self, ref: Union[str, Signal], *, signed: Optional[bool] = None) -> int:
         return self._sim.get(ref, signed=signed)
 
-    def eval(self) -> "VerilogTestbenchSimulator":
+    def eval(self) -> "TestbenchGenSimulator":
         self._sim.eval()
         self._events.append(
             _Event(
@@ -84,7 +84,7 @@ class VerilogTestbenchSimulator:
         )
         return self
 
-    def step(self, n: int = 1) -> "VerilogTestbenchSimulator":
+    def step(self, n: int = 1) -> "TestbenchGenSimulator":
         if not self.m.with_clock:
             raise RuntimeError("step() requires a clocked module.")
         for _ in range(n):
@@ -105,7 +105,7 @@ class VerilogTestbenchSimulator:
             )
         return self
 
-    def reset(self, asserted: bool = True) -> "VerilogTestbenchSimulator":
+    def reset(self, asserted: bool = True) -> "TestbenchGenSimulator":
         if not self.m.with_reset:
             return self
         self._sim.reset(asserted)
@@ -131,7 +131,7 @@ class VerilogTestbenchSimulator:
             )
         return self
 
-    def deassert_reset(self) -> "VerilogTestbenchSimulator":
+    def deassert_reset(self) -> "TestbenchGenSimulator":
         if self.m.with_reset:
             self.reset(False)
         return self
@@ -481,4 +481,4 @@ class VerilogTestbenchSimulator:
         return f"{value:g}"
 
 
-__all__ = ["VerilogTestbenchSimulator"]
+__all__ = ["TestbenchGenSimulator"]
