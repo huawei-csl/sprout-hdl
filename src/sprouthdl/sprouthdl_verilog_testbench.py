@@ -207,9 +207,7 @@ class TestbenchGenSimulator:
         lines.append("  initial begin")
 
         if dump_vcd:
-            lines.append("")
-            lines.append(f'    $dumpfile("{dumpfile}");')
-            lines.append('    $dumpvars();')
+            self._append_dumpvars(lines, dumpfile)
 
         lines.append("")
         # Initialise all inputs to zero
@@ -356,10 +354,7 @@ class TestbenchGenSimulator:
         lines.append("  initial begin")
 
         if dump_vcd:
-            lines.append("")
-            lines.append(f'    $dumpfile("{dumpfile}");')
-            lines.append('    $dumpvars();')
-            lines.append("")
+            self._append_dumpvars(lines, dumpfile, trailing_blank=True)
 
         # Initialize clock if present
         clk_sig = next((s for s in all_inputs if s.name == "clk"), None)
@@ -479,6 +474,27 @@ class TestbenchGenSimulator:
         if abs(value - int(value)) < 1e-9:
             return str(int(value))
         return f"{value:g}"
+
+    def _append_dumpvars(
+        self, lines: List[str], dumpfile: str, *, trailing_blank: bool = False
+    ) -> None:
+        lines.append("")
+        lines.append("    `ifndef STRINGIFY")
+        lines.append("      `define STRINGIFY(x) `\"x`\"")
+        lines.append("    `endif")
+        lines.append("    string __vcd_file;")
+        lines.append("    __vcd_file = \"\";")
+        lines.append("    `ifdef VCD_FILE_PATH")
+        lines.append("      __vcd_file = `STRINGIFY(`VCD_FILE_PATH);")
+        lines.append("    `endif")
+        lines.append("    if (__vcd_file != \"\") begin")
+        lines.append("      $dumpfile(__vcd_file);")
+        lines.append(f"    end else begin")
+        lines.append(f'      $dumpfile("{dumpfile}");')
+        lines.append("    end")
+        lines.append("    $dumpvars();")
+        if trailing_blank:
+            lines.append("")
 
 
 __all__ = ["TestbenchGenSimulator"]

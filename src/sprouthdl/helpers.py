@@ -193,7 +193,7 @@ def run_vectors_on_simulator(
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
     
-    test_name = "" if test_name is None else test_name + " "
+    test_name = "" if test_name is None else test_name + " - "
     print(f"{test_name}Number of vectors: {len(vectors)}, {fails} failures")
     if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")

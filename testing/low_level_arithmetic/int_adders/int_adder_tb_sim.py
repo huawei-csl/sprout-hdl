@@ -44,7 +44,7 @@ def int_adders_tb_sim():
 
     sim = Simulator(module)
     sim.trace_enabled = True
-    run_vectors_on_simulator(sim, vecs, use_signed=use_signed, print_on_pass=True, with_clk=False, test_name="Sprout Simulation      , Int Adder Test -")
+    run_vectors_on_simulator(sim, vecs, use_signed=use_signed, print_on_pass=True, with_clk=False, test_name="Sprout Simulation      , Int Adder Test")
 
     trace_by_names = sim.get_trace_by_names()
 
@@ -57,7 +57,7 @@ def int_adders_tb_sim():
     )
 
     sim_tb = TestbenchGenSimulator(module)
-    run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False, test_name="TestbenchGen Simulation, Int Adder Test -")
+    run_vectors_on_simulator(sim_tb, vecs, use_signed=use_signed, print_on_pass=False, with_clk=False, test_name="TestbenchGen Simulation, Int Adder Test")
 
     # print("\n".join(sim_tb.to_testbench_lines()))
 
