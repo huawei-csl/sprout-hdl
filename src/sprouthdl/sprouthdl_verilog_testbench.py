@@ -411,7 +411,7 @@ class TestbenchGenSimulator:
         lines.append("      end")
         lines.append("    end")
         lines.append("    $display(\"Finished: %0d passed, %0d failed\", pass_cnt, fail_cnt);")
-        lines.append("    if (fail_cnt == 0 and pass_cnt > 0) begin")
+        lines.append("    if (fail_cnt == 0 && pass_cnt > 0) begin")
         lines.append("      $display(\"Testbench completed successfully.\");")
         lines.append("    end")
         lines.append("    $finish;")

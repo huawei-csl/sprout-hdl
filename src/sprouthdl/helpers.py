@@ -192,13 +192,6 @@ def run_vectors_on_simulator(
         if bad:
             fails += 1
             print(f"FAIL  {name}:  " + " | ".join(bad))
-        # if exprs is not None:
-        #     state = sim._get_expr_snapshot(exprs)
-        #     # convert expr to id
-        #     state = [(id(e), v) for e, v in state]
-        #     # and convert to dict for easy comparison
-        #     state = dict(state)
-        #     states_list.append(state)
     
     test_name = "" if test_name is None else test_name + " "
     print(f"{test_name}Number of vectors: {len(vectors)}, {fails} failures")
