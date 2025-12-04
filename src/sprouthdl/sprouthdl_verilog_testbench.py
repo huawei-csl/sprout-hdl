@@ -354,13 +354,13 @@ class VerilogTestbenchSimulator:
         lines.append("  reg mismatch;")
         lines.append("")
         lines.append("  initial begin")
-        
+
         if dump_vcd:
             lines.append("")
             lines.append(f'    $dumpfile("{dumpfile}");')
             lines.append('    $dumpvars();')
             lines.append("")
-            
+
         # Initialize clock if present
         clk_sig = next((s for s in all_inputs if s.name == "clk"), None)
         if clk_sig is not None:
@@ -411,7 +411,7 @@ class VerilogTestbenchSimulator:
         lines.append("      end")
         lines.append("    end")
         lines.append("    $display(\"Finished: %0d passed, %0d failed\", pass_cnt, fail_cnt);")
-        lines.append("    if (fail_cnt == 0) begin")
+        lines.append("    if (fail_cnt == 0 and pass_cnt > 0) begin")
         lines.append("      $display(\"Testbench completed successfully.\");")
         lines.append("    end")
         lines.append("    $finish;")

@@ -150,6 +150,7 @@ def run_vectors_on_simulator(
     raise_on_fail: bool = True,
     print_on_pass: bool = False,
     with_clk: bool = False,
+    test_name: Optional[str] = None,
 ) -> None:
     
     """
@@ -198,8 +199,9 @@ def run_vectors_on_simulator(
         #     # and convert to dict for easy comparison
         #     state = dict(state)
         #     states_list.append(state)
-        
-    print(f"Number of vectors: {len(vectors)}, {fails} failures")
+    
+    test_name = "" if test_name is None else test_name + " "
+    print(f"{test_name}Number of vectors: {len(vectors)}, {fails} failures")
     if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
 
