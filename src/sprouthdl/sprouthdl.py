@@ -1,7 +1,6 @@
 # sprout_hdl.py
 # A tiny, SpinalHDL-inspired EDSL for Python → Verilog
 from __future__ import annotations
-from ast import expr
 from dataclasses import dataclass, field
 import hashlib
 import random
@@ -199,32 +198,50 @@ class Expr:
 
     # Indexing / slicing
     def __getitem__(self, sl: Union[int, slice]) -> "Expr":
+        width = self.typ.width
+
+        def _norm_idx(i: int, *, for_stop: bool = False) -> int:
+            """
+            Convert possibly-negative index to [0, width] (for_stop=True) or [0, width-1].
+            Negative indices are interpreted Python-style: -1 == width-1, etc.
+            """
+            if i < 0:
+                i += width
+            # start index: 0 <= i < width
+            # stop index:  0 <= i <= width  (for_stop=True allows i == width)
+            if i < 0 or i > width or (not for_stop and i == width):
+                raise ValueError(f"Index {i} out of range for width {width}")
+            return i
+
+        # -------------------------
+        # Single-bit indexing
+        # -------------------------
         if isinstance(sl, int):
-            if sl < 0:
-                raise ValueError("Bit index must be >= 0")
-            if sl >= self.typ.width:
-                raise ValueError("Bit index exceeds signal width")
-            if isinstance(self, (Const, Signal)):
-                return Slice(self, sl, sl + 1)
-            else:
-                return Slice(_maybe_share(self, force_share=True), sl, sl + 1)  # just for verilog emission, create new wire
+            idx = _norm_idx(sl, for_stop=False)
+            base = self if isinstance(self, (Const, Signal)) else _maybe_share(self, force_share=True)
+            return Slice(base, idx, idx + 1)
+
+        # -------------------------
+        # Slicing
+        # -------------------------
         if isinstance(sl, slice):
             if sl.step not in (None, 1):
                 raise ValueError("Slice step must be 1")
+
+            # Python-style defaults
             start = 0 if sl.start is None else sl.start
-            stop = self.typ.width if sl.stop is None else sl.stop
-            if start is None or stop is None:
-                raise ValueError("Slice bounds must be specified")
-            if start < 0 or stop < 0:
-                raise ValueError("Slice bounds must be >= 0")
+            stop = width if sl.stop is None else sl.stop
+
+            # Normalize negatives
+            start = _norm_idx(start, for_stop=False)
+            stop = _norm_idx(stop, for_stop=True)
+
             if stop <= start:
                 raise ValueError("Slice stop must be > start")
-            if stop > self.typ.width:
-                raise ValueError("Slice stop exceeds signal width")
-            if isinstance(self, (Const, Signal)):
-                return Slice(self, start, stop)
-            else:
-                return Slice(_maybe_share(self, force_share=True), start, stop)  # just for verilog emission, create new wire
+
+            base = self if isinstance(self, (Const, Signal)) else _maybe_share(self, force_share=True)
+            return Slice(base, start, stop)
+
         raise TypeError("Unsupported index type")
 
     def to_verilog(self) -> str:
@@ -305,17 +322,25 @@ class Signal(Expr):
 
 # helper which generates signal for casting
 def cast(expr: ExprLike, to_type: HDLType) -> Signal:
-    """Create a new Signal with the same name but different type."""
-    def get_rand_hash() -> str:
-        random_string = str(random.random()) + str(time.time())
-        hash_object = hashlib.sha256(random_string.encode())
-        name = str(hash_object.hexdigest())
-        return name
-    name = get_rand_hash()
-    #s = Signal(name, to_type, 'wire')
     s = _create_new_shared_wire(to_type)
     s <<= fit_width(as_expr(expr), to_type)
     return s
+
+# explicit register
+class Register(Signal):
+    def __init__(self, typ: HDLType, init: Optional[ExprLike] = None, name: Optional[str]=None):
+        if init is not None:
+            self.set_init(init)
+        if name is None:
+            name = f"reg_{id(self)}"            
+        super().__init__(name, typ, kind="reg")
+
+# explicit wire
+class Wire(Signal):
+    def __init__(self, typ: HDLType, name: Optional[str]=None):
+        if name is None:
+            name = f"wire_{id(self)}"
+        super().__init__(name, typ, kind="wire")
 
 
 # -----------------------------

@@ -200,8 +200,8 @@ class Simulator:
             return self._cache_expr[eid]
 
         def is_expr_instance(obj, instance_type):
-            return _clsname(obj) == instance_type.__name__
-            # return isinstance(obj, instance_type)
+            #return _clsname(obj) == instance_type.__name__
+            return isinstance(obj, instance_type)
 
         if is_expr_instance(e, Const):
             bits = _to_bits(e.value, e.typ.width)
@@ -480,4 +480,3 @@ class Simulator:
                 name = trace_names.get(eid, f"expr_{eid}")
                 history_by_name[name].append(value)
         return history_by_name
-        
