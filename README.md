@@ -191,7 +191,7 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - clean up two versions of testvector generation and the exhaustive testvector generation
 - in module there is all_exprs and _collect_signals_from_outputs maybe this can be merged, especially by removing the _signal attribute (maybe still retain it as a cache)
 - all imports of sprout hdl simulator on top
-- in sprouthdl dont use the _class_name but use isinstance()
+- in sprouthdl dont use the _class_name but use isinstance(), also in sprouthdl_aiger.py currently does not work for wire
 - <<= operator should also work for register, in fact make _drive and next the same.
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.

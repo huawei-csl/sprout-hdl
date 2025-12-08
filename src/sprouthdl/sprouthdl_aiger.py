@@ -5,9 +5,10 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple, Optional, Any, Iterable
 
+
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.aig.aig_aigerverse import AbstractAdapter, conv_aag_into_graph
-from sprouthdl.sprouthdl import SInt, Signal, UInt, Bool, Const, Op1, Op2, cat, mux
+from sprouthdl.sprouthdl import Concat, Resize, SInt, Signal, Ternary, UInt, Bool, Const, Op1, Op2, cat, mux, Slice
 
 # ---- AIGER literals helpers -------------------------------------------------
 
@@ -537,21 +538,24 @@ class AigerExporter:
         if eid in self._expr_cache:
             return self._expr_cache[eid]
 
-        k = e.__class__.__name__
+        #k = e.__class__.__name__
+        def is_expr_instance(obj, instance_type):
+            #return _clsname(obj) == instance_type.__name__
+            return isinstance(obj, instance_type)
 
-        if k == "Const":
+        if is_expr_instance(e, Const):
             w = e.typ.width
             bits = self.aig.bv_from_int(getattr(e, "value", 0), w)
 
-        elif k == "Signal":
+        elif is_expr_instance(e, Signal):
             bits = self._bits_of_signal(e)
 
-        elif k == "Op1":
+        elif is_expr_instance(e, Op1):
             assert e.op == "~", f"Unsupported unary op {e.op}"
             a = self._eval_expr_bits(e.a)
             bits = self.aig.bv_not(a)
 
-        elif k == "Op2":
+        elif is_expr_instance(e, Op2):
             op = e.op
             a = self._eval_expr_bits(e.a)
             b = self._eval_expr_bits(e.b)
@@ -608,7 +612,7 @@ class AigerExporter:
             # fit result vector
             bits = self._fit_bits(bits, w_out, signed=signed if op not in ("==", "!=", "<", "<=", ">", ">=") else False)
 
-        elif k == "Ternary":
+        elif is_expr_instance(e, Ternary):
             sel = self._eval_expr_bits(e.sel)[0]
             a = self._eval_expr_bits(e.a)
             b = self._eval_expr_bits(e.b)
@@ -617,7 +621,7 @@ class AigerExporter:
             b = self._fit_bits(b, w_out, signed=getattr(e.b.typ, "signed", False))
             bits = self.aig.bv_mux(sel, a, b)
 
-        elif k == "Concat":
+        elif is_expr_instance(e, Concat):
             # parts are provided [LSB ... MSB]; our vectors are LSB-first
             vec: List[int] = []
             for part in e.parts:
@@ -625,12 +629,12 @@ class AigerExporter:
                 vec.extend(pb)
             bits = vec
 
-        elif k == "Slice":
+        elif is_expr_instance(e, Slice):
             base = self._eval_expr_bits(e.a)
             # our vectors LSB-first
             bits = base[e.lsb : e.msb + 1]
 
-        elif k == "Resize":
+        elif is_expr_instance(e, Resize):
             a = self._eval_expr_bits(e.a)
             bits = self._fit_bits(a, e.to_width, signed=getattr(e.a.typ, "signed", False))
 

@@ -1,6 +1,7 @@
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
+from sprouthdl.sprouthdl import Signal, Expr, Const, Op1, Op2, Ternary, Concat, Slice, Resize
 
 
 class Simulator:
@@ -351,8 +352,6 @@ class Simulator:
 
     def _resolve_expr(self, what):
         """Resolve string or Signal/Expr into an Expr. Avoid equality tests."""
-        from sprouthdl.sprouthdl import Signal, Expr
-
         if isinstance(what, Signal):
             return what
         if isinstance(what, str):
@@ -374,7 +373,6 @@ class Simulator:
     def peek(self, what): # not converted to sign
         """Return current integer value of a Signal or Expr."""
         e = self._resolve_expr(what)
-        from sprouthdl.sprouthdl import Signal
 
         if isinstance(e, Signal) and e.kind == "reg":
             bits = self._reg[_sid(e)]  # use the register state
@@ -384,7 +382,6 @@ class Simulator:
 
     def peek_next(self, reg_name):
         """Compute a register's next-state value."""
-        from sprouthdl.sprouthdl import Signal
 
         # find reg by name using identity
         reg = None
@@ -431,9 +428,6 @@ class Simulator:
             return
         out = {}
         for name, e in self._watches.items():
-            # from sprouthdl.sprouthdl import Signal
-            # if isinstance(e, Signal) and e.kind == "reg":
-            # if is input
             if isinstance(e, Signal) and e.kind == "input":
                 bits = self._in[_sid(e)]
             elif isinstance(e, Signal) and e.kind == "reg":
