@@ -42,6 +42,7 @@ def _create_new_shared_wire(typ: HDLType) -> "Signal":
     name = f"sig_{_SHARED.index}"
     _SHARED.index += 1
     sig = Signal(name, typ, "wire")
+    sig._auto_generated = True
     _SHARED.wires.append(sig)
     return sig
 
@@ -60,11 +61,6 @@ def _maybe_share(e: "Expr", force_share=False) -> "Expr":
     _SHARED.counts[nid] = cnt
     cnt_share = 1 # at what count start sharing
     if cnt == cnt_share or (force_share and cnt <= 1):
-        # Create the shared wire
-        # name = f"sig_{_SHARED.index}"
-        # _SHARED.index += 1
-        # sig = Signal(name, e.typ, "wire")
-        # _SHARED.wires.append(sig)
         sig = _create_new_shared_wire(e.typ)
         sig._driver = e  # continuous assignment: assign sig = <original expr>;
         _SHARED.expr2sig[nid] = sig
@@ -287,10 +283,10 @@ class Signal(Expr):
         self.name = name
         self.typ = typ
         self.kind = kind  # 'input' | 'output' | 'wire' | 'reg'
-        # self.module = module
         self._driver: Optional[Expr] = None  # for wire/output
         self._next: Optional[Expr] = None  # for reg
         self._init: Optional[Expr] = None  # for reg
+        self._auto_generated: bool = False  # for internal use
 
     def __ilshift__(self, rhs: ExprLike):
         """Connect combinational driver: y <<= expr"""
