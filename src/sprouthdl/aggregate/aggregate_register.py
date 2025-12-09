@@ -16,12 +16,12 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
         acc_val = acc.value
 
         # Assign packed:
-        acc @= acc_val  # or acc @= some_other_fixed
+        acc <<= acc_val  # or acc <<= some_other_fixed
 
     Internally:
       - A single Signal(kind='reg') bitvector is allocated.
       - value/Q provide a structured HDLAggregate view via agg_cls.from_bits(...).
-      - @= drives the register's next-state (reg driver).
+      - <<= drives the register's next-state (reg driver).
     """
 
     def __init__(

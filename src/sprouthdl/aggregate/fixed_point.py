@@ -13,7 +13,7 @@ class FixedPoint(HDLAggregate):
 
     Typical usage (owning wire):
         acc = FixedPoint(total_width=16, frac_width=8, signed=True, name="acc")
-        acc @= 0  # drive as usual
+        acc <<= 0  # drive as usual
 
     View usage (reinterpret existing bits):
         slice_bits = some_bus[15:0]

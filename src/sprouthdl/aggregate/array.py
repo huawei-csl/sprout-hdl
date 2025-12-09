@@ -214,7 +214,7 @@ class Array(HDLAggregate):
     def _assign_from_bits(self, bits: Expr) -> None:
         """
         Drive the underlying leaves from a flat bitvector 'bits'.
-        This is what HDLAggregate.assign / @= eventually calls.
+        This is what HDLAggregate.assign / <<= eventually calls.
         """
         bit_pos = 0
         for i, elem in enumerate(self._elems):
@@ -247,15 +247,15 @@ class Array(HDLAggregate):
     # --------------------------------------------------------------
     # Element-wise assignment (shape-agnostic)
     # --------------------------------------------------------------
-    def __ilshift__(self, rhs: "Array"):
+    def __imatmul__(self, rhs: "Array"):
         """
         Element-wise assignment:
-          lhs <<= rhs
+          lhs @= rhs
 
-        This is orthogonal to HDLAggregate's packed assignment (lhs @= rhs).
+        This is orthogonal to HDLAggregate's packed assignment (lhs <<= rhs).
         """
         if len(self) != len(rhs):
-            raise ValueError("Array.__ilshift__: length mismatch")
+            raise ValueError("Array.__imatmul__: length mismatch")
 
         for i in range(len(self)):
             lhs = self._elems[i]

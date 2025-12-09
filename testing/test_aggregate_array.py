@@ -119,7 +119,7 @@ def test_array_nd_indexing_and_slicing():
 
 def test_array_packed_assign_from_array():
     """
-    dst @= src  (packed HDLAggregate assignment)
+    dst <<= src  (packed HDLAggregate assignment)
     """
     reset_shared_cache()
 
@@ -135,7 +135,7 @@ def test_array_packed_assign_from_array():
     assert d0._driver is None
     assert d1._driver is None
 
-    dst @= src  # uses Array.to_bits + Array._assign_from_bits
+    dst <<= src  # uses Array.to_bits + Array._assign_from_bits
 
     # Each dst element should now have a driver (some slice of src.to_bits())
     for elem in dst:
@@ -146,7 +146,7 @@ def test_array_packed_assign_from_array():
 
 def test_array_packed_assign_from_constant():
     """
-    dst @= 0  (packed HDLAggregate assignment from constant)
+    dst <<= 0  (packed HDLAggregate assignment from constant)
     """
     reset_shared_cache()
 
@@ -156,7 +156,7 @@ def test_array_packed_assign_from_constant():
 
     arr = Array([d0, d1, d2])  # total width 12
 
-    arr @= 0  # constant -> as_expr -> Resize(..., width=12)
+    arr <<= 0  # constant -> as_expr -> Resize(..., width=12)
 
     for elem in arr:
         assert isinstance(elem, Signal)
@@ -208,7 +208,7 @@ def test_array_elementwise_assign():
     s1 <<= 2
 
     # Element-wise assignment
-    dst <<= src
+    dst @= src
 
     assert d0._driver is s0
     assert d1._driver is s1
@@ -240,7 +240,7 @@ def test_array_with_dummy_aggregate_and_wires():
     assert isinstance(clone._elems[2], Signal)
 
     # Packed assign from arr to clone
-    clone @= arr
+    clone <<= arr
 
     # w0 / w1 clones should now have drivers
     c_w0 = clone._elems[0]

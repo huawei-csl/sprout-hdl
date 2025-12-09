@@ -106,12 +106,12 @@ class HDLAggregate(ABC):
         bits = self._coerce_rhs_to_bits(rhs)
         self._assign_from_bits(bits)
 
-    def __imatmul__(self, rhs: Union["HDLAggregate", ExprLike]) -> "HDLAggregate":
+    def __ilshift__(self, rhs: Union["HDLAggregate", ExprLike]) -> "HDLAggregate":
         """
-        Sugar:  agg @= rhs
+        Sugar:  agg <<= rhs
 
         Mirrors Magma/Spinal semantics:
-            my_bundle @= other
+            my_bundle <<= other
         """
         self.assign(rhs)
         return self
