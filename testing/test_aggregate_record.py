@@ -1,7 +1,7 @@
-from blinker import Signal
+
 from sprouthdl.aggregate.aggregate_record import AggregateRecord
 from sprouthdl.aggregate.aggregate_array import Array
-from sprouthdl.sprouthdl import SInt, UInt, Wire
+from sprouthdl.sprouthdl import SInt, UInt, Wire, Signal
 
 
 from sprouthdl.sprouthdl import (

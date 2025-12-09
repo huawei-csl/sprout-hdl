@@ -23,7 +23,6 @@ class DummyAgg(HDLAggregate):
     Tiny aggregate for tests: wraps a single Expr (usually a Wire).
     Supports:
       - wire_like(width)
-      - from_bits(bits, width)
     so it works with AggregateRegister.
     """
 
@@ -41,16 +40,6 @@ class DummyAgg(HDLAggregate):
 
     def to_bits(self) -> Expr:
         return self.sig
-
-    @classmethod
-    def from_bits(
-        cls,
-        bits: Expr,
-        width: int,
-        name: str = "dummy_view",
-    ) -> "DummyAgg":
-        # View: use 'bits' as underlying expression
-        return cls(width=width, bits=bits, name=name)
 
     @classmethod
     def wire_like(
@@ -71,10 +60,10 @@ class DummyAgg(HDLAggregate):
     def width(self) -> int:
         return self._width
 
-    def __ilshift__(self, rhs: "DummyAgg") -> "DummyAgg":
-        # Element-wise semantics (if used inside Array, etc.)
-        self.sig <<= rhs.sig
-        return self
+    # def __ilshift__(self, rhs: "DummyAgg") -> "DummyAgg":
+    #     # Element-wise semantics (if used inside Array, etc.)
+    #     self.sig <<= rhs.sig
+    #     return self
 
     def __repr__(self) -> str:
         return f"DummyAgg(width={self.width}, sig={self.sig})"
@@ -106,7 +95,7 @@ def test_aggregate_register_with_dummyagg_basic():
     assert val.width == 5
     assert val.to_bits().typ.width == 5
     # For DummyAgg.from_bits, we expect it's a view on the reg's bits
-    assert val.to_bits() is bits
+    assert val.to_bits()._driver is bits
 
 
 def test_aggregate_register_dummyagg_assign_from_int():
@@ -202,7 +191,7 @@ def test_aggregate_register_with_fixedpoint_basic():
     assert val.ftype.width_frac == 8
     assert val.ftype.signed is True
     # The view's bits should be the reg itself (from_bits view semantics)
-    assert val.bits is bits
+    assert val.bits._driver is bits
 
 
 def test_aggregate_register_fixedpoint_assign():

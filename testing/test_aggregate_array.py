@@ -33,12 +33,6 @@ class DummyAgg(HDLAggregate):
         return self.sig
 
     @classmethod
-    def from_bits(cls, bits: Expr, width: int, name: str = "dummy_from_bits") -> "DummyAgg":
-        inst = cls(width=width, name=name)
-        inst._assign_from_bits(bits)
-        return inst
-
-    @classmethod
     def wire_like(cls, template: "DummyAgg") -> "DummyAgg":
         """
         Create a new DummyAgg with same width as template, new backing wire.

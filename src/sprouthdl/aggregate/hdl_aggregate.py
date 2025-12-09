@@ -34,20 +34,6 @@ class HDLAggregate(ABC):
 
     @classmethod
     @abstractmethod
-    def from_bits(
-        cls: Type[T_Agg],
-        bits: Expr,
-        *args,
-        **kwargs,
-    ) -> T_Agg:
-        """
-        Rebuild an instance of this aggregate type from a flat bitvector.
-        *args / **kwargs carry any shape metadata (e.g. length, frac_width).
-        """
-        ...
-
-    @classmethod
-    @abstractmethod
     def wire_like(
         cls: Type[T_Agg],
         *args,
@@ -55,7 +41,7 @@ class HDLAggregate(ABC):
     ) -> T_Agg:
         """
         Create a 'wire-filled' instance of this aggregate type.
-        The arguments should match what from_bits() and your constructor need.
+        The arguments should match your constructor need.
         """
         ...
 

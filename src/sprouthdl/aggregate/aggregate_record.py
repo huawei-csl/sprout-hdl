@@ -108,25 +108,6 @@ class AggregateRecord(HDLAggregate):
         return Concat(parts)
 
     @classmethod
-    def from_bits(
-        cls: Type[T_Record],
-        bits: Expr,
-        *args: Any,
-        **kwargs: Any,
-    ) -> T_Record:
-        """
-        Build a new record instance from a flat bitvector.
-
-        Shape is defined by the class, so we can just:
-            inst = cls(...)
-            inst._assign_from_bits(bits)
-        and return inst.
-        """
-        inst = cls(*args, **kwargs)
-        inst._assign_from_bits(bits)
-        return inst
-
-    @classmethod
     def wire_like(
         cls: Type[T_Record],
         *args: Any,

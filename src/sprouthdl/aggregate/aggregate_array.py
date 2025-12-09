@@ -172,21 +172,6 @@ class Array(HDLAggregate):
                 raise TypeError(f"Unsupported element type in to_bits(): {type(elem)}")
         return Concat(parts)
 
-    # --------------------------------------------------------------
-    # HDLAggregate API: from_bits + wire_like + _assign_from_bits
-    # --------------------------------------------------------------
-    @classmethod
-    def from_bits(cls, bits: Expr, template: "Array") -> "Array":
-        """
-        Reinterpret 'bits' as an Array with the same shape as 'template',
-        assigning into that template (in-place) and returning it.
-
-        Usage:
-            Array.from_bits(some_bits, template_array)
-        """
-        template._assign_from_bits(bits)
-        return template
-
     @classmethod
     def wire_like(cls, template: "Array") -> "Array":
         """

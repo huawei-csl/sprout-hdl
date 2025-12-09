@@ -59,25 +59,6 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
         return self._reg
 
     @classmethod
-    def from_bits(
-        cls,
-        bits: Expr,
-        agg_cls: Type[T_Agg],
-        *agg_args,
-        **agg_kwargs,
-    ) -> "AggregateRegister[T_Agg]":
-        """
-        Create an AggregateRegister *view* around an existing reg-like Expr.
-        Typically not needed for normal user code.
-        """
-        obj = cls.__new__(cls)
-        obj._agg_cls = agg_cls
-        obj._agg_args = agg_args
-        obj._agg_kwargs = dict(agg_kwargs)
-        obj._reg = bits  # assume reg-like Signal or Expr
-        return obj
-
-    @classmethod
     def wire_like(cls, *args, **kwargs):
         raise TypeError("AggregateRegister.wire_like() is not meaningful")
 
@@ -94,7 +75,9 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
     @property
     def value(self) -> T_Agg:
         """Structured view of the register contents."""
-        return self._agg_cls.from_bits(self._reg, *self._agg_args, **self._agg_kwargs)
+        value = self._agg_cls(*self._agg_args, **self._agg_kwargs)
+        value <<= self._reg
+        return value
 
     @property
     def Q(self) -> T_Agg:

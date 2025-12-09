@@ -2,10 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Union, Sequence, Type, TypeVar, Generic
 
-from blinker import Signal
-
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
-from sprouthdl.sprouthdl import Const, Expr, ExprLike, HDLType, Resize, Wire, as_expr, fit_width
+from sprouthdl.sprouthdl import Const, Expr, ExprLike, HDLType, Resize, Wire, as_expr, fit_width, Signal
 
 # -----------------------------
 # Fixed-point type description
@@ -129,18 +127,6 @@ class FixedPoint(HDLAggregate):
 
     def to_bits(self) -> Expr:
         return self._bits
-
-    @classmethod
-    def from_bits(
-        cls,
-        bits: Expr,
-        ftype: FixedPointType,
-        name: Optional[str] = None,
-    ) -> "FixedPoint":
-        """
-        Reinterpret 'bits' as a FixedPoint with the given type.
-        """
-        return cls(ftype, name=name, bits=bits)
 
     @classmethod
     def wire_like(
