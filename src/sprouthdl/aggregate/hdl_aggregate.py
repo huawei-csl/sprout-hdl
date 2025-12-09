@@ -9,6 +9,7 @@ from sprouthdl.sprouthdl import Expr, ExprLike, as_expr, fit_width
 
 
 T_Agg = TypeVar("T_Agg", bound="HDLAggregate")
+SelfAgg = TypeVar("SelfAgg", bound="HDLAggregate")
 
 
 class HDLAggregate(ABC):
@@ -106,7 +107,7 @@ class HDLAggregate(ABC):
         bits = self._coerce_rhs_to_bits(rhs)
         self._assign_from_bits(bits)
 
-    def __ilshift__(self, rhs: Union["HDLAggregate", ExprLike]) -> "HDLAggregate":
+    def __ilshift__(self: SelfAgg, rhs: Union["HDLAggregate", ExprLike]) -> SelfAgg:
         """
         Sugar:  agg <<= rhs
 
