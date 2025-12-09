@@ -14,7 +14,7 @@ def build_accumulator():
     acc = m.reg(UInt(8), "acc", init=0)
     out = m.output(UInt(8), "out")
 
-    acc.next = acc + a + b
+    acc <<= acc + a + b
     out <<= acc
     return m, a, b, acc, out
 

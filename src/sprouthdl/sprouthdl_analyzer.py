@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, Set, Tuple, Iterable
 
 # from sprout_hdl_module import Module
-from sprouthdl.sprouthdl import Concat, Const, Expr, Op1, Op2, Resize, Signal, Slice, Ternary, _clsname
+from sprouthdl.sprouthdl import Concat, Const, Expr, Op1, Op2, Resize, Signal, Slice, Ternary
 # from sprout_hdl_module import Module
 
 @dataclass
@@ -17,8 +17,8 @@ class GraphReport:
     by_class_incl_typ: Dict[str, int] # class-name<typ> -> count (for nodes with typ attribute)
     # Depths
     output_depth: Dict[str, int]   # depth of each output driver cone
-    reg_next_depth: Dict[str, int] # depth to each reg next-state (sequential inputs)
-    max_depth: int                 # max over outputs and (optionally) reg.next cones
+    reg_next_depth: Dict[str, int] # depth to each reg driver (sequential inputs)
+    max_depth: int                 # max over outputs and (optionally) reg driver cones
 
 class _Analyzer:
     """Internal: walks expressions, counts nodes, computes depth with memoization."""
@@ -138,7 +138,7 @@ class _Analyzer:
 
     # ---- public entry ----
     def run(self, m: "Module") -> GraphReport:
-        # Roots: all outputs with drivers; optionally reg.next cones
+        # Roots: all outputs with drivers; optionally register driver cones
         out_depth: Dict[str, int] = {}
         for s in m._ports_of("output"):
             if s._driver is not None:
@@ -150,9 +150,9 @@ class _Analyzer:
         reg_depth: Dict[str, int] = {}
         if self.include_reg_cones:
             for r in m._internals_of("reg"):
-                if r._next is not None:
-                    self._count_walk(r._next)
-                    reg_depth[r.name] = self._depth(r._next, set())
+                if r._driver is not None:
+                    self._count_walk(r._driver)
+                    reg_depth[r.name] = self._depth(r._driver, set())
                 else:
                     reg_depth[r.name] = 0
 
@@ -174,3 +174,6 @@ class _Analyzer:
             reg_next_depth=reg_depth,
             max_depth=max_depth,
         )
+
+def _clsname(o) -> str:
+    return o.__class__.__name__

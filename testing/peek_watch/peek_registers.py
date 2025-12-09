@@ -2,13 +2,13 @@ from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
-# 4-bit accumulator: acc.next = acc + din
+# 4-bit accumulator: acc <<= acc + din
 m = Module("Accu", with_clock=True, with_reset=True)
 din = m.input(UInt(4), "din")
 acc = m.reg(UInt(4), "acc", init=0)
 y = m.output(UInt(4), "y")
 
-acc.next = acc + din
+acc <<= acc + din
 y <<= acc
 
 sim = Simulator(m)

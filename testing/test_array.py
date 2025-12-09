@@ -190,8 +190,8 @@ def build_matmul_accum_reg_module():
     # --- Combinational accumulate: C_next = C_prev + A*B ---
     C_next = matmul_accumulate_comb(C_prev, A, B, acc_w)
 
-    # Pack back into bits and drive reg.next
-    c_reg.next = C_next.to_bits()
+    # Pack back into bits and drive the reg
+    c_reg <<= C_next.to_bits()
 
     return m, c_reg, C_init, A, B, C_prev, C_next
 
@@ -204,7 +204,7 @@ def test_matmul_accumulate_twice_with_reg():
       - c_reg holds C bits
       - we unpack into C_prev (Array of wires)
       - compute C_next = C_prev + A*B (combinational)
-      - drive c_reg.next with C_next bits
+      - drive c_reg with C_next bits
     """
     m, c_reg, C_init, A, B, C_prev, C_next = build_matmul_accum_reg_module()
     sim = Simulator(m)

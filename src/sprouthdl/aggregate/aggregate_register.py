@@ -21,7 +21,7 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
     Internally:
       - A single Signal(kind='reg') bitvector is allocated.
       - value/Q provide a structured HDLAggregate view via agg_cls.from_bits(...).
-      - @= drives the register's next-state (reg.next).
+      - @= drives the register's next-state (reg driver).
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
         """
         if not isinstance(self._reg, Signal) or self._reg.kind != "reg":
             raise TypeError("AggregateRegister must wrap a register-like Signal")
-        self._reg.next = bits
+        self._reg <<= bits
 
     # ---- Convenience views ----
 

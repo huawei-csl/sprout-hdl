@@ -185,15 +185,19 @@ class BundleRegister2:
     # Register semantics ------------------------------------------------
     @property
     def next(self) -> Optional[Dict[str, Expr]]:
-        nxt = self._signal.next
-        if nxt is None:
+        drv = self._signal._driver
+        if drv is None:
             return None
         # Represent next value as dict[field -> Expr]
-        return self._cls.from_bits(nxt)
+        return self._cls.from_bits(drv)
 
     @next.setter
     def next(self, value: Union[Mapping[str, ExprLike], Bundle]):
-        self._signal.next = self._cls.to_bits(value)
+        self._signal <<= self._cls.to_bits(value)
+
+    def __ilshift__(self, value: Union[Mapping[str, ExprLike], Bundle]):
+        self.next = value
+        return self
 
     def set_init(self, value: Union[Mapping[str, ExprLike], Bundle]):
         self._signal.set_init(self._cls.to_bits(value))

@@ -232,8 +232,6 @@ class Module:
                     visit_expr(p)
             if hasattr(e, "_driver"):
                 visit_expr(getattr(e, "_driver"))
-            if hasattr(e, "_next"):
-                visit_expr(getattr(e, "_next"))
 
         def visit_signal(sig: Signal) -> None:
             if id(sig) in visited_signals:
@@ -249,8 +247,6 @@ class Module:
 
             if sig._driver is not None:
                 visit_expr(sig._driver)
-            if sig.kind == "reg" and sig._next is not None:
-                visit_expr(sig._next)
 
         for out in outputs:
             visit_signal(out)
@@ -306,8 +302,8 @@ class Module:
             if s.kind in ("wire", "output") and s._driver is None:
                 if s.kind == "output":
                     raise ValueError(f"Output '{s.name}' has no driver.")
-            if s.kind == "reg" and s._next is None:
-                raise ValueError(f"Register '{s.name}' has no next-state assignment. Set s.next = ...")
+            if s.kind == "reg" and s._driver is None:
+                raise ValueError(f"Register '{s.name}' has no next-state assignment.")
 
         lines: List[str] = []
         # Ports list
@@ -363,11 +359,11 @@ class Module:
                     lines.append(f"      {r.name} <= {init};")
                 lines.append("    end else begin")
                 for r in regs:
-                    lines.append(f"      {r.name} <= {fit_width(r._next, r.typ).to_verilog()};")
+                    lines.append(f"      {r.name} <= {fit_width(r._driver, r.typ).to_verilog()};")
                 lines.append("    end")
             else:
                 for r in regs:
-                    lines.append(f"    {r.name} <= {fit_width(r._next, r.typ).to_verilog()};")
+                    lines.append(f"    {r.name} <= {fit_width(r._driver, r.typ).to_verilog()};")
             lines.append("  end")
 
         lines.append("endmodule")
@@ -391,7 +387,7 @@ class Module:
         Analyze combinational cones of this module.
           - include_wiring=False → don't count Concat/Slice/Resize in node counts (still traversed)
           - include_consts=False → don't count Const in node counts
-          - include_reg_cones=True → also traverse reg.next cones (depth to sequential inputs)
+          - include_reg_cones=True → also traverse register driver cones (depth to sequential inputs)
         Depth model:
           - Op1/Op2/Ternary each add 1 level
           - Concat/Slice/Resize add 0 (transparent wiring)
@@ -437,8 +433,6 @@ class Module:
                 add_expr(s)
             if s._driver is not None:
                 visit(s._driver)
-            if s.kind == "reg" and s._next is not None:
-                visit(s._next)
     
         return exprs
 

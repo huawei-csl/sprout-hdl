@@ -65,7 +65,7 @@ class HDLAggregate(ABC):
 
         For example, a leaf backed by:
           - a combinational wire Signal:   sig <<= bits_slice
-          - a register Signal (kind='reg'): sig.next = bits_slice
+          - a register Signal (kind='reg'): sig <<= bits_slice
         Bundles/arrays chunk 'bits' and recurse into fields/elements.
         """
         ...

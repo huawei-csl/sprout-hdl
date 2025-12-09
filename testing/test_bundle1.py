@@ -31,7 +31,7 @@ def test_bundle_register_integration():
     reg = m.reg(spec, "state")
     assert isinstance(reg, BundleRegister)
 
-    reg.next = spec(a=1, b=2)
+    reg <<= spec(a=1, b=2)
 
     a_out = m.output(UInt(3), "a_out")
     b_out = m.output(UInt(5), "b_out")
@@ -84,4 +84,3 @@ def test_bundle_define_requires_fields():
 
     with pytest.raises(ValueError):
         bundle.from_class(EmptySpec)
-

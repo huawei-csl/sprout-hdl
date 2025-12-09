@@ -115,7 +115,7 @@ class FixedPoint(HDLAggregate):
         """
         Assign to the underlying leaf Signal (wire or reg).
 
-        - If backed by a reg Signal → next-state assignment.
+        - If backed by a reg Signal → next-state assignment via <<=.
         - If backed by a wire Signal → combinational driver.
         - If backed by a non-Signal Expr → error on assignment.
         """
@@ -125,10 +125,7 @@ class FixedPoint(HDLAggregate):
         if target._auto_generated:
             raise TypeError("Cannot assign to FixedPoint view backed by auto-generated shared wire")
 
-        if target.kind == "reg":
-            target.next = bits
-        else:
-            target <<= bits
+        target <<= bits
 
     def __repr__(self) -> str:
         return f"FixedPoint(width={self.total_width}, " f"frac={self.frac_width}, signed={self.signed})"

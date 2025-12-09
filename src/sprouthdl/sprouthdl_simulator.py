@@ -1,6 +1,5 @@
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import *
-from sprouthdl.sprouthdl import _resize_bits, _to_bits, _from_bits_signed, _sid, _clsname
 from sprouthdl.sprouthdl import Signal, Expr, Const, Op1, Op2, Ternary, Concat, Slice, Resize
 
 
@@ -157,10 +156,11 @@ class Simulator:
                     v = 0
                 res[_sid(r)] = _to_bits(v, r.typ.width)
             else:
-                if r._next is None:
-                    raise ValueError(f"Register '{r.name}' has no next-state assignment. Set r.next = ...")
-                nxt_bits = self._eval_expr_bits(r._next)
-                res[_sid(r)] = _resize_bits(nxt_bits, r._next.typ.width, r.typ.width, r._next.typ.signed)
+                drv = r._driver
+                if drv is None:
+                    raise ValueError(f"Register '{r.name}' has no next-state assignment.")
+                nxt_bits = self._eval_expr_bits(drv)
+                res[_sid(r)] = _resize_bits(nxt_bits, drv.typ.width, r.typ.width, drv.typ.signed)
         return res
 
     # ------- Expression evaluation (to bit patterns) -------
@@ -201,7 +201,7 @@ class Simulator:
             return self._cache_expr[eid]
 
         def is_expr_instance(obj, instance_type):
-            #return _clsname(obj) == instance_type.__name__
+            # return _clsname(obj) == instance_type.__name__
             return isinstance(obj, instance_type)
 
         if is_expr_instance(e, Const):
@@ -391,11 +391,12 @@ class Simulator:
                 break
         if reg is None:
             raise KeyError(f"{reg_name} is not a register.")
-        if reg._next is None:
+        drv = reg._driver
+        if drv is None:
             raise ValueError(f"Register '{reg_name}' has no next-state.")
         # evaluate next expression and resize to reg width
-        nxt_bits = self._eval_expr_bits(reg._next)
-        nxt_bits = _resize_bits(nxt_bits, reg._next.typ.width, reg.typ.width, reg._next.typ.signed)
+        nxt_bits = self._eval_expr_bits(drv)
+        nxt_bits = _resize_bits(nxt_bits, drv.typ.width, reg.typ.width, drv.typ.signed)
         return self._bits_to_int(nxt_bits)
 
     def watch(self, what, alias: str | None = None):
@@ -461,7 +462,7 @@ class Simulator:
             else:
                 names_dict[id(e)] = f"expr_{id(e)}"
         return names_dict
-    
+
     def get_trace_by_names(self) -> dict[str, list[int]]:
         """
         Return trace history as a dict mapping signal/expression names to lists of values over time.
@@ -474,3 +475,42 @@ class Simulator:
                 name = trace_names.get(eid, f"expr_{eid}")
                 history_by_name[name].append(value)
         return history_by_name
+
+
+# helpers
+def _mask(w: int) -> int:
+    return (1 << w) - 1 if w > 0 else 0
+
+
+def _to_bits(v: int, w: int) -> int:
+    return int(v) & _mask(w)
+
+
+def _from_bits_signed(bits: int, w: int) -> int:
+    if w == 0:
+        return 0
+    sign = (bits >> (w - 1)) & 1
+    return bits - (1 << w) if sign else bits
+
+
+def _resize_bits(bits: int, from_w: int, to_w: int, signed: bool) -> int:
+    """Truncate or extend a value in two's complement as needed."""
+    bits = _to_bits(bits, from_w)
+    if to_w == from_w:
+        return bits
+    if to_w < from_w:
+        # Truncate LSBs kept (matches Verilog slicing)
+        return _to_bits(bits, to_w)
+    # Extend
+    if signed:
+        val = _from_bits_signed(bits, from_w)
+        return _to_bits(val, to_w)
+    return _to_bits(bits, to_w)
+
+
+def _sid(s: "Signal") -> int:
+    return id(s)
+
+
+def _clsname(o) -> str:
+    return o.__class__.__name__

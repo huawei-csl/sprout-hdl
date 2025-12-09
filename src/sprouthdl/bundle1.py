@@ -17,7 +17,7 @@ Example usage::
 
     m = Module("example")
     payload_reg = m.reg(payload_t, "payload")
-    payload_reg.next = payload_t(opcode=1, data=5)
+    payload_reg <<= payload_t(opcode=1, data=5)
 
 The bundle register can be sliced through attribute access (``payload_reg.opcode``)
 and its value can be packed/unpacked via :meth:`bundle.to_bits` and
@@ -273,15 +273,19 @@ class BundleRegister:
     # ------------------------------------------------------------------
     @property
     def next(self) -> Optional[BundleValue]:
-        next_bits = self._signal.next
-        if next_bits is None:
+        drv = self._signal._driver
+        if drv is None:
             return None
-        return self._spec.from_bits(next_bits)
+        return self._spec.from_bits(drv)
 
     @next.setter
     def next(self, value: Union[BundleValue, Mapping[str, ExprLike]]):
         coerced = self._spec.coerce(value)
-        self._signal.next = coerced.to_bits()
+        self._signal <<= coerced.to_bits()
+
+    def __ilshift__(self, value: Union[BundleValue, Mapping[str, ExprLike]]):
+        self.next = value
+        return self
 
     def set_init(self, value: Union[BundleValue, Mapping[str, ExprLike]]):
         coerced = self._spec.coerce(value)
@@ -321,4 +325,3 @@ def _reg_with_bundle(self: Module, typ, name: str, init: Optional[Union[BundleVa
 
 
 Module.reg = _reg_with_bundle  # type: ignore[assignment]
-

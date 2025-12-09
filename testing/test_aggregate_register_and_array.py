@@ -115,14 +115,14 @@ def test_aggregate_register_dummyagg_assign_from_int():
     reg = AggregateRegister(DummyAgg, 5, name="dummy_reg")
 
     # No next-state yet
-    assert reg.bits.next is None
+    assert reg.bits._driver is None
 
     # Packed assignment via HDLAggregate:
     reg @= 3  # int -> Const -> resized to width 5
 
-    assert reg.bits.next is not None
-    assert isinstance(reg.bits.next, Expr)
-    assert reg.bits.next.typ.width == 5
+    assert reg.bits._driver is not None
+    assert isinstance(reg.bits._driver, Expr)
+    assert reg.bits._driver.typ.width == 5
 
 
 def test_aggregate_register_dummyagg_assign_from_agg():
@@ -138,10 +138,10 @@ def test_aggregate_register_dummyagg_assign_from_agg():
     # Assign packed from aggregate
     reg @= src
 
-    assert reg.bits.next is not None
-    assert reg.bits.next.typ.width == 5
+    assert reg.bits._driver is not None
+    assert reg.bits._driver.typ.width == 5
     # Next-state should be driven by src.to_bits()
-    assert reg.bits.next is src.to_bits()
+    assert reg.bits._driver is src.to_bits()
 
 
 def test_aggregate_register_dummyagg_init_from_int():
@@ -218,15 +218,15 @@ def test_aggregate_register_fixedpoint_assign():
 
     # Assign from integer
     acc @= 42
-    assert acc.bits.next is not None
-    assert acc.bits.next.typ.width == 16
+    assert acc.bits._driver is not None
+    assert acc.bits._driver.typ.width == 16
 
     # Assign from another FixedPoint
     src = FixedPoint(total_width=16, frac_width=8, signed=True, name="src_fp")
     acc @= src
-    assert acc.bits.next is not None
-    assert acc.bits.next.typ.width == 16
-    assert acc.bits.next is src.bits
+    assert acc.bits._driver is not None
+    assert acc.bits._driver.typ.width == 16
+    assert acc.bits._driver is src.bits
 
 
 def test_aggregate_register_fixedpoint_init():
@@ -285,7 +285,7 @@ def sim_test_aggregate_register():
 
     # Behavior: acc_next = acc + (x << 8)
     incr = as_expr(x) << 8  # Q8.8 version of x
-    acc @= acc_val.bits + incr  # packed assignment → acc.bits._next
+    acc @= acc_val.bits + incr  # packed assignment → acc.bits._driver
 
     # Output: raw accumulator bits
     y = m.output(UInt(16), "y")

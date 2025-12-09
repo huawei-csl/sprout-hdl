@@ -284,7 +284,6 @@ class Signal(Expr):
         self.typ = typ
         self.kind = kind  # 'input' | 'output' | 'wire' | 'reg'
         self._driver: Optional[Expr] = None  # for wire/output
-        self._next: Optional[Expr] = None  # for reg
         self._init: Optional[Expr] = None  # for reg
         self._auto_generated: bool = False  # for internal use
 
@@ -293,17 +292,6 @@ class Signal(Expr):
         rhs_e = fit_width(as_expr(rhs), self.typ)
         self._driver = rhs_e
         return self
-
-    # For registers: set next-state
-    @property
-    def next(self) -> Optional[Expr]:
-        return self._next
-
-    @next.setter
-    def next(self, rhs: ExprLike):
-        if self.kind != "reg":
-            raise TypeError("next can only be set on registers")
-        self._next = fit_width(as_expr(rhs), self.typ)
 
     def set_init(self, init: ExprLike):
         if self.kind != "reg":
@@ -460,17 +448,6 @@ def bits_required(v: int) -> int:
     return (-v).bit_length() + 1  # include sign
 
 
-# def as_expr(x: ExprLike) -> Expr:
-#     if isinstance(x, Expr):
-#         return x
-#     if isinstance(x, bool):
-#         return Const(1 if x else 0, Bool())
-#     if isinstance(x, int):
-#         signed = x < 0
-#         w = bits_required(x)
-#         return Const(x, HDLType(w, signed=signed))
-#     raise TypeError(f"Cannot convert {type(x)} to Expr")
-
 def as_expr(x: ExprLike) -> Expr:
     if isinstance(x, Expr):
         # Route through the instance method so sharing can occur
@@ -588,46 +565,3 @@ def cat(*parts: ExprLike) -> Expr:
     return Concat([as_expr(p) for p in parts])
 
 
-# -----------------------------
-# Module and codegen
-# -----------------------------
-
-
-# ----------------------------
-
-
-def _mask(w: int) -> int:
-    return (1 << w) - 1 if w > 0 else 0
-
-
-def _to_bits(v: int, w: int) -> int:
-    return int(v) & _mask(w)
-
-
-def _from_bits_signed(bits: int, w: int) -> int:
-    if w == 0:
-        return 0
-    sign = (bits >> (w - 1)) & 1
-    return bits - (1 << w) if sign else bits
-
-
-def _resize_bits(bits: int, from_w: int, to_w: int, signed: bool) -> int:
-    """Truncate or extend a value in two's complement as needed."""
-    bits = _to_bits(bits, from_w)
-    if to_w == from_w:
-        return bits
-    if to_w < from_w:
-        # Truncate LSBs kept (matches Verilog slicing)
-        return _to_bits(bits, to_w)
-    # Extend
-    if signed:
-        val = _from_bits_signed(bits, from_w)
-        return _to_bits(val, to_w)
-    return _to_bits(bits, to_w)
-
-
-def _sid(s: "Signal") -> int:
-    return id(s)
-
-def _clsname(o) -> str:
-    return o.__class__.__name__

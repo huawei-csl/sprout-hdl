@@ -467,9 +467,9 @@ class AigerExporter:
             rst_lit = rst_bits[0]
 
         for s in self._reg_list:
-            if s._next is None:
+            if s._driver is None:
                 raise ValueError(f"Register '{s.name}' has no next-state assignment.")
-            next_bits = self._eval_expr_bits(s._next)
+            next_bits = self._eval_expr_bits(s._driver)
             next_bits = self._fit_bits(next_bits, s.typ.width, signed=getattr(s.typ, "signed", False))
 
             # build ITE(rst, init, next) if reset present

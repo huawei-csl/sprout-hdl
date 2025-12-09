@@ -87,21 +87,21 @@ def test_aggregate_register_fixedpoint():
 
     # Drive next state from an integer
     acc_reg @= 5
-    assert reg_bits.next is not None
-    assert isinstance(reg_bits.next, Expr)
-    assert reg_bits.next.typ.width == 16
+    assert reg_bits._driver is not None
+    assert isinstance(reg_bits._driver, Expr)
+    assert reg_bits._driver.typ.width == 16
 
     # Drive from another FixedPoint
     src = FixedPoint(16, 8, signed=True, name="src")
     acc_reg @= src
-    assert reg_bits.next.typ.width == 16
+    assert reg_bits._driver.typ.width == 16
 
     # Drive from a FixedPoint view (from_bits) is also fine;
     # only the *target's* backing matters, not the source.
     bus = Wire(UInt(32), name="bus2")
     view = FixedPoint.from_bits(bus[0:16], 16, 8, signed=True)
     acc_reg @= view
-    assert reg_bits.next.typ.width == 16
+    assert reg_bits._driver.typ.width == 16
     
 def build_fixedpoint_mac():
     # Inputs (here as wires for simplicity; in a real Module they’d be ports)

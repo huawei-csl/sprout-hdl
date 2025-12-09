@@ -149,7 +149,7 @@ def build_rv32i_simple(name="RV32I_Simple"):
     pc_plus4   = fit_width(pc + 4, UInt(32))
     pc_br_tgt  = fit_width(pc + b_imm, UInt(32))
     pc_next    = mux(is_ebreak, pc, mux(take_branch, pc_br_tgt, pc_plus4))
-    pc.next    = pc_next
+    pc         <<= pc_next
 
     # Register writeback:
     wb_from_mem = is_load
@@ -159,10 +159,10 @@ def build_rv32i_simple(name="RV32I_Simple"):
     for i in range(32):
         if i == 0:
             # x0 is hard-wired zero
-            regs[i].next = Const(0, UInt(32))
+            regs[i] <<= Const(0, UInt(32))
         else:
             we_i = reg_we & (rd == i)
-            regs[i].next = mux(we_i, wb_data, regs[i])
+            regs[i] <<= mux(we_i, wb_data, regs[i])
 
     # Halt signal on EBREAK
     halt <<= is_ebreak
