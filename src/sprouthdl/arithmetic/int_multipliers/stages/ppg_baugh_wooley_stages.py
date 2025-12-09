@@ -43,9 +43,7 @@ class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
         cols[wb - 1].append(Const(True, Bool()))
 
         total_bits = sum(len(v) for v in cols.values())
-        print(
-            f"PPG (Baugh-Wooley): generated {total_bits} bits across {len(cols)} columns"
-        )
+
         return cols
 
 

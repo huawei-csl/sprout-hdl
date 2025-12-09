@@ -99,9 +99,7 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
                     cols[correction_col].append(Const(True, Bool()))
 
         total_bits = sum(len(v) for v in cols.values())
-        print(
-            f"PPG (Booth optimised signed): generated {total_bits} bits across {len(cols)} columns"
-        )
+
         return cols
 
 

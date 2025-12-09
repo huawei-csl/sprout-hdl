@@ -44,9 +44,7 @@ class AndPartialProductGenerator(PartialProductGeneratorBase):
                 cols[weight].append(a_vec[i] & b_vec[j])
 
         total_bits = sum(len(v) for v in cols.values())
-        print(
-            f"PPG (Basic): generated {total_bits} bits across {len(cols)} columns"
-        )
+
         return cols
 
 def main() -> None:
