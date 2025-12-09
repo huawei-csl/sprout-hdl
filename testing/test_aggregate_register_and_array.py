@@ -10,7 +10,7 @@ from sprouthdl.sprouthdl import (
     as_expr,
     reset_shared_cache,
 )
-from sprouthdl.aggregate.fixed_point import FixedPoint
+from sprouthdl.aggregate.aggregate_fixed_point import FixedPoint, FixedPointType
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator  # your HDLAggregate fixed-point type
 
@@ -178,13 +178,13 @@ def test_aggregate_register_dummyagg_init_from_agg():
 
 def test_aggregate_register_with_fixedpoint_basic():
     reset_shared_cache()
+    
+    ftype = FixedPointType(width_total=16, width_frac=8, signed=True)
 
     # Register that holds a FixedPoint(16, frac=8, signed)
     acc = AggregateRegister(
         FixedPoint,
-        total_width=16,
-        frac_width=8,
-        signed=True,
+        ftype,
         name="acc_reg",
     )
 
@@ -198,9 +198,9 @@ def test_aggregate_register_with_fixedpoint_basic():
     # Structured view
     val = acc.value
     assert isinstance(val, FixedPoint)
-    assert val.total_width == 16
-    assert val.frac_width == 8
-    assert val.signed is True
+    assert val.ftype.width_total == 16
+    assert val.ftype.width_frac == 8
+    assert val.ftype.signed is True
     # The view's bits should be the reg itself (from_bits view semantics)
     assert val.bits is bits
 
@@ -208,11 +208,12 @@ def test_aggregate_register_with_fixedpoint_basic():
 def test_aggregate_register_fixedpoint_assign():
     reset_shared_cache()
 
+    ftype = FixedPointType(width_total=16, width_frac=8, signed=True)
+
+    # Register that holds a FixedPoint(16, frac=8, signed)
     acc = AggregateRegister(
         FixedPoint,
-        total_width=16,
-        frac_width=8,
-        signed=True,
+        ftype,
         name="acc_reg",
     )
 
@@ -222,7 +223,7 @@ def test_aggregate_register_fixedpoint_assign():
     assert acc.bits._driver.typ.width == 16
 
     # Assign from another FixedPoint
-    src = FixedPoint(total_width=16, frac_width=8, signed=True, name="src_fp")
+    src = FixedPoint(ftype, name="src_fp")
     acc <<= src
     assert acc.bits._driver is not None
     assert acc.bits._driver.typ.width == 16
@@ -232,12 +233,12 @@ def test_aggregate_register_fixedpoint_assign():
 def test_aggregate_register_fixedpoint_init():
     reset_shared_cache()
 
+    ftype = FixedPointType(width_total=16, width_frac=8, signed=True)
+    
     # Init from int
     acc1 = AggregateRegister(
         FixedPoint,
-        total_width=16,
-        frac_width=8,
-        signed=True,
+        ftype,
         name="acc_reg_init1",
         init=5,
     )
@@ -245,12 +246,10 @@ def test_aggregate_register_fixedpoint_init():
     assert acc1.bits._init.typ.width == 16
 
     # Init from FixedPoint aggregate
-    src = FixedPoint(total_width=16, frac_width=8, signed=True, name="src_fp")
+    src = FixedPoint(ftype, name="src_fp")
     acc2 = AggregateRegister(
         FixedPoint,
-        total_width=16,
-        frac_width=8,
-        signed=True,
+        ftype,
         name="acc_reg_init2",
         init=src,
     )
@@ -267,12 +266,12 @@ def sim_test_aggregate_register():
 
     x = m.input(UInt(8), "x")  # 8-bit unsigned input
 
+    ftype = FixedPointType(width_total=16, width_frac=8, signed=True)
+
     # Aggregate register: 16-bit FixedPoint with 8 fractional bits (Q8.8)
     acc = AggregateRegister(
         FixedPoint,
-        total_width=16,
-        frac_width=8,
-        signed=False,
+        ftype,
         name="acc_reg",
         init=0,  # start at 0
     )

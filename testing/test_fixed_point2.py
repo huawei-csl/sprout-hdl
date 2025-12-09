@@ -1,7 +1,7 @@
 
 
 from sprouthdl.aggregate.aggregate_register import AggregateRegister
-from sprouthdl.aggregate.fixed_point2 import ARITHQuant, FixedPoint, FixedPointType
+from sprouthdl.aggregate.aggregate_fixed_point import ARITHQuant, FixedPoint, FixedPointType
 from sprouthdl.sprouthdl import HDLType, UInt, as_expr, fit_width
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator

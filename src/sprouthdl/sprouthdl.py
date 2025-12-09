@@ -287,7 +287,7 @@ class Signal(Expr):
         self._init: Optional[Expr] = None  # for reg
         self._auto_generated: bool = False  # for internal use
 
-    def __ilshift__(self, rhs: ExprLike):
+    def __ilshift__(self, rhs: ExprLike) -> "Signal":
         """Connect combinational driver: y <<= expr"""
         rhs_e = fit_width(as_expr(rhs), self.typ)
         self._driver = rhs_e

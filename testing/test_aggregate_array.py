@@ -9,7 +9,7 @@ from sprouthdl.sprouthdl import (
     as_expr,
     reset_shared_cache,
 )
-from sprouthdl.aggregate.array import Array
+from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
