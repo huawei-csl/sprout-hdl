@@ -262,7 +262,7 @@ class KaratsubaMultiplier(StageBasedMultiplierBase):
                 partials=[p0, middle_shift, p2_shift],
                 # partials= [p0_2n, p2_shift_big] + middle_shift_big_separated, # not used, gives larger circuits
                 ppa_cls=PPAOption.CARRY_SAVE_TREE.value,
-                fsa_cls=FSAOption.RIPPLE.value,
+                fsa_cls=FSAOption.RIPPLE_CARRY.value,
             )
 
         return prod_2n

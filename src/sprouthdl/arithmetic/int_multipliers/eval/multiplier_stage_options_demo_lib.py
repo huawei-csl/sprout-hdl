@@ -35,7 +35,7 @@ class PPAOption(Enum):
 
 
 class FSAOption(Enum):
-    RIPPLE = RippleCarryFinalAdder
+    RIPPLE_CARRY = RippleCarryFinalAdder
     PREFIX_KOGGE_STONE = PrefixAdderFinalStage
     PREFIX_BRENT_KUNG = BrentKungPrefixFinalStage
     PREFIX_SKLANSKY = SklanskyPrefixFinalStage

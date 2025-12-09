@@ -153,7 +153,7 @@ def test_mmac_core_basic_simulation():
     b_width = 8
     c_width = 20
 
-    mult_cfg = MultiplierConfig(ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE)
+    mult_cfg = MultiplierConfig(ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
 
     core = build_matmul_accumulate_core(dim, a_width, b_width, c_width, mult_cfg)
 

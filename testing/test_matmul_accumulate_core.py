@@ -187,8 +187,8 @@ def test_mmac_core_basic_simulation():
     mult_cfg = MultiplierConfig(use_operator=False,
                                 multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
                                 encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
-                                ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE)
-    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE, full_output_bit=True)
+                                ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
+    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
 
     core = build_matmul_accumulate_core(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
