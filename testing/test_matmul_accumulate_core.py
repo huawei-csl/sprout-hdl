@@ -132,6 +132,18 @@ def build_matmul_accumulate_core(
 
     m = Module("matmul_accumulate_core")
 
+    # not for now, but in the future we would like a module, e.g. with IOs. But to convert to a module we need basic hdl types (signals with kind input and output)
+    # maybe have an inner componenet with arrays as input and output (need input output kind for aggregate hdl type?), 
+    # then wrap an outer comoponent or module with signals as input and output that connect to the inner component
+    # io could be defined like this:
+    # class MyRecord(AggregateRecord):
+    #    a: Array = self.A
+    #    b: Array = self.B
+    #    c: Array = self.C
+    #    y: Array = self.Y
+
+    # self.io = MyRecord()
+
     def build_matrix(name: str, width: int) -> Array:
         return Array(
             [
