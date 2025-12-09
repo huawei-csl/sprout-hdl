@@ -18,6 +18,7 @@ from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import (
     RippleCarryFinalAdder,
 )
+from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, UInt
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -166,20 +167,21 @@ def test_mmac_core_basic_simulation():
     b_width = 8
     c_width = 20
 
-    # sprout operators
-    mult_cfg = MultiplierConfig(use_operator=True)
-    add_cfg = AdderConfig(use_operator=True, full_output_bit=True)
-    
-    # mult_cfg = MultiplierConfig(use_operator=False,
-    #                             multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER, 
-    #                             encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned), 
-    #                             ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE)
-    # add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE, full_output_bit=True)
+    # use sprout operators
+    #mult_cfg = MultiplierConfig(use_operator=True)
+    #add_cfg = AdderConfig(use_operator=True, full_output_bit=True)
+
+    # use custom multiplier and adder
+    mult_cfg = MultiplierConfig(use_operator=False,
+                                multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
+                                encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
+                                ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE)
+    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE, full_output_bit=True)
 
     core = build_matmul_accumulate_core(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
-    
+
     print(f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.Y[0,0].typ.width} bits")
-    
+
     sim = Simulator(core.module)
 
     rng = np.random.default_rng(seed=42)
@@ -203,6 +205,10 @@ def test_mmac_core_basic_simulation():
     y_np = a_vals @ b_vals + c_vals
     assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core"
     print("Matmul accumulate simulation passed. Y=\n", y_hw)
+
+    # get yosys transistor count
+    yosys_metrics = get_yosys_metrics(core.module)
+    print(f"Yosys metrics: {yosys_metrics}")
 
 
 if __name__ == "__main__":
