@@ -29,10 +29,21 @@ def full_adder_fast(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
 
 
 # ---- abstract component/stage definitions --------------------------------------
+@dataclass(frozen=True)
+class TwoInputAritConfig:
+    a_width: int
+    b_width: int
+    signed_a: bool = False
+    signed_b: bool = False
+    optim_type: Literal["area", "speed"] = "area"
+
+    @property
+    def out_width(self) -> int:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
-class MultiplierConfig:
+class MultiplierConfig(TwoInputAritConfig):  # might be renamed to StageMultiplierConfig
     a_width: int
     b_width: int
     signed_a: bool

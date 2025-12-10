@@ -188,7 +188,10 @@ class Array(HDLAggregate):
 
         for elem in template._elems:
             if isinstance(elem, Expr):
-                new_elems.append(Wire(elem.typ))
+                if isinstance(elem, Signal):
+                    new_elems.append(Wire(elem.typ, name=elem.name))
+                else:
+                    new_elems.append(Wire(elem.typ))
             elif isinstance(elem, HDLAggregate):
                 new_elems.append(type(elem).wire_like(elem))
             else:

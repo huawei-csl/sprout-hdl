@@ -5,10 +5,11 @@ from dataclasses import dataclass
 from typing import DefaultDict, Iterable, List, Literal
 
 import numpy as np
+from pyparsing import Optional
 
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierIO
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierIO, TwoInputAritConfig
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Concat, Expr, Signal, UInt
 from sprouthdl.sprouthdl_module import Module
@@ -25,17 +26,15 @@ class MultiplierConfig:
     optim_type: Literal["area", "speed"] = "area"
 
 
-@dataclass
-class StageConfig:
-    a_width: int
-    b_width: int
-    output_width: int
-    signed_a: bool = False
-    signed_b: bool = False
-    optim_type: Literal["area", "speed"] = "area"
+@dataclass(frozen=True)
+class StageConfig(TwoInputAritConfig):
 
+    output_width: Optional[int] = None
+    
     @property
     def out_width(self) -> int:
+        if self.output_width is None:
+            raise ValueError("output_width must be specified for StageConfig")
         return self.output_width
 
 
@@ -75,7 +74,7 @@ def fused_inner_product(vec_a: Iterable[Expr], vec_b: Iterable[Expr], c_term: Ex
         io = StageBasedMultiplierIO(
             a=a_sig,
             b=b_sig,
-            y=Signal(name=f"pp_{idx}", typ=UInt(result_width), kind="internal"),
+            y=None #Signal(name=f"pp_{idx}", typ=UInt(result_width), kind="wire"),
         )
         cols = ppg.generate_columns(io)
         for weight, bits in cols.items():

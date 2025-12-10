@@ -34,7 +34,7 @@ class AndPartialProductGenerator(PartialProductGeneratorBase):
             sign_bit = b[b.typ.width - 1]
             b_vec = Concat([b] + [sign_bit] * b.typ.width)
 
-        out_bits = io.y.typ.width
+        out_bits = self.config.out_width #likley the same as io.y.typ.width
 
         for i in range(a_vec.typ.width):
             for j in range(b_vec.typ.width):
