@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import DefaultDict, Iterable, List, Literal
+from typing import Callable, DefaultDict, Iterable, List, Literal, Optional
 
 import numpy as np
-from pyparsing import Optional
 
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierIO, TwoInputAritConfig
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Concat, Expr, Signal, UInt
-from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
@@ -30,7 +29,7 @@ class MultiplierConfig:
 class StageConfig(TwoInputAritConfig):
 
     output_width: Optional[int] = None
-    
+
     @property
     def out_width(self) -> int:
         if self.output_width is None:
@@ -74,7 +73,7 @@ def fused_inner_product(vec_a: Iterable[Expr], vec_b: Iterable[Expr], c_term: Ex
         io = StageBasedMultiplierIO(
             a=a_sig,
             b=b_sig,
-            y=None #Signal(name=f"pp_{idx}", typ=UInt(result_width), kind="wire"),
+            y=None,  # Signal(name=f"pp_{idx}", typ=UInt(result_width), kind="wire"),
         )
         cols = ppg.generate_columns(io)
         for weight, bits in cols.items():
@@ -90,8 +89,77 @@ def fused_inner_product(vec_a: Iterable[Expr], vec_b: Iterable[Expr], c_term: Ex
     return Concat(result_bits[:result_width])
 
 
+def _require_power_of_two(dim: int) -> None:
+    if dim <= 0 or dim & (dim - 1) != 0:
+        raise ValueError("Matrix dimension must be a power of two")
+
+
 @dataclass
-class MatmulAccumulateCore:
+class MatmulAccumulateIO:
+    A: Array  # input
+    B: Array  # input
+    C: Array  # input
+    Y: Array  # output
+
+
+class MatmulAccumulateComponent(Component):
+    """Reusable component for fused matrix multiply-accumulate."""
+
+    def __init__(
+        self,
+        dim: int,
+        a_width: int,
+        b_width: int,
+        c_width: int,
+        mult_cfg: MultiplierConfig,
+    ):
+        _require_power_of_two(dim)
+
+        self.dim = dim
+        self.a_width = a_width
+        self.b_width = b_width
+        self.c_width = c_width
+        self.mult_cfg = mult_cfg
+
+        def build_matrix(name: str, width: int, kind: str = "wire") -> Array:
+            return Array(
+                [
+                    Array(
+                        [
+                            Signal(name=f"{name}_{i}_{j}", typ=UInt(width), kind=kind)
+                            for j in range(dim)
+                        ]
+                    )
+                    for i in range(dim)
+                ]
+            )
+
+        self.A = build_matrix("a", a_width)
+        self.B = build_matrix("b", b_width)
+        self.C = build_matrix("c", c_width)
+
+        self.elaborate()
+
+        self.io = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
+
+    def elaborate(self):
+        rows = []
+        for i in range(self.dim):
+            row = []
+            a_row = self.A[i, :]
+            for j in range(self.dim):
+                b_col = self.B[:, j]
+                dot = fused_inner_product(a_row, b_col, self.C[i, j], self.mult_cfg)
+                y_sig = Signal(name=f"y_{i}_{j}", typ=dot.typ, kind="output")
+                y_sig <<= dot
+                row.append(y_sig)
+            rows.append(Array(row))
+        self.Y = Array(rows)
+
+
+@dataclass
+class MatmulAccumulateBuildOut:
+    component: MatmulAccumulateComponent
     module: Module
     A: Array
     B: Array
@@ -99,51 +167,48 @@ class MatmulAccumulateCore:
     Y: Array
 
 
-def build_matmul_accumulate_core(
+def build_matmul_accumulate(
     dim: int,
     a_width: int,
     b_width: int,
     c_width: int,
     mult_cfg: MultiplierConfig,
-) -> MatmulAccumulateCore:
-    if dim <= 0 or dim & (dim - 1) != 0:
-        raise ValueError("Matrix dimension must be a power of two")
+) -> MatmulAccumulateBuildOut:
+    component = MatmulAccumulateComponent(dim, a_width, b_width, c_width, mult_cfg)
 
-    m = Module("matmul_accumulate_core")
+    def build_wrapper_module(
+        name: str, wrapped: MatmulAccumulateComponent
+    ) -> tuple[Module, Array, Array, Array, Array]:
+        m = Module(name)
 
-    # not for now, but in the future we would like a module, e.g. with IOs. But to convert to a module we need basic hdl types (signals with kind input and output)
-    # maybe have an inner componenet with arrays as input and output (need input output kind for aggregate hdl type?),
-    # then wrap an outer comoponent or module with signals as input and output that connect to the inner component
-    # io could be defined like this:
-    # class MyRecord(AggregateRecord):
-    #    a: Array = self.A
-    #    b: Array = self.B
-    #    c: Array = self.C
-    #    y: Array = self.Y
+        def make_io_matrix(template: Array, register_io_func: Callable[[Signal], None]) -> Array:
+            ports = Array.wire_like(template)
+            for i in range(dim):
+                for j in range(dim):
+                    register_io_func(ports[i, j])
+            return ports
 
-    # self.io = MyRecord()
+        A_ports = make_io_matrix(wrapped.A, m.add_input)
+        B_ports = make_io_matrix(wrapped.B, m.add_input)
+        C_ports = make_io_matrix(wrapped.C, m.add_input)
+        Y_ports = make_io_matrix(wrapped.Y, m.add_output)
+        wrapped.A <<= A_ports
+        wrapped.B <<= B_ports
+        wrapped.C <<= C_ports
+        Y_ports <<= wrapped.Y
 
-    def build_matrix(name: str, width: int) -> Array:
-        return Array([Array([m.input(UInt(width), f"{name}_{i}_{j}") for j in range(dim)]) for i in range(dim)])
+        return m, A_ports, B_ports, C_ports, Y_ports
 
-    A = build_matrix("a", a_width)
-    B = build_matrix("b", b_width)
-    C = build_matrix("c", c_width)
+    component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core", component)
 
-    rows = []
-    for i in range(dim):
-        row = []
-        a_row = A[i, :]
-        for j in range(dim):
-            b_col = B[:, j]
-            dot = fused_inner_product(a_row, b_col, C[i, j], mult_cfg)
-            y_sig = m.output(dot.typ, f"y_{i}_{j}")
-            y_sig <<= dot
-            row.append(y_sig)
-        rows.append(Array(row))
-    Y = Array(rows)
-
-    return MatmulAccumulateCore(module=m, A=A, B=B, C=C, Y=Y)
+    return MatmulAccumulateBuildOut(
+        component=component,
+        module=component_module,
+        A=A,
+        B=B,
+        C=C,
+        Y=Y,
+    )
 
 
 def test_mmac_core_basic_simulation():
@@ -154,9 +219,11 @@ def test_mmac_core_basic_simulation():
 
     mult_cfg = MultiplierConfig(ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
 
-    core = build_matmul_accumulate_core(dim, a_width, b_width, c_width, mult_cfg)
+    core = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg)
 
-    print(f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.Y[0,0].typ.width} bits")
+    print(
+        f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.Y[0,0].typ.width} bits"
+    )
 
     sim = Simulator(core.module)
 
