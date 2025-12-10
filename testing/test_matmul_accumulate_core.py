@@ -248,14 +248,14 @@ def test_mmac_core_basic_simulation():
                                 ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
 
-    core = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
+    core_build_out = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
     print(
-        f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.Y[0,0].typ.width} bits"
+        f"Output matrix Y has shape: ({dim}, {dim}) with element width {core_build_out.Y[0,0].typ.width} bits"
     )
 
     # For simulation, operate on the module built directly from the reusable component.
-    sim = Simulator(core.module)
+    sim = Simulator(core_build_out.module)
 
     rng = np.random.default_rng(seed=42)
     a_vals = rng.integers(0, 2**a_width, size=(dim, dim), dtype=int)
@@ -264,24 +264,26 @@ def test_mmac_core_basic_simulation():
 
     for i in range(dim):
         for j in range(dim):
-            sim.set(core.A[i, j], int(a_vals[i, j]))
-            sim.set(core.B[i, j], int(b_vals[i, j]))
-            sim.set(core.C[i, j], int(c_vals[i, j]))
+            sim.set(core_build_out.A[i, j], int(a_vals[i, j]))
+            sim.set(core_build_out.B[i, j], int(b_vals[i, j]))
+            sim.set(core_build_out.C[i, j], int(c_vals[i, j]))
 
     sim.eval()
 
     y_hw = np.zeros((dim, dim), dtype=int)
     for i in range(dim):
         for j in range(dim):
-            y_hw[i, j] = sim.get(core.Y[i, j])
+            y_hw[i, j] = sim.get(core_build_out.Y[i, j])
 
     y_np = a_vals @ b_vals + c_vals
     assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core"
     print("Matmul accumulate simulation passed. Y=\n", y_hw)
 
     # get yosys transistor count
-    yosys_metrics = get_yosys_metrics(core.module)
+    yosys_metrics = get_yosys_metrics(core_build_out.module)
     print(f"Yosys metrics: {yosys_metrics}")
+    
+    return core_build_out
 
 
 if __name__ == "__main__":
