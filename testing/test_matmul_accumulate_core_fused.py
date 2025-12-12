@@ -89,11 +89,6 @@ def fused_inner_product(vec_a: Iterable[Expr], vec_b: Iterable[Expr], c_term: Ex
     return Concat(result_bits[:result_width])
 
 
-def _require_power_of_two(dim: int) -> None:
-    if dim <= 0 or dim & (dim - 1) != 0:
-        raise ValueError("Matrix dimension must be a power of two")
-
-
 @dataclass
 class MatmulAccumulateIO:
     A: Array  # input
@@ -113,8 +108,7 @@ class MatmulAccumulateComponent(Component):
         c_width: int,
         mult_cfg: MultiplierConfig,
     ):
-        _require_power_of_two(dim)
-
+   
         self.dim = dim
         self.a_width = a_width
         self.b_width = b_width

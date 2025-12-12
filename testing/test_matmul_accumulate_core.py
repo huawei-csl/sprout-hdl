@@ -107,10 +107,6 @@ def inner_product(
     return adder_tree(products, add_cfg)
 
 
-def _require_power_of_two(dim: int) -> None:
-    if dim <= 0 or dim & (dim - 1) != 0:
-        raise ValueError("Matrix dimension must be a power of two")
-
 @dataclass
 class MatmulAccumulateIO:
     A: Array  # input
@@ -131,7 +127,6 @@ class MatmulAccumulateComponent(Component):
         mult_cfg: MultiplierConfig,
         add_cfg: AdderConfig,
     ):
-        _require_power_of_two(dim)
 
         self.dim = dim
         self.a_width = a_width
