@@ -23,7 +23,139 @@ def _or_reduce_bits(vec_expr, hi: int, lo: int):
     return acc
 
 
-class FpMul(Component):    
+class FpMul(Component):
+
+    def _extract_fields(self, a: Signal, b: Signal):
+        W = self.W
+        FW = self.FW
+        sA = a[W - 1]  # sign
+        sB = b[W - 1]
+
+        eA = a[FW : W - 1]  # exponent EW bits
+        eB = b[FW : W - 1]
+
+        fA = a[0:FW]  # fraction FW bits
+        fB = b[0:FW]
+        return sA, sB, eA, eB, fA, fB
+
+    def _classify_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal, exp_all_ones: int):
+        is_eA_zero = eA == 0
+        is_eB_zero = eB == 0
+        is_fA_zero = fA == 0
+        is_fB_zero = fB == 0
+
+        is_zeroA = is_eA_zero & is_fA_zero
+        is_zeroB = is_eB_zero & is_fB_zero
+
+        is_eA_all1 = eA == exp_all_ones
+        is_eB_all1 = eB == exp_all_ones
+
+        is_nanA = is_eA_all1 & (fA != 0)
+        is_nanB = is_eB_all1 & (fB != 0)
+
+        is_infA = is_eA_all1 & (fA == 0)
+        is_infB = is_eB_all1 & (fB == 0)
+
+        # NaN if: any NaN, or Inf * 0 (either way)
+        is_nan_in = is_nanA | is_nanB | ((is_infA & is_zeroB) | (is_zeroA & is_infB))
+        # Inf if: any Inf (and not NaN case)
+        is_inf_in = is_infA | is_infB
+        # Zero if: any zero (and not NaN or Inf cases)
+        is_zero_in = is_zeroA | is_zeroB
+
+        return {
+            "is_eA_zero": is_eA_zero,
+            "is_eB_zero": is_eB_zero,
+            "is_zeroA": is_zeroA,
+            "is_zeroB": is_zeroB,
+            "is_nanA": is_nanA,
+            "is_nanB": is_nanB,
+            "is_infA": is_infA,
+            "is_infB": is_infB,
+            "is_nan_in": is_nan_in,
+            "is_inf_in": is_inf_in,
+            "is_zero_in": is_zero_in,
+        }
+
+    def _effective_mantissas(self, fA: Signal, fB: Signal, is_eA_zero: Signal, is_eB_zero: Signal):
+        FW = self.FW
+        one_and_frac_A = cat(fA, 1)  # width 1+FW
+        one_and_frac_B = cat(fB, 1)
+
+        mask_1pFW = (1 << (1 + FW)) - 1
+        mskA = mux(is_eA_zero, 0, mask_1pFW)
+        mskB = mux(is_eB_zero, 0, mask_1pFW)
+
+        mA_eff = one_and_frac_A & mskA  # (1+FW) bits
+        mB_eff = one_and_frac_B & mskB
+        return mA_eff, mB_eff
+
+    def _normalize_and_round(self, prod: Signal):
+        FW = self.FW
+        PROD_W = 2 + 2 * FW
+
+        msb_high = prod[PROD_W - 1]  # 1 if product ≥ 2.0
+
+        # Select normalized top (1+FW) bits (pre-round)
+        top_hi = prod[FW + 1 : PROD_W]  # when msb_high=1 → [FW+1 : 2*FW+1]
+        top_lo = prod[FW : PROD_W - 1]  # when msb_high=0 → [FW : 2*FW]
+        mant_pre = mux(msb_high, top_hi, top_lo)  # (1+FW) bits
+
+        # Rounding bits (GRS: guard/round/sticky)
+        guard_hi = prod[FW]  # when msb_high=1 → bit FW
+        guard_lo = prod[FW - 1]  # when msb_high=0 → bit FW-1
+        guard = mux(msb_high, guard_hi, guard_lo)
+
+        sticky_hi = _or_reduce_bits(prod, FW - 1, 0)  # when msb_high=1 → [0:FW]
+        sticky_lo = _or_reduce_bits(prod, FW - 2, 0)  # when msb_high=0 → [0:FW-1]
+        sticky = mux(msb_high, sticky_hi, sticky_lo)
+
+        lsb = mant_pre[0]  # LSB of current mantissa
+        round_up = guard & (sticky | lsb)  # round-to-nearest-even
+
+        # Add rounding increment (width grows by 1)
+        mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1 = FW+2
+        carry = mant_round[FW + 1]  # did rounding overflow?
+        mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])  # (1+FW) bits
+
+        frac_norm = mant_post[0:FW]  # drop hidden 1 → FW bits
+        return mant_post, frac_norm, msb_high, carry
+
+    def _compute_exponent(self, eA: Signal, eB: Signal, msb_high: Signal, carry: Signal, BIAS: int, MAX_FINITE_E: int):
+        EW = self.EW
+        exp_sum = eA + eB  # width EW+1
+        inc1 = mux(msb_high, 1, 0)
+        inc2 = mux(carry, 1, 0)
+
+        exp_sum_inc = (exp_sum + inc1) + inc2  # EW+2 bits
+        bias_const = BIAS
+        maxfinite_plus_bias = BIAS + MAX_FINITE_E
+
+        # Underflow if exp_sum_inc <= BIAS (no subnormal output → zero)
+        underflow = exp_sum_inc <= bias_const
+        # Overflow if exp_sum_inc > BIAS + MAX_FINITE_E
+        overflow = exp_sum_inc > maxfinite_plus_bias
+
+        # Normal exponent field (EW bits): exp = exp_sum_inc - BIAS
+        exp_unbiased = exp_sum_inc - bias_const  # width EW+2
+        exp_norm = exp_unbiased[0:EW]  # truncate to EW
+        return exp_norm, underflow, overflow
+
+    def _pack_result(self, sY: Signal, exp_norm: Signal, frac_norm: Signal, is_nan_in: Signal, is_inf_in: Signal, is_zero_in: Signal):
+        FW = self.FW
+        EW = self.EW
+        all1_E = (1 << EW) - 1
+        qnan_payload = (1 << (FW - 1)) if FW > 0 else 1  # canonical quiet NaN
+
+        # Priority: NaN > (Inf or overflow) > (Zero or underflow) > Normal
+        is_nan = is_nan_in
+        is_inf = (~is_nan) & is_inf_in
+        is_zero = (~is_nan) & (~is_inf) & is_zero_in
+
+        exp_field = mux(is_nan | is_inf, all1_E, mux(is_zero, 0, exp_norm))
+        frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
+        sign_field = mux(is_nan, 0, sY)  # sign is don't-care for NaN; choose 0
+        return sign_field, exp_field, frac_field
     
     @dataclass
     class IO:
@@ -59,42 +191,20 @@ class FpMul(Component):
         # ------------------
         # Field extraction
         # ------------------
-        sA = a[W - 1]  # sign
-        sB = b[W - 1]
-
-        eA = a[FW : W - 1]  # exponent EW bits
-        eB = b[FW : W - 1]
-
-        fA = a[0:FW]  # fraction FW bits
-        fB = b[0:FW]
+        sA, sB, eA, eB, fA, fB = self._extract_fields(a, b)
 
         # ------------------
         # Classifiers
         # ------------------
         exp_all_ones = MAX_E
-        is_eA_zero = eA == 0
-        is_eB_zero = eB == 0
-        is_fA_zero = fA == 0
-        is_fB_zero = fB == 0
-
-        is_zeroA = is_eA_zero & is_fA_zero
-        is_zeroB = is_eB_zero & is_fB_zero
-
-        is_eA_all1 = eA == exp_all_ones
-        is_eB_all1 = eB == exp_all_ones
-
-        is_nanA = is_eA_all1 & (fA != 0)
-        is_nanB = is_eB_all1 & (fB != 0)
-
-        is_infA = is_eA_all1 & (fA == 0)
-        is_infB = is_eB_all1 & (fB == 0)
-
-        # NaN if: any NaN, or Inf * 0 (either way)
-        is_nan_in = is_nanA | is_nanB | ((is_infA & is_zeroB) | (is_zeroA & is_infB))
-        # Inf if: any Inf (and not NaN case)
-        is_inf_in = is_infA | is_infB
-        # Zero if: any zero (and not NaN or Inf cases)
-        is_zero_in = is_zeroA | is_zeroB
+        cls = self._classify_operands(eA, eB, fA, fB, exp_all_ones)
+        is_eA_zero = cls["is_eA_zero"]
+        is_eB_zero = cls["is_eB_zero"]
+        is_zeroA = cls["is_zeroA"]
+        is_zeroB = cls["is_zeroB"]
+        is_nan_in = cls["is_nan_in"]
+        is_inf_in = cls["is_inf_in"]
+        is_zero_in = cls["is_zero_in"]
 
         # ------------------
         # Sign
@@ -104,15 +214,7 @@ class FpMul(Component):
         # ------------------
         # Effective mantissas with hidden '1' (mask out when exp==0 → treat as 0)
         # ------------------
-        one_and_frac_A = cat(fA, 1)  # width 1+FW
-        one_and_frac_B = cat(fB, 1)
-
-        mask_1pFW = (1 << (1 + FW)) - 1
-        mskA = mux(is_eA_zero, 0, mask_1pFW)
-        mskB = mux(is_eB_zero, 0, mask_1pFW)
-
-        mA_eff = one_and_frac_A & mskA  # (1+FW) bits
-        mB_eff = one_and_frac_B & mskB
+        mA_eff, mB_eff = self._effective_mantissas(fA, fB, is_eA_zero, is_eB_zero)
 
         # ------------------
         # Multiply mantissas (unsigned product)
@@ -129,73 +231,21 @@ class FpMul(Component):
 
         # Normalization: product ∈ [1.000..., 3.111...] range in fixed-point.
         # If MSB (bit PROD_W-1) is 1 (≥2.0), shift right by 1 and increment exponent.
-        msb_high = prod[PROD_W - 1]  # 1 if product ≥ 2.0
-
-        # Select normalized top (1+FW) bits (pre-round)
-        top_hi = prod[FW + 1 : PROD_W]  # when msb_high=1 → [FW+1 : 2*FW+1]
-        top_lo = prod[FW : PROD_W - 1]  # when msb_high=0 → [FW : 2*FW]
-        mant_pre = mux(msb_high, top_hi, top_lo)  # (1+FW) bits
-
-        # Rounding bits
-        #We implement GRS rounding:
-        # Guard: the bit immediately below the kept mantissa
-        # Sticky: OR of all bits below the guard
-        # LSB: the least‑significant bit of the kept mantissa
-        # Rule: round_up = guard & (sticky | lsb) (ties go to even via lsb)
-        guard_hi = prod[FW]  # when msb_high=1 → bit FW
-        guard_lo = prod[FW - 1]  # when msb_high=0 → bit FW-1
-        guard = mux(msb_high, guard_hi, guard_lo)
-
-        sticky_hi = _or_reduce_bits(prod, FW - 1, 0)  # when msb_high=1 → [0:FW]
-        sticky_lo = _or_reduce_bits(prod, FW - 2, 0)  # when msb_high=0 → [0:FW-1]
-        sticky = mux(msb_high, sticky_hi, sticky_lo)
-
-        lsb = mant_pre[0]  # LSB of current mantissa
-        round_up = guard & (sticky | lsb)  # round-to-nearest-even
-
-        # Add rounding increment (width grows by 1)
-        #If rounding overflowed (e.g., 1.111.. + 1 = 10.000..), we renormalize again 
-        # by shifting right one more and incrementing exponent again:
-        mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1 = FW+2
-        carry = mant_round[FW + 1]  # did rounding overflow?
-        mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])  # (1+FW) bits
-
-        frac_norm = mant_post[0:FW]  # drop hidden 1 → FW bits
+        mant_post, frac_norm, msb_high, carry = self._normalize_and_round(prod)
 
         # ------------------
         # Exponent path (unsigned math)
         # ------------------
-        exp_sum = eA + eB  # width EW+1
-        inc1 = mux(msb_high, 1, 0)
-        inc2 = mux(carry, 1, 0)
-
-        exp_sum_inc = (exp_sum + inc1) + inc2  # EW+2 bits
-        bias_const = BIAS
-        maxfinite_plus_bias = BIAS + MAX_FINITE_E
-
-        # Underflow if exp_sum_inc <= BIAS (no subnormal output → zero)
-        underflow = exp_sum_inc <= bias_const
-        # Overflow if exp_sum_inc > BIAS + MAX_FINITE_E
-        overflow = exp_sum_inc > maxfinite_plus_bias
-
-        # Normal exponent field (EW bits): exp = exp_sum_inc - BIAS
-        exp_unbiased = exp_sum_inc - bias_const  # width EW+2
-        exp_norm = exp_unbiased[0:EW]  # truncate to EW
+        exp_norm, underflow, overflow = self._compute_exponent(
+            eA, eB, msb_high, carry, BIAS, MAX_FINITE_E
+        )
 
         # ------------------
         # Special-case selection & packing
         # ------------------
-        all1_E = (1 << EW) - 1
-        qnan_payload = (1 << (FW - 1)) if FW > 0 else 1  # canonical quiet NaN
-
-        # Priority: NaN > (Inf or overflow) > (Zero or underflow) > Normal
-        is_nan = is_nan_in
-        is_inf = (~is_nan) & (is_inf_in | overflow)
-        is_zero = (~is_nan) & (~is_inf) & (is_zero_in | underflow)
-
-        exp_field = mux(is_nan | is_inf, all1_E, mux(is_zero, 0, exp_norm))
-        frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
-        sign_field = mux(is_nan, 0, sY)  # sign is don't-care for NaN; choose 0
+        sign_field, exp_field, frac_field = self._pack_result(
+            sY, exp_norm, frac_norm, is_nan_in, is_inf_in | overflow, is_zero_in | underflow
+        )
 
         y <<= cat(frac_field, exp_field, sign_field)
 
