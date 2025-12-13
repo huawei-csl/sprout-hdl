@@ -13,10 +13,19 @@
 #
 # Requires: Module, UInt, Bool, mux, cat from your sprout_hdl.
 
+from dataclasses import dataclass
 from typing import List
-from sprouthdl.sprouthdl_module import Module
+
+from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import *
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import bf16_to_float, build_bf16_vectors, build_f16_vectors, build_fp_mul, half_to_float, run_vectors_local
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import (
+    bf16_to_float,
+    build_bf16_vectors,
+    build_f16_vectors,
+    build_fp_mul,
+    half_to_float,
+    run_vectors_local,
+)
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
@@ -46,151 +55,167 @@ def _prefix_or_bits(x, width):
     return out
 
 
-def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> "Module":
-    W = 1 + EW + FW
-    BIAS = (1 << (EW - 1)) - 1
-    MAX_E = (1 << EW) - 1
-    MAX_FINITE_E = MAX_E - 1
+class FpMulSN(Component):
 
-    m = Module(name, with_clock=False, with_reset=False)
-    a = m.input(UInt(W), "a")
-    b = m.input(UInt(W), "b")
-    y = m.output(UInt(W), "y")
+    @dataclass
+    class IO:
+        a: Signal  # input
+        b: Signal  # input
+        y: Signal  # output
 
-    # Fields
-    sA = a[W - 1]
-    sB = b[W - 1]
-    eA = a[FW : W - 1]
-    eB = b[FW : W - 1]
-    fA = a[0:FW]
-    fB = b[0:FW]
+    def __init__(self, EW: int, FW: int, *, subnormals: bool = True) -> None:
+        self.EW = EW
+        self.FW = FW
+        self.W = 1 + EW + FW
+        self.subnormals = subnormals
+        self.BIAS = (1 << (EW - 1)) - 1
+        self.MAX_E = (1 << EW) - 1
+        self.MAX_FINITE_E = self.MAX_E - 1
 
-    # Classify
-    is_eA_zero = eA == 0
-    is_eB_zero = eB == 0
-    is_fA_zero = fA == 0
-    is_fB_zero = fB == 0
-    is_zeroA = is_eA_zero & is_fA_zero
-    is_zeroB = is_eB_zero & is_fB_zero
+        self.io = self.IO(
+            a=Signal(name="a", typ=UInt(self.W), kind="input"),
+            b=Signal(name="b", typ=UInt(self.W), kind="input"),
+            y=Signal(name="y", typ=UInt(self.W), kind="output"),
+        )
 
-    is_eA_all1 = eA == MAX_E
-    is_eB_all1 = eB == MAX_E
-    is_nanA = is_eA_all1 & (fA != 0)
-    is_nanB = is_eB_all1 & (fB != 0)
-    is_infA = is_eA_all1 & (fA == 0)
-    is_infB = is_eB_all1 & (fB == 0)
+        self.elaborate()
 
-    is_nan_in = is_nanA | is_nanB | ((is_infA & is_zeroB) | (is_zeroA & is_infB))
-    is_inf_in = is_infA | is_infB
-    is_zero_in = is_zeroA | is_zeroB
+    def _extract_fields(self, a: Signal, b: Signal):
+        W = self.W
+        FW = self.FW
+        sA = a[W - 1]
+        sB = b[W - 1]
+        eA = a[FW : W - 1]
+        eB = b[FW : W - 1]
+        fA = a[0:FW]
+        fB = b[0:FW]
+        return sA, sB, eA, eB, fA, fB
 
-    sY = sA ^ sB
+    def _classify_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal):
+        exp_all_ones = self.MAX_E
 
-    # Effective significands / exponents
-    if subnormals:
-        hiddenA = mux(is_eA_zero, 0, 1)
-        hiddenB = mux(is_eB_zero, 0, 1)
-        mA_eff = cat(fA, hiddenA)  # (1+FW)
-        mB_eff = cat(fB, hiddenB)
-        eA_eff = mux(is_eA_zero, 1, eA)  # so e_eff - BIAS = 1 - BIAS for subnormals
-        eB_eff = mux(is_eB_zero, 1, eB)
-    else:
-        mask = (1 << (1 + FW)) - 1
-        mA_eff = (cat(fA, 1)) & mux(is_eA_zero, 0, mask)
-        mB_eff = (cat(fB, 1)) & mux(is_eB_zero, 0, mask)
-        eA_eff = eA
-        eB_eff = eB
+        is_eA_zero = eA == 0
+        is_eB_zero = eB == 0
+        is_fA_zero = fA == 0
+        is_fB_zero = fB == 0
 
-    # Product
-    prod = mA_eff * mB_eff
-    PROD_W = 2 + 2 * FW
+        is_zeroA = is_eA_zero & is_fA_zero
+        is_zeroB = is_eB_zero & is_fB_zero
 
-    # ---------- Leading-zero count on 'prod' (duck-typed priority encoder) ----------
-    # is_msb_i: "all bits above i are 0" & "bit i is 1"
-    msb_flags = []
-    for i in range(PROD_W - 1, -1, -1):
-        if i == PROD_W - 1:
-            upper_zero = 1  # True
+        is_eA_all1 = eA == exp_all_ones
+        is_eB_all1 = eB == exp_all_ones
+
+        is_nanA = is_eA_all1 & (fA != 0)
+        is_nanB = is_eB_all1 & (fB != 0)
+        is_infA = is_eA_all1 & (fA == 0)
+        is_infB = is_eB_all1 & (fB == 0)
+
+        is_nan_in = is_nanA | is_nanB | ((is_infA & is_zeroB) | (is_zeroA & is_infB))
+        is_inf_in = is_infA | is_infB
+        is_zero_in = is_zeroA | is_zeroB
+
+        return {
+            "is_eA_zero": is_eA_zero,
+            "is_eB_zero": is_eB_zero,
+            "is_zeroA": is_zeroA,
+            "is_zeroB": is_zeroB,
+            "is_nan_in": is_nan_in,
+            "is_inf_in": is_inf_in,
+            "is_zero_in": is_zero_in,
+        }
+
+    def _effective_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal, is_eA_zero: Signal, is_eB_zero: Signal):
+        FW = self.FW
+        if self.subnormals:
+            hiddenA = mux(is_eA_zero, 0, 1)
+            hiddenB = mux(is_eB_zero, 0, 1)
+            mA_eff = cat(fA, hiddenA)
+            mB_eff = cat(fB, hiddenB)
+            eA_eff = mux(is_eA_zero, 1, eA)
+            eB_eff = mux(is_eB_zero, 1, eB)
         else:
-            upper_zero = prod[i + 1 : PROD_W] == 0
-        msb_flags.append(upper_zero & prod[i])  # Bool
-    # lz = number of zeros before first '1' from MSB side
-    # Build as a chain of muxes over constants (unique one-hot)
-    lz = 0
-    for idx, flag in enumerate(msb_flags):
-        i = (PROD_W - 1) - idx  # actual bit index tested
-        lz_const = (PROD_W - 1) - i  # = idx
-        lz = mux(flag, lz_const, lz)  # UInt-like
+            mask = (1 << (1 + FW)) - 1
+            mA_eff = (cat(fA, 1)) & mux(is_eA_zero, 0, mask)
+            mB_eff = (cat(fB, 1)) & mux(is_eB_zero, 0, mask)
+            eA_eff = eA
+            eB_eff = eB
+        return mA_eff, mB_eff, eA_eff, eB_eff
 
-    # Decide shift direction to align leading 1 to position FW
-    # Right shift if lz <= FW+1, else left shift by (lz - (FW+1))
-    need_right = lz <= (FW + 1)
-    sr = (FW + 1) - lz
-    sl = lz - (FW + 1)
+    def _leading_zero_count(self, prod: Signal):
+        FW = self.FW
+        PROD_W = 2 + 2 * FW
+        msb_flags = []
+        for i in range(PROD_W - 1, -1, -1):
+            upper_zero = 1 if i == PROD_W - 1 else prod[i + 1 : PROD_W] == 0
+            msb_flags.append(upper_zero & prod[i])
 
-    shifted_r = prod >> sr
-    shifted_l = prod << sl
-    shifted = mux(need_right, shifted_r, shifted_l)
+        lz = 0
+        for idx, flag in enumerate(msb_flags):
+            i = (PROD_W - 1) - idx
+            lz_const = (PROD_W - 1) - i
+            lz = mux(flag, lz_const, lz)
+        return lz
 
-    # Take normalized (1+FW) window (now leading 1 sits at bit FW)
-    mant_pre = shifted[0:FW + 1]  # (1+FW) bits
+    def _normalize_and_round(self, prod: Signal, lz: Signal):
+        FW = self.FW
+        PROD_W = 2 + 2 * FW
 
-    # Rounding (GRS)
-    # Right-shift path: guard = prod[sr-1], sticky = OR(prod[0 .. sr-2])
-    # Left-shift path:  guard=0, sticky=0 (left shift introduces zeros below)
-    # Prefix ORs for 'prod' LSB..i
-    pref = _prefix_or_bits(prod, PROD_W)
+        need_right = lz <= (FW + 1)
+        sr = (FW + 1) - lz
+        sl = lz - (FW + 1)
 
-    # dynamic select helpers
-    def _bit_at(vec, idx_expr):
-        acc = 0
-        for k in range(PROD_W):
-            acc = mux(idx_expr == k, vec[k], acc)
-        return acc
+        shifted = mux(need_right, prod >> sr, prod << sl)
+        mant_pre = shifted[0:FW + 1]
 
-    def _pref_at(idx_expr):
-        acc = 0
-        for k in range(PROD_W):
-            acc = mux(idx_expr == k, pref[k], acc)
-        return acc
+        pref = _prefix_or_bits(prod, PROD_W)
 
-    guard_r = _bit_at(prod, sr - 1)
-    sticky_r = _pref_at(sr - 2)
-    guard = mux(need_right, guard_r, 0)
-    sticky = mux(need_right, sticky_r, 0)
+        def _bit_at(vec, idx_expr):
+            acc = 0
+            for k in range(PROD_W):
+                acc = mux(idx_expr == k, vec[k], acc)
+            return acc
 
-    lsb = mant_pre[0]
-    round_up = guard & (sticky | lsb)
+        def _pref_at(idx_expr):
+            acc = 0
+            for k in range(PROD_W):
+                acc = mux(idx_expr == k, pref[k], acc)
+            return acc
 
-    mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1
-    carry = mant_round[FW + 1]
-    mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])  # (1+FW)
-    frac_norm = mant_post[0:FW]
+        guard_r = _bit_at(prod, sr - 1)
+        sticky_r = _pref_at(sr - 2)
+        guard = mux(need_right, guard_r, 0)
+        sticky = mux(need_right, sticky_r, 0)
 
-    # ---------- Exponent / range checks with lz ----------
-    exp_sum = eA_eff + eB_eff  # EW+1
-    lhs = (exp_sum + 1) + mux(carry, 1, 0)  # = eA_eff + eB_eff + 1 + carry
+        lsb = mant_pre[0]
+        round_up = guard & (sticky | lsb)
 
-    limit_under = BIAS + lz  # unsigned
-    limit_over = (BIAS + MAX_FINITE_E) + lz
+        mant_round = mant_pre + mux(round_up, 1, 0)
+        carry = mant_round[FW + 1]
+        mant_post = mux(carry, mant_round[1 : FW + 2], mant_round[0:FW + 1])
+        frac_norm = mant_post[0:FW]
+        return mant_post, frac_norm, carry
 
-    underflow = lhs <= limit_under
-    overflow = lhs > limit_over
+    def _exponent_path(self, eA_eff: Signal, eB_eff: Signal, carry: Signal, lz: Signal):
+        EW = self.EW
+        exp_sum = eA_eff + eB_eff
+        lhs = (exp_sum + 1) + mux(carry, 1, 0)
 
-    # Encoded exponent for normal case:
-    e_norm = lhs - limit_under  # = (eA+eB+1+carry) - (BIAS+lz)
-    exp_field_norm = e_norm[0:EW]
+        limit_under = self.BIAS + lz
+        limit_over = (self.BIAS + self.MAX_FINITE_E) + lz
 
-    # ---------- Subnormal output path (if enabled and underflow) ----------
-    if subnormals:
-        # shift_amt = (BIAS + lz) - (eA_eff + eB_eff + carry)
-        shift_amt = (BIAS + lz) - (exp_sum + mux(carry, 1, 0))
+        underflow = lhs <= limit_under
+        overflow = lhs > limit_over
 
-        sig_pre = mant_post  # (1+FW)
-        sig_shiftN = sig_pre >> shift_amt  # variable right shift
-        frac_trunc = sig_shiftN[0:FW]  # FW bits
+        e_norm = lhs - limit_under
+        exp_field_norm = e_norm[0:EW]
+        return exp_field_norm, underflow, overflow, exp_sum
 
-        # guard_s = bit at (shift_amt - 1) of sig_pre; sticky_s = OR(sig_pre[0 .. shift_amt-2])
+    def _subnormal_rounding(self, mant_post: Signal, shift_amt: Signal):
+        FW = self.FW
+        sig_pre = mant_post
+        sig_shiftN = sig_pre >> shift_amt
+        frac_trunc = sig_shiftN[0:FW]
+
         pref_sig = _prefix_or_bits(sig_pre, FW + 1)
 
         def _bit_at_sig(idx_expr):
@@ -209,37 +234,95 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
         sticky_s = _pref_sig_at(shift_amt - 2)
 
         lsb_s = frac_trunc[0]
-        # lsb_s = 0 # reproduces the error
         round_up_s = guard_s & (sticky_s | lsb_s)
 
-        frac_trunc_zext = cat(frac_trunc, 0)  # FW+1
+        frac_trunc_zext = cat(frac_trunc, 0)
         frac_sum = frac_trunc_zext + mux(round_up_s, 1, 0)
-        carry_s = frac_sum[FW]  # if overflow → becomes min normal
+        carry_s = frac_sum[FW]
         frac_field_sub = frac_sum[0:FW]
         exp_field_sub = mux(carry_s, 1, 0)
+        return exp_field_sub, frac_field_sub
 
-    # ---------- Pack with priority: NaN > Inf/overflow > Zero > Normal/Subnormal ----------
-    all1_E = (1 << EW) - 1
-    qnan_payload = (1 << (FW - 1)) if FW > 0 else 1
+    def _pack_result(self, sY: Signal, exp_field_norm: Signal, frac_norm: Signal, *, is_nan_in: Signal, is_inf_in: Signal, is_zero_in: Signal, underflow: Signal, overflow: Signal, exp_field_sub: Signal | None, frac_field_sub: Signal | None):
+        EW = self.EW
+        FW = self.FW
+        all1_E = (1 << EW) - 1
+        qnan_payload = (1 << (FW - 1)) if FW > 0 else 1
 
-    is_nan = is_nan_in
-    is_inf = (~is_nan) & (is_inf_in | overflow)
+        is_nan = is_nan_in
+        is_inf = (~is_nan) & (is_inf_in | overflow)
 
-    if subnormals:
-        is_sub_out = (~is_nan) & (~is_inf) & underflow
-        sub_is_zero = is_sub_out & ((exp_field_sub == 0) & (frac_field_sub == 0))
-        is_zero = (~is_nan) & (~is_inf) & (is_zero_in | sub_is_zero)
+        if self.subnormals:
+            is_sub_out = (~is_nan) & (~is_inf) & underflow
+            sub_is_zero = is_sub_out & ((exp_field_sub == 0) & (frac_field_sub == 0))
+            is_zero = (~is_nan) & (~is_inf) & (is_zero_in | sub_is_zero)
 
-        exp_field = mux(is_nan | is_inf, all1_E, mux(is_zero, 0, mux(is_sub_out, exp_field_sub, exp_field_norm)))
-        frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, mux(is_sub_out, frac_field_sub, frac_norm)))
-    else:
-        is_zero = (~is_nan) & (~is_inf) & (is_zero_in | underflow)
-        exp_field = mux(is_nan | is_inf, all1_E, mux(is_zero, 0, exp_field_norm))
-        frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
+            exp_field = mux(
+                is_nan | is_inf,
+                all1_E,
+                mux(is_zero, 0, mux(is_sub_out, exp_field_sub, exp_field_norm)),
+            )
+            frac_field = mux(
+                is_nan,
+                qnan_payload,
+                mux(is_inf | is_zero, 0, mux(is_sub_out, frac_field_sub, frac_norm)),
+            )
+        else:
+            is_zero = (~is_nan) & (~is_inf) & (is_zero_in | underflow)
+            exp_field = mux(is_nan | is_inf, all1_E, mux(is_zero, 0, exp_field_norm))
+            frac_field = mux(is_nan, qnan_payload, mux(is_inf | is_zero, 0, frac_norm))
 
-    sign_field = mux(is_nan, 0, sY)
-    y <<= cat(frac_field, exp_field, sign_field)
-    return m
+        sign_field = mux(is_nan, 0, sY)
+        return sign_field, exp_field, frac_field
+
+    def elaborate(self) -> None:
+        a = self.io.a
+        b = self.io.b
+        y = self.io.y
+
+        sA, sB, eA, eB, fA, fB = self._extract_fields(a, b)
+        cls = self._classify_operands(eA, eB, fA, fB)
+
+        sY = sA ^ sB
+
+        mA_eff, mB_eff, eA_eff, eB_eff = self._effective_operands(
+            eA, eB, fA, fB, cls["is_eA_zero"], cls["is_eB_zero"]
+        )
+
+        prod = mA_eff * mB_eff
+        lz = self._leading_zero_count(prod)
+
+        mant_post, frac_norm, carry = self._normalize_and_round(prod, lz)
+
+        exp_field_norm, underflow, overflow, exp_sum = self._exponent_path(
+            eA_eff, eB_eff, carry, lz
+        )
+
+        exp_field_sub = None
+        frac_field_sub = None
+        if self.subnormals:
+            shift_amt = (self.BIAS + lz) - (exp_sum + mux(carry, 1, 0))
+            exp_field_sub, frac_field_sub = self._subnormal_rounding(mant_post, shift_amt)
+
+        sign_field, exp_field, frac_field = self._pack_result(
+            sY,
+            exp_field_norm,
+            frac_norm,
+            is_nan_in=cls["is_nan_in"],
+            is_inf_in=cls["is_inf_in"],
+            is_zero_in=cls["is_zero_in"],
+            underflow=underflow,
+            overflow=overflow,
+            exp_field_sub=exp_field_sub,
+            frac_field_sub=frac_field_sub,
+        )
+
+        y <<= cat(frac_field, exp_field, sign_field)
+
+
+def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> "Module":
+    comp = FpMulSN(EW, FW, subnormals=subnormals)
+    return comp.to_module(name, with_clock=False, with_reset=False)
 
 
 # sanity_fp_mul_subnormals.py
