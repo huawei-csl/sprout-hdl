@@ -6,11 +6,11 @@ Sprout-HDL is a Python embedded domain-specific language (EDSL) for building dig
 
 Sprout-HDL revolves around a small set of core modules:
 
-- **`sprouthdl.sprouthdl`** – the expression DSL.  It provides bit-precise types such as `Bool`, `UInt`, and `SInt`, shared-expression caching, and the overloaded arithmetic / bitwise operators that make the Python syntax feel like an HDL.
-- **`sprouthdl.sprouthdl_module`** – structural modeling helpers.  The `Module` class constructs ports, wires, and registers, produces Verilog, and exposes analysis utilities.  The `Component` base class lets you package reusable sub-designs and convert them to or from Sprout modules.  `IOCollector` can rebuild packed ports from bit-level signals when importing external netlists.
-- **`sprouthdl.sprouthdl_simulator`** – a lightweight simulator that can drive inputs, tick clocks, inspect outputs or internal expressions, and capture probes for debugging—all without leaving Python.
+- **[`sprouthdl/sprouthdl.py`](src/sprouthdl/sprouthdl.py)** – the expression DSL.  It provides bit-precise types such as `Bool`, `UInt`, and `SInt`, shared-expression caching, and the overloaded arithmetic / bitwise operators that make the Python syntax feel like an HDL.
+- **[`sprouthdl/sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)** – structural modeling helpers.  The `Module` class constructs ports, wires, and registers, produces Verilog, and exposes analysis utilities.  The `Component` base class lets you package reusable sub-designs and convert them to or from Sprout modules.  `IOCollector` can rebuild packed ports from bit-level signals when importing external netlists.
+- **[`sprouthdl/sprouthdl_simulator.py`](src/sprouthdl/sprouthdl_simulator.py)** – a lightweight simulator that can drive inputs, tick clocks, inspect outputs or internal expressions, and capture probes for debugging—all without leaving Python.
 
-Supporting packages add reusable arithmetic building blocks and importer utilities for external netlists when you need to mix handwritten Sprout code with pre-existing IP.【F:low_level_arithmetic/multipliers_ext.py†L1-L182】【F:low_level_arithmetic/multipliers_ext_optimized.py†L1-L182】
+Supporting packages add reusable arithmetic building blocks and importer utilities for external netlists when you need to mix handwritten Sprout code with pre-existing IP; see [`mutipliers_ext.py`](src/sprouthdl/arithmetic/int_multipliers/multipliers/mutipliers_ext.py) and [`multipliers_ext_optimized.py`](src/sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py) for examples.
 
 ## Installation
 
@@ -48,7 +48,7 @@ out <<= mux(sel, a_and_b, b_or_a)
 print(m.to_verilog())
 ```
 
-The `Module` API checks that every output has a driver and every register has a next-state assignment before emitting Verilog.【F:sprouthdl/sprouthdl_module.py†L169-L235】
+The `Module` API checks that every output has a driver and every register has a next-state assignment before emitting Verilog (see [`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
 
 ### 2. Simulate the design
 
@@ -61,21 +61,52 @@ sim.eval()                 # recompute combinational logic
 print(sim.peek_outputs())   # {'sum': 0x64, 'mask': 0x9, 'out': 0x05}
 ```
 
-The simulator keeps track of inputs, wires, outputs, and registers, supports `eval()` for combinational updates, `step()` for clocked designs, and exposes helpers such as `peek`, `peek_next`, and signal watching for deeper inspection.【F:sprouthdl/sprouthdl_simulator.py†L16-L420】
+The simulator keeps track of inputs, wires, outputs, and registers, supports `eval()` for combinational updates, `step()` for clocked designs, and exposes helpers such as `peek`, `peek_next`, and signal watching for deeper inspection ([`sprouthdl_simulator.py`](src/sprouthdl/sprouthdl_simulator.py)).
 
 ### 3. Integrate with external tooling
 
-Modules can be exported to Verilog, AIG, or AAG for downstream synthesis, equivalence checking, or integration into larger verification environments.  Import helpers then let you bring optimized or third-party netlists back into Sprout for continued composition and simulation.【F:sprouthdl/sprouthdl_module.py†L169-L235】【F:low_level_arithmetic/multipliers_ext_optimized.py†L62-L132】
+Modules can be exported to Verilog, AIG, or AAG for downstream synthesis, equivalence checking, or integration into larger verification environments.  Import helpers then let you bring optimized or third-party netlists back into Sprout for continued composition and simulation (see [`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py) and [`multipliers_ext_optimized.py`](src/sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py)).
 
 ## Modules and components in detail
 
-- `Component` subclasses package reusable structures.  They can materialize new modules (`to_module`), import designs from Verilog or AIG formats (`from_verilog`, `from_aag_lines`), and retag ports as internals (`make_internal`).  Components also expose `get_spec()` to drive `IOCollector` regrouping when you import flattened designs.【F:sprouthdl/sprouthdl_module.py†L14-L94】
-- `Module` is typically used at the top level or as an intermediate representation while you are still wiring a design.  It offers constructors for inputs, outputs, wires, and registers; utilities for enumerating signals; Verilog emission with automatic width fitting; and a `module_analyze()` routine that reports combinational depth and node counts for timing exploration.【F:sprouthdl/sprouthdl_module.py†L96-L255】
-- `IOCollector` helps rebuild packed buses (e.g., `a[0] … a[N-1]` → `a[N-1:0]`) after reading back designs from AIG/AAG files or external synthesizers.【F:sprouthdl/sprouthdl_module.py†L302-L360】
+- `Component` subclasses package reusable structures.  They can materialize new modules (`to_module`), import designs from Verilog or AIG formats (`from_verilog`, `from_aag_lines`), and retag ports as internals (`make_internal`).  Components also expose `get_spec()` to drive `IOCollector` regrouping when you import flattened designs (see [`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
+- `Module` is typically used at the top level or as an intermediate representation while you are still wiring a design.  It offers constructors for inputs, outputs, wires, and registers; utilities for enumerating signals; Verilog emission with automatic width fitting; and a `module_analyze()` routine that reports combinational depth and node counts for timing exploration ([`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
+- `IOCollector` helps rebuild packed buses (e.g., `a[0] … a[N-1]` → `a[N-1:0]`) after reading back designs from AIG/AAG files or external synthesizers ([`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
 
 ### Hierarchical design with components
 
-Components are ideal for assembling hierarchical designs: they let you instantiate another component, adapt its IO, and even swap in a pre-synthesized netlist without leaving Python.  One common pattern wraps a reusable building block with `make_internal()` so that auxiliary logic can surround the core implementation while exposing a compact public interface.【F:low_level_arithmetic/multipliers_ext.py†L62-L152】  A related flow imports an external AIG module, converts it into a `Component`, and calls `from_module(..., make_internal=True)` so the imported logic behaves like a native Sprout block inside a larger generator.【F:low_level_arithmetic/multipliers_ext_optimized.py†L62-L132】  These techniques extend to Verilog importers and make it straightforward to mix Sprout-authored code with IP produced by external flows.
+Components are ideal for assembling hierarchical designs: they let you instantiate another component, adapt its IO, and even swap in a pre-synthesized netlist without leaving Python.  One common pattern wraps a reusable building block with `make_internal()` so that auxiliary logic can surround the core implementation while exposing a compact public interface (see [`mutipliers_ext.py`](src/sprouthdl/arithmetic/int_multipliers/multipliers/mutipliers_ext.py)).  A related flow imports an external AIG module, converts it into a `Component`, and calls `from_module(..., make_internal=True)` so the imported logic behaves like a native Sprout block inside a larger generator ([`multipliers_ext_optimized.py`](src/sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py)).  These techniques extend to Verilog importers and make it straightforward to mix Sprout-authored code with IP produced by external flows.
+
+## Aggregate data types
+
+Sprout includes structured, bit-packable aggregates for cleaner interfaces and bulk assignments ([`aggregate/`](src/sprouthdl/aggregate)):
+
+- `HDLAggregate` defines the base “pack to bits” API that powers all aggregates ([`hdl_aggregate.py`](src/sprouthdl/aggregate/hdl_aggregate.py)).
+- `Array` offers N-dimensional indexing, packed assignment (`<<=`), and element-wise assignment (`@=`) for nested vectors or aggregates ([`aggregate_array.py`](src/sprouthdl/aggregate/aggregate_array.py)).
+- `AggregateRecord` lets you declare bundle-like classes with named fields that remain packable to a flat bitvector ([`aggregate_record.py`](src/sprouthdl/aggregate/aggregate_record.py)).
+- `FixedPoint` wraps a `Wire` or view with explicit total/frac widths and quantization helpers, keeping arithmetic readable while staying hardware-friendly ([`aggregate_fixed_point.py`](src/sprouthdl/aggregate/aggregate_fixed_point.py)).
+- `AggregateRegister` stores any aggregate in a single register while preserving a structured view via `.value`/`.Q` ([`aggregate_register.py`](src/sprouthdl/aggregate/aggregate_register.py)).
+
+Example:
+
+```python
+from sprouthdl.aggregate.aggregate_array import Array
+from sprouthdl.aggregate.aggregate_record import AggregateRecord
+from sprouthdl.aggregate.aggregate_fixed_point import FixedPoint, FixedPointType
+from sprouthdl.aggregate.aggregate_register import AggregateRegister
+from sprouthdl.sprouthdl import UInt, Wire
+
+class Bus(AggregateRecord):
+    data = Wire(UInt(8))
+    valid = Wire(UInt(1))
+
+payload = Array([Bus(), Bus()])
+acc = FixedPoint(FixedPointType(width_total=16, width_frac=8))
+acc_reg = AggregateRegister(FixedPoint, acc.ftype, name="acc_reg")
+
+acc_reg <<= acc            # packed register write
+payload[1] @= payload[0]   # element-wise copy between bundles
+```
 
 ## Simulation notes
 
@@ -84,16 +115,26 @@ The simulator supports both combinational and sequential designs:
 - `eval()` recomputes combinational logic and captures registered probes.
 - `set()` and `get()` let you drive or inspect signals by name.
 - `step()` advances the clock, committing register next-state expressions while honoring asynchronous resets.
-- `watch()` and `peek_next()` provide scope-style visibility for debugging complex pipelines.【F:sprouthdl/sprouthdl_simulator.py†L49-L420】
+- `watch()` and `peek_next()` provide scope-style visibility for debugging complex pipelines.
 
 These capabilities align with the standard Sprout development flow: express a design, validate it in Python, then export it to your synthesis or verification stack.
+
+## Arithmetic generators
+
+The `sprouthdl/arithmetic` package collects reusable datapath blocks:
+
+- Integer multipliers include configurable stage-based designs and optimized AIG-backed implementations ([`int_multipliers/multipliers`](src/sprouthdl/arithmetic/int_multipliers/multipliers)).
+- Prefix adders cover several topologies for depth/area exploration ([`prefix_adders`](src/sprouthdl/arithmetic/prefix_adders)).
+- Floating-point helpers provide compact HiFloat-8 and related utilities ([`floating_point`](src/sprouthdl/arithmetic/floating_point)).
+
+Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
 
 ## Main development flow
 
 1. **Model logic in Python.** Use `Module` and DSL expressions to capture datapaths, state machines, and control logic.
 2. **Factor reusable pieces.** Wrap recurring structures in `Component` subclasses so they can be instantiated, parameterized, or replaced with imported implementations.
 3. **Simulate early and often.** Drive stimuli with the simulator, observe register evolution, and iterate on the Python source before handing designs to downstream tools.
-4. **Export netlists.** Emit Verilog or AIG/AAG when you are ready for synthesis, formal checking, or integration with external flows.【F:sprouthdl/sprouthdl_module.py†L169-L235】【F:low_level_arithmetic/multipliers_ext_optimized.py†L62-L132】
+4. **Export netlists.** Emit Verilog or AIG/AAG when you are ready for synthesis, formal checking, or integration with external flows.
 
 ## Examples
 
@@ -103,17 +144,17 @@ Check out the `testing/examples/` directory for practical examples:
 - **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
 - **`module_with_component.py`** – Shows how to integrate Components within Module-based designs
 
-See the [examples README](examples/README.md) for detailed documentation and key concepts.
+See the [examples README](testing/examples/README.md) for detailed documentation and key concepts.
 
 ## Next steps
 
 - Explore the `testing/examples/` directory to see working examples of components and modules
-- Explore the `sprouthdl/floating_point` and `low_level_arithmetic` packages for more generators.
-- Use `module_analyze()` to gauge combinational depth before synthesis.【F:sprouthdl/sprouthdl_module.py†L238-L255】
+- Explore the `sprouthdl/arithmetic` and `sprouthdl/arithmetic/floating_point` packages for more generators.
+- Use `module_analyze()` to gauge combinational depth before synthesis.
 - Integrate the simulator into your verification harness to shorten debug cycles.
 
 ## Slices
-We follow the indexing of pyton also in Sprout-HDL signals. For example `sig[4:7]` creates a new expression containing of bits 4 and 5 (counted from lsb) of the original expression `sig`.
+We follow the indexing of python also in Sprout-HDL signals. For example `sig[4:7]` creates a new expression containing of bits 4 and 5 (counted from lsb) of the original expression `sig`.
 
 # Running Scripts and Tests
 
@@ -131,7 +172,7 @@ python sprouthdl/arithmetic/int_multipliers/eval/plot/plotly_app.py --file data/
 ``` 
 or with the script 
 ```bash
-python sprouthdl/arithmetic/int_multipliers/eval/plot/multiplier_stage_plot.py --file  data/data_file.parquet`.
+python sprouthdl/arithmetic/int_multipliers/eval/plot/multiplier_stage_plot.py --file data/data_file.parquet
 ```
 Replace `data_file.parquet` with the file produced by the evaluate script.
 
