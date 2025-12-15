@@ -41,7 +41,7 @@ class FpAdd(Component):
 
     def _leading_one_pos(self, mant, width):
         pos = 0
-        for i in range(width - 1, -1, -1):
+        for i in range(width):
             pos = mux(mant[i], i, pos)
         return pos
 
@@ -62,19 +62,24 @@ class FpAdd(Component):
 
     def _effective_fields(self, exp, frac, is_exp_zero):
         hidden = mux(is_exp_zero, 0, 1)
-        mant = cat(hidden, frac)
+        # cat() expects LSB-first ordering, so place the hidden/implicit bit last
+        # to make it the MSB of the mantissa.
+        mant = cat(frac, hidden)
         eff_exp = mux(is_exp_zero, 1, exp)
         return mant, eff_exp
 
     def _align_operands(self, mA, mB, eA_eff, eB_eff, sA, sB):
         eA_gt = eA_eff > eB_eff
-        exp_delta = mux(eA_gt, eA_eff - eB_eff, eB_eff - eA_eff)
+        e_eq = eA_eff == eB_eff
+        mA_ge = mA >= mB
+        a_is_bigger = eA_gt | (e_eq & mA_ge)
+        exp_delta = mux(a_is_bigger, eA_eff - eB_eff, eB_eff - eA_eff)
 
-        m_big = mux(eA_gt, mA, mB)
-        m_small = mux(eA_gt, mB, mA)
-        s_big = mux(eA_gt, sA, sB)
-        s_small = mux(eA_gt, sB, sA)
-        e_big = mux(eA_gt, eA_eff, eB_eff)
+        m_big = mux(a_is_bigger, mA, mB)
+        m_small = mux(a_is_bigger, mB, mA)
+        s_big = mux(a_is_bigger, sA, sB)
+        s_small = mux(a_is_bigger, sB, sA)
+        e_big = mux(a_is_bigger, eA_eff, eB_eff)
 
         m_big_ext = cat(Const(0, UInt(2)), m_big)
         m_small_ext = cat(Const(0, UInt(2)), m_small)
@@ -87,18 +92,21 @@ class FpAdd(Component):
         mant_add = m_big_ext + m_small_shift
         mant_sub = m_big_ext - m_small_shift
         mant_mag = mux(same_sign, mant_add, mant_sub)
-        sign_out = mux(same_sign, s_big, mux(mant_sub[self.FW + 2], s_small, s_big))
+        zero_mag = mant_mag == 0
+        sign_out = mux(zero_mag, s_big & s_small, s_big)
         return mant_mag, sign_out
 
     def _normalize(self, mant_mag, e_big):
-        overflow = mant_mag[self.FW + 2]
-        mant_post_over = mant_mag >> 1
+        # mant_mag width is FW+4: [FW+3] is possible carry-out, [FW+2] is the expected hidden bit.
+        overflow = mant_mag[self.FW + 3]
+        mant_post_over = mant_mag >> 1  # normalize when carry-out is set
 
+        # Otherwise, shift left so that the leading 1 sits at bit (FW+2)
         lead_pos = self._leading_one_pos(mant_mag, self.FW + 3)
-        shift_norm = (self.FW + 1) - lead_pos
+        shift_norm = (self.FW + 2) - lead_pos
         mant_norm = mux(overflow, mant_post_over, mant_mag << shift_norm)
         exp_pre = e_big + mux(overflow, 1, 0) - mux(overflow, 0, shift_norm)
-        return mant_norm, exp_pre
+        return mant_norm, exp_pre, overflow, shift_norm
 
     def _select_special_result(
         self, sign_out, exp_out, frac_out, sA, sB, is_infA, is_infB, is_nanA, is_nanB
@@ -152,17 +160,17 @@ class FpAdd(Component):
         )
         mant_mag, sign_out = self._combine_mantissas(m_big_ext, m_small_shift, s_big, s_small)
 
-        mant_norm, exp_pre = self._normalize(mant_mag, e_big)
+        mant_norm, exp_pre, overflow_flag, shift_norm = self._normalize(mant_mag, e_big)
 
         frac_final = mant_norm[2 : self.FW + 2]
         exp_final = exp_pre
 
-        overflow_exp = exp_final >= self.MAX_E
-        underflow_exp = exp_final <= 0
+        overflow_exp = overflow_flag & (exp_final >= self.MAX_E)
+        underflow_exp = (~overflow_flag) & (e_big <= shift_norm)
 
         is_zero_res = underflow_exp | (mant_mag == 0)
-        exp_out = mux(overflow_exp, self.MAX_E, mux(is_zero_res, 0, exp_final))
-        frac_out = mux(is_zero_res, 0, frac_final)
+        exp_out = mux(is_zero_res, 0, mux(overflow_exp, self.MAX_E, exp_final))
+        frac_out = mux(is_zero_res, 0, mux(overflow_exp, 0, frac_final))
 
         sign_field, exp_field, frac_field = self._select_special_result(
             sign_out, exp_out, frac_out, sA, sB, is_infA, is_infB, is_nanA, is_nanB

@@ -17,6 +17,14 @@ def build_add_vectors(EW: int, FW: int):
     two = fp_encode(2.0, EW, FW)
     thr = fp_encode(3.0, EW, FW)
     half = fp_encode(0.5, EW, FW)
+    onept5 = fp_encode(1.5, EW, FW)
+    onept25 = fp_encode(1.25, EW, FW)
+    onept75 = fp_encode(1.75, EW, FW)
+    two_pt_five = fp_encode(2.5, EW, FW)
+    three_qtr = fp_encode(0.75, EW, FW)
+    quarter = fp_encode(0.25, EW, FW)
+    neg_onept25 = fp_encode(-1.25, EW, FW)
+    neg_half = fp_encode(-0.5, EW, FW)
     neg_two = fp_encode(-2.0, EW, FW)
     pos0 = bits_zero(EW, FW, 0)
     neg0 = bits_zero(EW, FW, 1)
@@ -27,7 +35,12 @@ def build_add_vectors(EW: int, FW: int):
     return [
         ("1+1=2", one, one, two),
         ("2+1=3", two, one, thr),
-        ("1+0.5=1.5", one, half, fp_encode(1.5, EW, FW)),
+        ("1+0.5=1.5", one, half, onept5),
+        ("0.75+0.75=1.5", three_qtr, three_qtr, onept5),
+        ("1.25+0.5=1.75", onept25, half, onept75),
+        ("1.5+(-1.25)=0.25", onept5, neg_onept25, quarter),
+        ("1.75+(-0.5)=1.25", onept75, neg_half, onept25),
+        ("2.5+1.5=4.0", two_pt_five, onept5, fp_encode(4.0, EW, FW)),
         ("-2+2=0", neg_two, two, pos0),
         ("(-0)+0=0", neg0, pos0, pos0),
         ("inf+(-inf)=nan", pinf, ninf, qnan),
