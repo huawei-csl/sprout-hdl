@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float import FpMul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
 from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, Signal, UInt, Wire, as_expr, fit_width
 
 
@@ -109,6 +110,25 @@ class FloatingPoint(HDLAggregate):
             target <<= bits
 
     # ---------------------------------
+    # Floating-point add helper
+    # ---------------------------------
+    def add(self, other: "FloatingPoint") -> "FloatingPoint":
+        if not isinstance(other, FloatingPoint):
+            raise TypeError(f"Expected FloatingPoint, got {type(other)}")
+        if self.ftype != other.ftype:
+            raise ValueError("FloatingPoint add requires matching types")
+
+        core = FpAdd(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width).make_internal()
+
+        core.io.a <<= self.bits
+        core.io.b <<= other.bits
+
+        return FloatingPoint(self.ftype, bits=core.io.y)
+
+    def __add__(self, other: "FloatingPoint") -> "FloatingPoint":
+        return self.add(other)
+
+    # ---------------------------------
     # Floating-point multiply helper
     # ---------------------------------
     def mul(self, other: "FloatingPoint") -> "FloatingPoint":
@@ -117,10 +137,7 @@ class FloatingPoint(HDLAggregate):
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint multiply requires matching types")
 
-        core = (
-            FpMul(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width)
-            .make_internal()
-        )
+        core = FpMul(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width).make_internal()
 
         core.io.a <<= self.bits
         core.io.b <<= other.bits

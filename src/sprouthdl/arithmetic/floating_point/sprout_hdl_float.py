@@ -22,15 +22,16 @@ def _or_reduce_bits(vec_expr, hi: int, lo: int):
         acc = acc | vec_expr[i]
     return acc
 
+@dataclass
+class FpMulIO:
+    a: Signal  # input
+    b: Signal  # input
+    y: Signal  # output
 
-class FpMul(Component):    
-    
-    @dataclass
-    class IO:
-        a: Signal # input
-        b: Signal # input
-        y: Signal # output
-    
+
+class FpMul(Component):
+
+
     def __init__(self, EW: int, FW: int) -> None:
         self.EW = EW
         self.FW = FW
@@ -137,7 +138,7 @@ class FpMul(Component):
         mant_pre = mux(msb_high, top_hi, top_lo)  # (1+FW) bits
 
         # Rounding bits
-        #We implement GRS rounding:
+        # We implement GRS rounding:
         # Guard: the bit immediately below the kept mantissa
         # Sticky: OR of all bits below the guard
         # LSB: the least‑significant bit of the kept mantissa
@@ -154,7 +155,7 @@ class FpMul(Component):
         round_up = guard & (sticky | lsb)  # round-to-nearest-even
 
         # Add rounding increment (width grows by 1)
-        #If rounding overflowed (e.g., 1.111.. + 1 = 10.000..), we renormalize again 
+        # If rounding overflowed (e.g., 1.111.. + 1 = 10.000..), we renormalize again
         # by shifting right one more and incrementing exponent again:
         mant_round = mant_pre + mux(round_up, 1, 0)  # width (1+FW)+1 = FW+2
         carry = mant_round[FW + 1]  # did rounding overflow?

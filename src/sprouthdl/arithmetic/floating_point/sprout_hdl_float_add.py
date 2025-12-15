@@ -27,7 +27,7 @@ class FpAdd(Component):
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
 
-        self.io = FpAddIO(
+        self.io: FpAddIO = FpAddIO(
             a=Signal(name="a", typ=UInt(self.W), kind="input"),
             b=Signal(name="b", typ=UInt(self.W), kind="input"),
             y=Signal(name="y", typ=UInt(self.W), kind="output"),
