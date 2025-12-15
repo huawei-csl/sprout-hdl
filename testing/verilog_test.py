@@ -4,7 +4,7 @@ from aigverse import equivalence_checking, read_verilog_into_aig
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, file_to_lines, read_aag_into_aig
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_vectors, half_to_float, run_vectors_local
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_vectors, half_to_float, run_vectors_aby
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_f16_subnormal_vectors, build_fp_mul_sn
 from sprouthdl.sprouthdl_module import IOCollector
 
@@ -204,8 +204,8 @@ def main():
     print(f"Back AIG Size: {aig_back.size()}")
 
     # simulations:
-    run_vectors_local(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
-    run_vectors_local(m_back, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(m_back, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
 
     assert equivalence_checking(aig, aig_back), "AIGs are not equivalent after conversion!"
 

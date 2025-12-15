@@ -303,8 +303,13 @@ def bf16_to_float(b: int) -> float:
 
 VecLocal = Tuple[str, int, int, int]
 VecGeneric = Tuple[str, Dict[str, int], Dict[str, int]]
+def testvectors_aby_to_dict(vectors: List[VecLocal]) -> List[VecGeneric]:
+    out: List[VecGeneric] = []
+    for name, a_hex, b_hex, exp_hex in vectors:
+        out.append((name, {"a": a_hex, "b": b_hex}, {"y": exp_hex}))
+    return out
 
-def run_vectors_local(
+def run_vectors_aby(
     mod: Module,
     vectors: List[Tuple[str, int, int, int]],
     *,
@@ -314,19 +319,12 @@ def run_vectors_local(
     raise_on_fail: bool = False,     # local used to never raise
     print_on_pass: bool = True,      # local used to print everything
     with_clk: bool = False,
-) -> int:    
-
-    
-    def _local_to_generic(vectors: List[VecLocal]) -> List[VecGeneric]:
-        out: List[VecGeneric] = []
-        for name, a_hex, b_hex, exp_hex in vectors:
-            out.append((name, {"a": a_hex, "b": b_hex}, {"y": exp_hex}))
-        return out
+) -> int:   
     
     sim = Simulator(mod)
     print(f"\n== {label} ==")
 
-    generic = _local_to_generic(vectors)
+    generic = testvectors_aby_to_dict(vectors)
     
     # This prints PASS/FAIL, but note: it won't print a/b like your old local version.
     fails = run_vectors_on_simulator(
@@ -400,8 +398,8 @@ if __name__ == "__main__":
     f16 = build_f16_mul("F16Mul")
     bf16 = build_bf16_mul("BF16Mul")
 
-    run_vectors_local(f16, build_f16_vectors(), label="float16 (binary16)", decoder=half_to_float)
-    run_vectors_local(bf16, build_bf16_vectors(), label="bfloat16", decoder=bf16_to_float)
+    run_vectors_aby(f16, build_f16_vectors(), label="float16 (binary16)", decoder=half_to_float)
+    run_vectors_aby(bf16, build_bf16_vectors(), label="bfloat16", decoder=bf16_to_float)
 
     mul16 = build_f16_mul("F16Mul")
     # print(mul16.to_verilog())

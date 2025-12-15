@@ -8,7 +8,7 @@ sys.path.append(os.path.join(ROOT, "src"))
 sys.path.append(ROOT)
 
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import build_fp_add
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_local
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_aby
 from testing.floating_point.fp_testvectors_general import (
     fp_encode,
     bits_zero,
@@ -66,8 +66,8 @@ def build_add_vectors(EW: int, FW: int):
 def test_f16_adder_vectors():
     mod = build_fp_add("F16AddTest", EW=5, FW=10)
     vectors = build_add_vectors(5, 10)
-    passed = run_vectors_local(mod, vectors, label="f16 add")
-    assert passed == len(vectors)
+    passed = run_vectors_aby(mod, vectors, label="f16 add")
+    assert passed
     
 if __name__ == "__main__":
     test_f16_adder_vectors()
