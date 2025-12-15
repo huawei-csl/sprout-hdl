@@ -60,20 +60,6 @@ class MultiplierConfig:
         assert self.encodings is not None, "encodings must be provided for explicit multipliers"
         assert self.ppg_opt is not None and self.ppa_opt is not None and self.fsa_opt is not None
 
-        enc_a, enc_b = a, b
-        enc_cfg = self.encoding_cfg
-        if enc_cfg and enc_cfg.encoder_cls is not None:
-            enc_a_comp = enc_cfg.encoder_cls(
-                width=a.typ.width, clip_most_negative=enc_cfg.encoder_clip_most_negative
-            ).make_internal()
-            enc_b_comp = enc_cfg.encoder_cls(
-                width=b.typ.width, clip_most_negative=enc_cfg.encoder_clip_most_negative
-            ).make_internal()
-            enc_a_comp.io.i <<= a
-            enc_b_comp.io.i <<= b
-            enc_a = enc_a_comp.io.o
-            enc_b = enc_b_comp.io.o
-
         multiplier = self.multiplier_opt.value(
             a_w=a.typ.width,
             b_w=b.typ.width,
@@ -84,10 +70,11 @@ class MultiplierConfig:
             fsa_cls=self.fsa_opt.value,
             optim_type=self.optim_type,
         ).make_internal()
-        multiplier.io.a <<= enc_a
-        multiplier.io.b <<= enc_b
+        multiplier.io.a <<= a
+        multiplier.io.b <<= b
         y_expr: Expr = multiplier.io.y
 
+        enc_cfg = self.encoding_cfg
         if enc_cfg and enc_cfg.decoder_cls is not None:
             decoder = enc_cfg.decoder_cls(
                 width=y_expr.typ.width, clip_most_negative=enc_cfg.decoder_clip_most_negative
@@ -203,13 +190,35 @@ class MatmulAccumulateComponent(Component):
 
         self.io = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
 
+    def _encode_matrix(self, matrix: Array) -> Array:
+        enc_cfg = self.mult_cfg.encoding_cfg
+        if enc_cfg is None or enc_cfg.encoder_cls is None:
+            return matrix
+
+        encoded_rows = []
+        for i in range(self.dim):
+            encoded_row = []
+            for j in range(self.dim):
+                encoder = enc_cfg.encoder_cls(
+                    width=matrix[i, j].typ.width,
+                    clip_most_negative=enc_cfg.encoder_clip_most_negative,
+                ).make_internal()
+                encoder.io.i <<= matrix[i, j]
+                encoded_row.append(encoder.io.o)
+            encoded_rows.append(Array(encoded_row))
+
+        return Array(encoded_rows)
+
     def elaborate(self):
+        encoded_A = self._encode_matrix(self.A)
+        encoded_B = self._encode_matrix(self.B)
+
         rows = []
         for i in range(self.dim):
             row = []
-            a_row = self.A[i, :]
+            a_row = encoded_A[i, :]
             for j in range(self.dim):
-                b_col = self.B[:, j]
+                b_col = encoded_B[:, j]
                 dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg)
                 acc = self.add_cfg.build(self.C[i, j], dot)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
