@@ -13,7 +13,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
@@ -263,9 +263,10 @@ def test_mmac_core_basic_simulation():
     sim = Simulator(core_build_out.module)
 
     rng = np.random.default_rng(seed=42)
-    a_min, a_max = (0, 2**a_width - 1) if not is_signed(mult_cfg.encodings.a) else (-(2**(a_width - 1)), 2**(a_width - 1) - 1)
-    b_min, b_max = (0, 2**b_width - 1) if not is_signed(mult_cfg.encodings.b) else (-(2**(b_width - 1)), 2**(b_width - 1) - 1)
-    c_min, c_max = (0, 2**c_width - 1) if not is_signed(add_cfg.encoding) else (-(2**(c_width - 1)), 2**(c_width - 1) - 1)
+
+    a_min, a_max = EncodingModel(encoding).value_range(a_width)
+    b_min, b_max = EncodingModel(encoding).value_range(b_width)
+    c_min, c_max = EncodingModel(encoding).value_range(c_width)
     a_vals = rng.integers(a_min, a_max, size=(dim, dim), dtype=int)
     b_vals = rng.integers(b_min, b_max, size=(dim, dim), dtype=int)
     c_vals = rng.integers(c_min, c_max, size=(dim, dim), dtype=int)
@@ -290,8 +291,6 @@ def test_mmac_core_basic_simulation():
     # get yosys transistor count
     yosys_metrics = get_yosys_metrics(core_build_out.module)
     print(f"Yosys metrics: {yosys_metrics}")
-
-    return core_build_out
 
 
 if __name__ == "__main__":

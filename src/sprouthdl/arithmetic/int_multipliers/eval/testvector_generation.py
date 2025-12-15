@@ -1,11 +1,9 @@
 from enum import Enum
 import random
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import numpy as np
 
-
-from sprouthdl.sprouthdl import UInt
 
 # enum for
 
@@ -22,7 +20,7 @@ class Encoding(Enum):
     twos_complement_overflow = "twos_complement_overflow"
     onehot = "onehot"
     sign_magnitude_ext_up = "sign_magnitude_ext_up"
-    
+
 _SIGNED_encodings = {
     Encoding.twos_complement,
     Encoding.twos_complement_symmetric,
@@ -44,7 +42,90 @@ def from_encoding(fmt: Encoding) -> bool:
     assert fmt in {Encoding.twos_complement, Encoding.unsigned}, f"Cannot convert encoding {fmt} to bool"
     return fmt == Encoding.twos_complement
 
-class TwoInputArithmeticTestVectors:   
+class EncodingModel:
+
+    def __init__(self, encoding: Encoding):
+        self.encoding = encoding
+
+    def value_range(self, width: int) -> Tuple[int, int]:
+        fmt = self.encoding
+        if fmt in [Encoding.twos_complement, Encoding.sign_magnitude_ext]:
+            return (-(1 << (width - 1)), (1 << (width - 1)) - 1)
+        if fmt == Encoding.twos_complement_symmetric:
+            limit = (1 << (width - 1)) - 1
+            return (-limit, limit)
+        if fmt == Encoding.twos_complement_upper:  # extend on the upper side
+            return (-(1 << (width - 1)) + 1, (1 << (width - 1)))
+        if fmt in [Encoding.sign_magnitude]:
+            limit = (1 << (width - 1)) - 1
+            return (-limit, limit)
+        if fmt == Encoding.sign_magnitude_ext_up:  # extend on the upper side
+            return (-(1 << (width - 1) + 1), (1 << (width - 1)))
+        if fmt == Encoding.onehot:
+            return (0, max(width - 1, 0))
+        # unsigned-like encodings (unsigned, gray)
+        return (0, (1 << width) - 1)
+
+    @staticmethod
+    def _clamp(value: int, lo: int, hi: int) -> int:
+        return max(min(value, hi), lo)
+
+    def encode_value(self, value: int, width: int) -> int:
+        clamped = self._clamp(value, *self.value_range(width))
+        fmt = self.encoding
+        if fmt == Encoding.onehot:
+            return 1 << clamped
+        if fmt == Encoding.gray:
+            return clamped ^ (clamped >> 1)
+        if fmt in [Encoding.sign_magnitude, Encoding.sign_magnitude_ext]:
+            sign_bit = 1 if clamped < 0 else 0
+            magnitude = abs(clamped)
+            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
+            return (sign_bit << (width - 1)) | magnitude
+        if fmt == Encoding.sign_magnitude_ext_up:
+            sign_bit = 1 if clamped < 0 else 0
+            magnitude = abs(clamped)
+            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
+            if clamped == (1 << (width - 1)):
+                sign_bit = 1  # 100..0 represents the upper limit
+            return (sign_bit << (width - 1)) | magnitude
+        if fmt in [Encoding.twos_complement, Encoding.twos_complement_symmetric, Encoding.twos_complement_upper]:
+            if clamped < 0:
+                return (1 << width) + clamped  # two's complement representation
+            else:
+                return clamped
+        if fmt == Encoding.unsigned_overflow or fmt == Encoding.twos_complement_overflow:
+            return value % (1 << width)
+        return clamped
+
+    def get_normal_sample(self, width: int, tb_sigma: float) -> int:
+        if tb_sigma is None:
+            raise ValueError("tb_sigma must be set to sample normally distributed values")
+
+        lo, hi = self.value_range(width)
+        if self.encoding == Encoding.onehot:
+            center = (width - 1) / 2 if width > 0 else 0
+            raw_value = int(np.round(np.random.normal(center, tb_sigma)))
+            raw_value = self._clamp(raw_value, lo, hi)
+            return raw_value
+
+        mean = 0 if is_signed(self.encoding) else (lo + hi) / 2
+        raw_value = int(np.round(np.random.normal(mean, tb_sigma)))
+        raw_value = self._clamp(raw_value, lo, hi)
+        return raw_value
+
+    def get_uniform_sample(self, width: int) -> int:
+        lo, hi = self.value_range(width)
+        if self.encoding == Encoding.onehot:
+            if width <= 0:
+                return 0
+            raw_value = random.randrange(width)
+            return raw_value
+        raw_value = random.randint(lo, hi)
+        return raw_value
+
+
+class TwoInputArithmeticTestVectorsBase:
 
     def __init__(
         self,
@@ -62,86 +143,14 @@ class TwoInputArithmeticTestVectors:
         self.y_w = a_w + b_w if y_w is None else y_w
         self.num_vectors = num_vectors
         self.tb_sigma = tb_sigma
-        self.a_encoding = a_encoding
-        self.b_encoding = b_encoding
-        self.y_encoding = y_encoding           
-    
-    @staticmethod
-    def _value_range(fmt: Encoding, width: int) -> Tuple[int, int]:
-        if fmt in [Encoding.twos_complement, Encoding.sign_magnitude_ext]:
-            return (-(1 << (width - 1)), (1 << (width - 1)) - 1)
-        if fmt == Encoding.twos_complement_symmetric:
-            limit = (1 << (width - 1)) - 1
-            return (-limit, limit)
-        if fmt == Encoding.twos_complement_upper: # extend on the upper side
-            return (-(1 << (width - 1))+1, (1 << (width - 1)))
-        if fmt in [Encoding.sign_magnitude]:
-            limit = (1 << (width - 1)) - 1
-            return (-limit, limit)
-        if fmt== Encoding.sign_magnitude_ext_up: # extend on the upper side
-            return (-(1 << (width - 1) + 1), (1 << (width - 1)))
-        if fmt == Encoding.onehot:
-            return (0, max(width - 1, 0))
-        # unsigned-like encodings (unsigned, gray)
-        return (0, (1 << width) - 1)
-    
-    @staticmethod
-    def _clamp(value: int, lo: int, hi: int) -> int:
-        return max(min(value, hi), lo)
-    
-    @staticmethod
-    def _encode_value(fmt: Encoding, value: int, width: int) -> int:
-        # to be sure lets clamp
-        clamped = MultiplierTestVectors._clamp(value, *MultiplierTestVectors._value_range(fmt, width))
-        if fmt == Encoding.onehot:
-            return 1 << clamped
-        if fmt == Encoding.gray:            
-            return clamped ^ (clamped >> 1)
-        if fmt in [Encoding.sign_magnitude, Encoding.sign_magnitude_ext]:
-            sign_bit = 1 if clamped < 0 else 0
-            magnitude = abs(clamped)
-            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
-            return (sign_bit << (width - 1)) | magnitude
-        if fmt == Encoding.sign_magnitude_ext_up:
-            sign_bit = 1 if clamped < 0 else 0
-            magnitude = abs(clamped)
-            magnitude = magnitude & ((1 << (width - 1)) - 1)  # mask to width-1 bits
-            if clamped == (1 << (width - 1)):
-                sign_bit = 1 # 100..0 represents the upper limit
-            return (sign_bit << (width - 1)) | magnitude
-        if fmt in [Encoding.twos_complement, Encoding.twos_complement_symmetric, Encoding.twos_complement_upper]:
-            if clamped < 0:
-                return (1 << width) + clamped  # two's complement representation
-            else:
-                return clamped
-        if fmt == Encoding.unsigned_overflow or fmt == Encoding.twos_complement_overflow:
-            return value % (1 << width)
-        return clamped
-    
-    def get_normal_sample(self, fmt: Encoding, width: int) -> int:
-        lo, hi = self._value_range(fmt, width)
-        if fmt == Encoding.onehot:
-            center = (width - 1) / 2 if width > 0 else 0
-            raw_value = int(np.round(np.random.normal(center, self.tb_sigma)))
-            raw_value = self._clamp(raw_value, lo, hi)
-            return raw_value
-    
-        mean = 0 if is_signed(fmt) else (lo + hi) / 2
-        raw_value = int(np.round(np.random.normal(mean, self.tb_sigma)))
-        raw_value = self._clamp(raw_value, lo, hi)
-        return raw_value
-    
-    def get_uniform_sample(self, fmt: Encoding, width: int) -> int:
-        lo, hi = self._value_range(fmt, width)
-        if fmt == Encoding.onehot:
-            if width <= 0:
-                return 0
-            raw_value = random.randrange(width)
-            return raw_value
-        raw_value = random.randint(lo, hi)
-        return raw_value
+        self.a_encoding_model = EncodingModel(a_encoding)
+        self.b_encoding_model = EncodingModel(b_encoding)
+        self.y_encoding_model = EncodingModel(y_encoding)
+        
+    def generate(self) -> Tuple:
+        raise NotImplementedError()
 
-class MultiplierTestVectors(TwoInputArithmeticTestVectors):
+class MultiplierTestVectors(TwoInputArithmeticTestVectorsBase):
 
     def generate(self) -> Tuple:
 
@@ -151,17 +160,16 @@ class MultiplierTestVectors(TwoInputArithmeticTestVectors):
         vecs = []
         for _ in range(self.num_vectors):
             if self.tb_sigma is not None:
-                va_value = self.get_normal_sample(self.a_encoding, self.a_w)
-                vb_value = self.get_normal_sample(self.b_encoding, self.b_w)
+                va_value = self.a_encoding_model.get_normal_sample(self.a_w, self.tb_sigma)
+                vb_value = self.b_encoding_model.get_normal_sample(self.b_w, self.tb_sigma)
             else:
-                va_value = self.get_uniform_sample(self.a_encoding, self.a_w)
-                vb_value = self.get_uniform_sample(self.b_encoding, self.b_w)
-
-            va_encoded = self._encode_value(self.a_encoding, va_value, self.a_w)
-            vb_encoded = self._encode_value(self.b_encoding, vb_value, self.b_w)
+                va_value = self.a_encoding_model.get_uniform_sample(self.a_w)
+                vb_value = self.b_encoding_model.get_uniform_sample(self.b_w)
+            va_encoded = self.a_encoding_model.encode_value(va_value, self.a_w)
+            vb_encoded = self.b_encoding_model.encode_value(vb_value, self.b_w)
 
             y_value = va_value * vb_value
-            y_encoded = self._encode_value(self.y_encoding, y_value, self.y_w)
+            y_encoded = self.y_encoding_model.encode_value(y_value, self.y_w)
 
             # append test vector
             vecs.append(
@@ -171,26 +179,26 @@ class MultiplierTestVectors(TwoInputArithmeticTestVectors):
         return vecs
 
 
-class MultiplierTestVectorsExhaustive(TwoInputArithmeticTestVectors):
+class MultiplierTestVectorsExhaustive(TwoInputArithmeticTestVectorsBase):
 
     def generate_encoding_tables(self) -> Tuple[dict, dict, dict]:
         a_table = {}
         b_table = {}
         y_table = {}
 
-        a_lo, a_hi = self._value_range(self.a_encoding, self.a_w)
+        a_lo, a_hi = self.a_encoding_model.value_range(self.a_w)
         for val in range(a_lo, a_hi + 1):
-            enc = self._encode_value(self.a_encoding, val, self.a_w)
+            enc = self.a_encoding_model.encode_value(val, self.a_w)
             a_table[enc] = val
 
-        b_lo, b_hi = self._value_range(self.b_encoding, self.b_w)
+        b_lo, b_hi = self.b_encoding_model.value_range(self.b_w)
         for val in range(b_lo, b_hi + 1):
-            enc = self._encode_value(self.b_encoding, val, self.b_w)
+            enc = self.b_encoding_model.encode_value(val, self.b_w)
             b_table[enc] = val
 
-        y_lo, y_hi = self._value_range(self.y_encoding, self.y_w)
+        y_lo, y_hi = self.y_encoding_model.value_range(self.y_w)
         for val in range(y_lo, y_hi + 1):
-            enc = self._encode_value(self.y_encoding, val, self.y_w)
+            enc = self.y_encoding_model.encode_value(val, self.y_w)
             y_table[enc] = val
 
         return a_table, b_table, y_table
@@ -224,7 +232,7 @@ class MultiplierTestVectorsExhaustive(TwoInputArithmeticTestVectors):
         return vecs
 
 
-class AdderTestVectors(TwoInputArithmeticTestVectors):
+class AdderTestVectors(TwoInputArithmeticTestVectorsBase):
 
     def __init__(
         self,
@@ -256,17 +264,17 @@ class AdderTestVectors(TwoInputArithmeticTestVectors):
         vecs = []
         for _ in range(self.num_vectors):
             if self.tb_sigma is not None:
-                va_value = self.get_normal_sample(self.a_encoding, self.a_w)
-                vb_value = self.get_normal_sample(self.b_encoding, self.b_w)
+                va_value = self.a_encoding_model.get_normal_sample(self.a_w, self.tb_sigma)
+                vb_value = self.b_encoding_model.get_normal_sample(self.b_w, self.tb_sigma)
             else:
-                va_value = self.get_uniform_sample(self.a_encoding, self.a_w)
-                vb_value = self.get_uniform_sample(self.b_encoding, self.b_w)
+                va_value = self.a_encoding_model.get_uniform_sample(self.a_w)
+                vb_value = self.b_encoding_model.get_uniform_sample(self.b_w)
 
-            va_encoded = self._encode_value(self.a_encoding, va_value, self.a_w)
-            vb_encoded = self._encode_value(self.b_encoding, vb_value, self.b_w)
+            va_encoded = self.a_encoding_model.encode_value(va_value, self.a_w)
+            vb_encoded = self.b_encoding_model.encode_value(vb_value, self.b_w)
 
             y_value = va_value + vb_value
-            y_encoded = self._encode_value(self.y_encoding, y_value, self.y_w)
+            y_encoded = self.y_encoding_model.encode_value(y_value, self.y_w)
 
             vecs.append(
                 (f"{va_value}+{vb_value}", {"a": va_encoded, "b": vb_encoded}, {"y": y_encoded})
