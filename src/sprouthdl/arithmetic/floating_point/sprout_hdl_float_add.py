@@ -7,6 +7,7 @@ of NaN/Inf/zero plus subnormal inputs by treating their implicit leading bit as
 """
 
 from dataclasses import dataclass
+from typing import Tuple
 
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import Expr, Signal, UInt, cat, mux, Const
@@ -36,7 +37,7 @@ class FpAdd(Component):
         self.elaborate()
 
     # Helpers -------------------------------------------------------------
-    def _shift_right(self, mant, shift):
+    def _shift_right(self, mant: Expr, shift: Expr) -> Expr:
         return mant >> shift
 
     def _leading_one_pos(self, mant: Expr, width: int) -> Expr:
@@ -53,13 +54,13 @@ class FpAdd(Component):
             found = found | mant[i]
         return pos
 
-    def _extract_fields(self, operand):
+    def _extract_fields(self, operand: Expr) -> Tuple[Expr, Expr, Expr]:
         sign = operand[self.W - 1]
         exp = operand[self.FW : self.W - 1]
         frac = operand[0 : self.FW]
         return sign, exp, frac
 
-    def _classify_operand(self, exp, frac):
+    def _classify_operand(self, exp: Expr, frac: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr]:
         is_e_zero = exp == 0
         is_f_zero = frac == 0
         is_zero = is_e_zero & is_f_zero
@@ -68,7 +69,7 @@ class FpAdd(Component):
         is_inf = is_e_all1 & (frac == 0)
         return is_zero, is_nan, is_inf, is_e_zero, is_f_zero
 
-    def _effective_fields(self, exp, frac, is_exp_zero):
+    def _effective_fields(self, exp: Expr, frac: Expr, is_exp_zero: Expr) -> Tuple[Expr, Expr]:
         hidden = mux(is_exp_zero, 0, 1)
         # cat() expects LSB-first ordering, so place the hidden/implicit bit last
         # to make it the MSB of the mantissa.
@@ -76,7 +77,7 @@ class FpAdd(Component):
         eff_exp = mux(is_exp_zero, 1, exp)
         return mant, eff_exp
 
-    def _align_operands(self, mA, mB, eA_eff, eB_eff, sA, sB):
+    def _align_operands(self, mA: Expr, mB: Expr, eA_eff: Expr, eB_eff: Expr, sA: Expr, sB: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr]:
         eA_gt = eA_eff > eB_eff
         e_eq = eA_eff == eB_eff
         mA_ge = mA >= mB
@@ -95,7 +96,7 @@ class FpAdd(Component):
 
         return e_big, m_big_ext, m_small_shift, s_big, s_small
 
-    def _combine_mantissas(self, m_big_ext, m_small_shift, s_big, s_small):
+    def _combine_mantissas(self, m_big_ext: Expr, m_small_shift: Expr, s_big: Expr, s_small: Expr) -> Tuple[Expr, Expr]:
         same_sign = s_big == s_small
         mant_add = m_big_ext + m_small_shift
         mant_sub = m_big_ext - m_small_shift
@@ -104,7 +105,7 @@ class FpAdd(Component):
         sign_out = mux(zero_mag, s_big & s_small, s_big)
         return mant_mag, sign_out
 
-    def _normalize(self, mant_mag, e_big):
+    def _normalize(self, mant_mag: Expr, e_big: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         # mant_mag width is FW+4: [FW+3] is possible carry-out, [FW+2] is the expected hidden bit.
         overflow = mant_mag[self.FW + 3]
         mant_post_over = mant_mag >> 1  # normalize when carry-out is set
@@ -117,8 +118,17 @@ class FpAdd(Component):
         return mant_norm, exp_pre, overflow, shift_norm
 
     def _select_special_result(
-        self, sign_out, exp_out, frac_out, sA, sB, is_infA, is_infB, is_nanA, is_nanB
-    ):
+        self,
+        sign_out: Expr,
+        exp_out: Expr,
+        frac_out: Expr,
+        sA: Expr,
+        sB: Expr,
+        is_infA: Expr,
+        is_infB: Expr,
+        is_nanA: Expr,
+        is_nanB: Expr,
+    ) -> Tuple[Expr, Expr, Expr]:
         nan_in = is_nanA | is_nanB
         inf_in = is_infA | is_infB
 

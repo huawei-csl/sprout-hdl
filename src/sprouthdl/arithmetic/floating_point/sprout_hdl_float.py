@@ -6,6 +6,7 @@
 # - bfloat16: EW=8, FW=7    (total 16)
 
 from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -13,7 +14,7 @@ from sprouthdl.sprouthdl_simulator import Simulator
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
 
 
-def _or_reduce_bits(vec_expr, hi: int, lo: int):
+def _or_reduce_bits(vec_expr: Expr, hi: int, lo: int) -> Expr:
     """OR-reduce bits vec_expr[lo:hi+1] (inclusive). If hi < lo, returns 0."""
     if hi < lo:
         return 0
@@ -25,7 +26,7 @@ def _or_reduce_bits(vec_expr, hi: int, lo: int):
 
 class FpMul(Component):
 
-    def _extract_fields(self, a: Signal, b: Signal):
+    def _extract_fields(self, a: Expr, b: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr, Expr]:
         W = self.W
         FW = self.FW
         sA = a[W - 1]  # sign
@@ -38,7 +39,7 @@ class FpMul(Component):
         fB = b[0:FW]
         return sA, sB, eA, eB, fA, fB
 
-    def _classify_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal, exp_all_ones: int):
+    def _classify_operands(self, eA: Expr, eB: Expr, fA: Expr, fB: Expr, exp_all_ones: int) -> Dict[str, Expr]:
         is_eA_zero = eA == 0
         is_eB_zero = eB == 0
         is_fA_zero = fA == 0
@@ -77,7 +78,7 @@ class FpMul(Component):
             "is_zero_in": is_zero_in,
         }
 
-    def _effective_mantissas(self, fA: Signal, fB: Signal, is_eA_zero: Signal, is_eB_zero: Signal):
+    def _effective_mantissas(self, fA: Expr, fB: Expr, is_eA_zero: Expr, is_eB_zero: Expr) -> Tuple[Expr, Expr]:
         FW = self.FW
         one_and_frac_A = cat(fA, 1)  # width 1+FW
         one_and_frac_B = cat(fB, 1)
@@ -90,7 +91,7 @@ class FpMul(Component):
         mB_eff = one_and_frac_B & mskB
         return mA_eff, mB_eff
 
-    def _normalize_and_round(self, prod: Signal):
+    def _normalize_and_round(self, prod: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         FW = self.FW
         PROD_W = 2 + 2 * FW
 
@@ -121,7 +122,7 @@ class FpMul(Component):
         frac_norm = mant_post[0:FW]  # drop hidden 1 → FW bits
         return mant_post, frac_norm, msb_high, carry
 
-    def _compute_exponent(self, eA: Signal, eB: Signal, msb_high: Signal, carry: Signal, BIAS: int, MAX_FINITE_E: int):
+    def _compute_exponent(self, eA: Expr, eB: Expr, msb_high: Expr, carry: Expr, BIAS: int, MAX_FINITE_E: int) -> Tuple[Expr, Expr, Expr]:
         EW = self.EW
         exp_sum = eA + eB  # width EW+1
         inc1 = mux(msb_high, 1, 0)
@@ -141,7 +142,7 @@ class FpMul(Component):
         exp_norm = exp_unbiased[0:EW]  # truncate to EW
         return exp_norm, underflow, overflow
 
-    def _pack_result(self, sY: Signal, exp_norm: Signal, frac_norm: Signal, is_nan_in: Signal, is_inf_in: Signal, is_zero_in: Signal):
+    def _pack_result(self, sY: Expr, exp_norm: Expr, frac_norm: Expr, is_nan_in: Expr, is_inf_in: Expr, is_zero_in: Expr) -> Tuple[Expr, Expr, Expr]:
         FW = self.FW
         EW = self.EW
         all1_E = (1 << EW) - 1
@@ -268,7 +269,7 @@ def build_bf16_mul(name: str = "BF16Mul") -> Module:
 # Or adapt the imports to your paths (e.g., from sprout_hdl import ...)
 
 
-def half_to_float(h):
+def half_to_float(h: int) -> float:
     s = (h >> 15) & 1
     e = (h >> 10) & 0x1F
     f = h & 0x3FF
@@ -284,7 +285,7 @@ def half_to_float(h):
     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 10))
 
 
-def bf16_to_float(b):
+def bf16_to_float(b: int) -> float:
     s = (b >> 15) & 1
     e = (b >> 7) & 0xFF
     f = b & 0x7F
@@ -300,7 +301,13 @@ def bf16_to_float(b):
     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 7))
 
 
-def run_vectors_local(mod, vectors, *, label="", decoder=None):
+def run_vectors_local(
+    mod: Module,
+    vectors: List[Tuple[str, int, int, int]],
+    *,
+    label: str = "",
+    decoder: Optional[Callable[[int], float]] = None,
+) -> int:
     sim = Simulator(mod)
     print(f"\n== {label} ==")
     ok = 0
@@ -317,7 +324,7 @@ def run_vectors_local(mod, vectors, *, label="", decoder=None):
     return ok
 
 
-def build_f16_vectors():
+def build_f16_vectors() -> List[Tuple[str, int, int, int]]:
     # float16 (binary16) constants
     #  +0    0x0000   -0    0x8000
     #  +1.0  0x3C00   +2.0  0x4000   +3.0  0x4200   +4.0  0x4400
@@ -343,7 +350,7 @@ def build_f16_vectors():
     ]
 
 
-def build_bf16_vectors():
+def build_bf16_vectors() -> List[Tuple[str, int, int, int]]:
     # bfloat16 constants
     #  +0    0x0000   -0    0x8000
     #  +1.0  0x3F80   +1.5  0x3FC0   +2.0  0x4000   +3.0  0x4040   +4.0  0x4080

@@ -14,7 +14,7 @@
 # Requires: Module, UInt, Bool, mux, cat from your sprout_hdl.
 
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List, Optional, Tuple
 
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import *
@@ -33,7 +33,7 @@ from sprouthdl.sprouthdl_simulator import Simulator
 
 
 # ---- tiny helpers used inside build_fp_mul ----
-def _or_reduce_bits(vec_expr, hi: int, lo: int):
+def _or_reduce_bits(vec_expr: Expr, hi: int, lo: int) -> Expr:
     if hi < lo:
         return 0
     acc = 0
@@ -42,7 +42,7 @@ def _or_reduce_bits(vec_expr, hi: int, lo: int):
     return acc
 
 
-def _prefix_or_bits(x, width):
+def _prefix_or_bits(x: Expr, width: int) -> List[Expr]:
     """Return [ OR(x[0:0]), OR(x[0:1]), ..., OR(x[0:width-1]) ]"""
     out = []
     if width <= 0:
@@ -79,8 +79,7 @@ class FpMulSN(Component):
         )
 
         self.elaborate()
-
-    def _extract_fields(self, a: Signal, b: Signal):
+    def _extract_fields(self, a: Expr, b: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr, Expr]:
         W = self.W
         FW = self.FW
         sA = a[W - 1]
@@ -91,7 +90,7 @@ class FpMulSN(Component):
         fB = b[0:FW]
         return sA, sB, eA, eB, fA, fB
 
-    def _classify_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal):
+    def _classify_operands(self, eA: Expr, eB: Expr, fA: Expr, fB: Expr) -> Dict[str, Expr]:
         exp_all_ones = self.MAX_E
 
         is_eA_zero = eA == 0
@@ -123,8 +122,7 @@ class FpMulSN(Component):
             "is_inf_in": is_inf_in,
             "is_zero_in": is_zero_in,
         }
-
-    def _effective_operands(self, eA: Signal, eB: Signal, fA: Signal, fB: Signal, is_eA_zero: Signal, is_eB_zero: Signal):
+    def _effective_operands(self, eA: Expr, eB: Expr, fA: Expr, fB: Expr, is_eA_zero: Expr, is_eB_zero: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         FW = self.FW
         if self.subnormals:
             hiddenA = mux(is_eA_zero, 0, 1)
@@ -141,7 +139,7 @@ class FpMulSN(Component):
             eB_eff = eB
         return mA_eff, mB_eff, eA_eff, eB_eff
 
-    def _leading_zero_count(self, prod: Signal):
+    def _leading_zero_count(self, prod: Expr) -> Expr:
         FW = self.FW
         PROD_W = 2 + 2 * FW
         msb_flags = []
@@ -156,7 +154,7 @@ class FpMulSN(Component):
             lz = mux(flag, lz_const, lz)
         return lz
 
-    def _normalize_and_round(self, prod: Signal, lz: Signal):
+    def _normalize_and_round(self, prod: Expr, lz: Expr) -> Tuple[Expr, Expr, Expr]:
         FW = self.FW
         PROD_W = 2 + 2 * FW
 
@@ -169,13 +167,13 @@ class FpMulSN(Component):
 
         pref = _prefix_or_bits(prod, PROD_W)
 
-        def _bit_at(vec, idx_expr):
+        def _bit_at(vec: Expr, idx_expr: Expr) -> Expr:
             acc = 0
             for k in range(PROD_W):
                 acc = mux(idx_expr == k, vec[k], acc)
             return acc
 
-        def _pref_at(idx_expr):
+        def _pref_at(idx_expr: Expr) -> Expr:
             acc = 0
             for k in range(PROD_W):
                 acc = mux(idx_expr == k, pref[k], acc)
@@ -195,7 +193,7 @@ class FpMulSN(Component):
         frac_norm = mant_post[0:FW]
         return mant_post, frac_norm, carry
 
-    def _exponent_path(self, eA_eff: Signal, eB_eff: Signal, carry: Signal, lz: Signal):
+    def _exponent_path(self, eA_eff: Expr, eB_eff: Expr, carry: Expr, lz: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         EW = self.EW
         exp_sum = eA_eff + eB_eff
         lhs = (exp_sum + 1) + mux(carry, 1, 0)
@@ -210,7 +208,7 @@ class FpMulSN(Component):
         exp_field_norm = e_norm[0:EW]
         return exp_field_norm, underflow, overflow, exp_sum
 
-    def _subnormal_rounding(self, mant_post: Signal, shift_amt: Signal):
+    def _subnormal_rounding(self, mant_post: Expr, shift_amt: Expr) -> Tuple[Expr, Expr]:
         FW = self.FW
         sig_pre = mant_post
         sig_shiftN = sig_pre >> shift_amt
@@ -218,13 +216,13 @@ class FpMulSN(Component):
 
         pref_sig = _prefix_or_bits(sig_pre, FW + 1)
 
-        def _bit_at_sig(idx_expr):
+        def _bit_at_sig(idx_expr: Expr) -> Expr:
             acc = 0
             for k in range(FW + 1):
                 acc = mux(idx_expr == k, sig_pre[k], acc)
             return acc
 
-        def _pref_sig_at(idx_expr):
+        def _pref_sig_at(idx_expr: Expr) -> Expr:
             acc = 0
             for k in range(FW + 1):
                 acc = mux(idx_expr == k, pref_sig[k], acc)
@@ -243,7 +241,7 @@ class FpMulSN(Component):
         exp_field_sub = mux(carry_s, 1, 0)
         return exp_field_sub, frac_field_sub
 
-    def _pack_result(self, sY: Signal, exp_field_norm: Signal, frac_norm: Signal, *, is_nan_in: Signal, is_inf_in: Signal, is_zero_in: Signal, underflow: Signal, overflow: Signal, exp_field_sub: Signal | None, frac_field_sub: Signal | None):
+    def _pack_result(self, sY: Expr, exp_field_norm: Expr, frac_norm: Expr, *, is_nan_in: Expr, is_inf_in: Expr, is_zero_in: Expr, underflow: Expr, overflow: Expr, exp_field_sub: Optional[Expr], frac_field_sub: Optional[Expr]) -> Tuple[Expr, Expr, Expr]:
         EW = self.EW
         FW = self.FW
         all1_E = (1 << EW) - 1
@@ -393,7 +391,7 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
 #   3.0          = 0x4200
 #   max subnorm  = 0x03FF
 #   min subnorm  = 0x0001
-def build_f16_subnormal_vectors():
+def build_f16_subnormal_vectors() -> List[Tuple[str, int, int, int]]:
     return [
         # Exact power-of-two scalings from min normal → subnormals
         ("minNorm * 0.5  -> sub",            0x0400, 0x3800, 0x0200),  # 2^-14 * 2^-1 = 2^-15
@@ -430,7 +428,7 @@ def build_f16_subnormal_vectors():
 #   3.0          = 0x4040
 #   max subnorm  = 0x007F
 #   min subnorm  = 0x0001
-def build_bf16_subnormal_vectors():
+def build_bf16_subnormal_vectors() -> List[Tuple[str, int, int, int]]:
     return [
         # Exact power-of-two scalings from min normal → subnormals
         ("minNorm * 0.5  -> sub",            0x0080, 0x3F00, 0x0040),  # 2^-127
@@ -452,7 +450,7 @@ def build_bf16_subnormal_vectors():
         ("minSub * minSub -> 0",             0x0001, 0x0001, 0x0000),
     ]
 
-def build_f16_subnormal_ext_vectors():
+def build_f16_subnormal_ext_vectors() -> List[Tuple[str, int, int, int]]:
     return [  # (value, 0.5) → expected
         # odd subnormals: N/2 is x.5 → tie-to-even
         ("0x0001 * 0.5 (tie->even)", 0x0001, 0x3800, 0x0000),  # 0.5 ulp → 0x0000
