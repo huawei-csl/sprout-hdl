@@ -198,8 +198,7 @@ def run_vectors_on_simulator(
     if fails and raise_on_fail:
         raise AssertionError(f"{fails}/{len(vectors)} vectors failed")
 
-
-    #return states_list
+    return fails
 
 def get_switch_count(states_list) -> float:
     # get all ids from step 0

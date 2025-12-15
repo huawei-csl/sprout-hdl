@@ -7,6 +7,7 @@
 
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
+from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -300,6 +301,8 @@ def bf16_to_float(b: int) -> float:
         return float("nan")
     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 7))
 
+VecLocal = Tuple[str, int, int, int]
+VecGeneric = Tuple[str, Dict[str, int], Dict[str, int]]
 
 def run_vectors_local(
     mod: Module,
@@ -307,21 +310,37 @@ def run_vectors_local(
     *,
     label: str = "",
     decoder: Optional[Callable[[int], float]] = None,
-) -> int:
+    use_signed: bool = False,
+    raise_on_fail: bool = False,     # local used to never raise
+    print_on_pass: bool = True,      # local used to print everything
+    with_clk: bool = False,
+) -> int:    
+
+    
+    def _local_to_generic(vectors: List[VecLocal]) -> List[VecGeneric]:
+        out: List[VecGeneric] = []
+        for name, a_hex, b_hex, exp_hex in vectors:
+            out.append((name, {"a": a_hex, "b": b_hex}, {"y": exp_hex}))
+        return out
+    
     sim = Simulator(mod)
     print(f"\n== {label} ==")
-    ok = 0
-    for name, a_hex, b_hex, exp_hex in vectors:
-        sim.set("a", a_hex).set("b", b_hex).eval()
-        got = sim.get("y")
-        pass_fail = "PASS" if got == exp_hex else "FAIL"
-        extra = ""
-        if decoder is not None:
-            extra = f"  val={decoder(got):.8g} (exp {decoder(exp_hex):.8g})"
-        print(f"{pass_fail:4s}  {name:25s}  a=0x{a_hex:04X}  b=0x{b_hex:04X}  -> y=0x{got:04X}  (exp 0x{exp_hex:04X}){extra}")
-        ok += got == exp_hex
-    print(f"Summary: {ok}/{len(vectors)} passed.\n")
-    return ok
+
+    generic = _local_to_generic(vectors)
+    
+    # This prints PASS/FAIL, but note: it won't print a/b like your old local version.
+    fails = run_vectors_on_simulator(
+        sim,
+        generic,
+        decoder=decoder,
+        use_signed=use_signed,
+        raise_on_fail=raise_on_fail,
+        print_on_pass=print_on_pass,
+        with_clk=with_clk,
+        test_name=label or None,
+    )
+    
+    return fails==0
 
 
 def build_f16_vectors() -> List[Tuple[str, int, int, int]]:

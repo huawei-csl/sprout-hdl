@@ -1,10 +1,10 @@
 import abc
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import ClassVar, DefaultDict, Dict, List, Literal, Optional, Tuple, Type
 
 import numpy as np
 
+from sprouthdl.arithmetic.encoding.sign_magnitude import SignMagnitudeToTwosComplementDecoder
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, from_encoding, to_encoding
 from sprouthdl.sprouthdl_module import Component
@@ -319,36 +319,6 @@ class StageBasedSignMagnitudeExtUpMultiplier(StageBasedMultiplierBase):
 
         self.io.y <<= Concat([mag_y_mod[0 : 2 * W - 2], sy])  # sign + magnitude (drop overflow bit)
 
-@dataclass
-class EncoderIO:
-    i: Signal
-    o: Signal
-
-class SignMagnitudeToTwosComplementEncoder(Component):
-
-    def __init__(self, width: int) -> None:
-        self.width = width
-
-        self.io: EncoderIO = EncoderIO(
-            i=Signal(name="i", typ=UInt(width), kind="input"),
-            o=Signal(name="o", typ=UInt(width), kind="output"),
-        )
-
-        self.elaborate()
-
-    def elaborate(self) -> None:
-
-        W = self.width
-
-        sign = self.io.i[W - 1]
-        mag = self.io.i[0 : W - 1]
-
-        self.io.o <<= mux_if(
-                if_cond=(sign == 0),
-                then_expr=Concat([mag, Const(0, Bool())]),
-                else_expr=Concat([(~mag + 1)[0 : W - 1], Const(1, Bool())]),
-            )
-
 class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedMultiplierBase):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -382,7 +352,7 @@ class StageBasedSignMagnitudeToTwosComplementMultiplier(StageBasedMultiplierBase
 
         self.mult = mult
 
-        enc = SignMagnitudeToTwosComplementEncoder(width=self.aw + self.bw - 1).make_internal()
+        enc = SignMagnitudeToTwosComplementDecoder(width=self.aw + self.bw - 1).make_internal()
         enc.io.i <<= mult.io.y
         self.io.y <<= enc.io.o
 
@@ -422,7 +392,7 @@ class StageBasedSignMagnitudeExtToTwosComplementMultiplier(StageBasedMultiplierB
 
         self.mult = mult
 
-        enc = SignMagnitudeToTwosComplementEncoder(width=self.aw + self.bw).make_internal()
+        enc = SignMagnitudeToTwosComplementDecoder(width=self.aw + self.bw).make_internal()
         enc.io.i <<= mult.io.y
         self.io.y <<= enc.io.o
 
@@ -462,7 +432,7 @@ class StageBasedSignMagnitudeExtToTwosComplementUpperMultiplier(StageBasedMultip
 
         self.mult = mult
 
-        enc = SignMagnitudeToTwosComplementEncoder(width=self.aw + self.bw - 1).make_internal()
+        enc = SignMagnitudeToTwosComplementDecoder(width=self.aw + self.bw - 1).make_internal()
         enc.io.i <<= mult.io.y
         self.io.y <<= enc.io.o
 

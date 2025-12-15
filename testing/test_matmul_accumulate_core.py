@@ -13,10 +13,10 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics
-from sprouthdl.sprouthdl import Expr, Signal, UInt
+from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
@@ -60,7 +60,7 @@ class AdderConfig:
     """Configuration for choosing between Sprout operator and explicit adder."""
 
     use_operator: bool = False
-    signed: bool = False
+    encoding: Encoding = Encoding.unsigned
     optim_type: Literal["area", "speed"] = "area"
     fsa_opt: FSAOption | None = None
     full_output_bit: bool = True
@@ -69,11 +69,13 @@ class AdderConfig:
         if self.use_operator:
             return a + b
 
+        signed = is_signed(self.encoding)
+
         adder = StageBasedPrefixAdder(
             a_w=a.typ.width,
             b_w=b.typ.width,
-            signed_a=self.signed,
-            signed_b=self.signed,
+            signed_a=signed,
+            signed_b=signed,
             optim_type=self.optim_type,
             fsa_cls=self.fsa_opt.value,
             full_output_bit=self.full_output_bit,
@@ -134,13 +136,15 @@ class MatmulAccumulateComponent(Component):
         self.c_width = c_width
         self.mult_cfg = mult_cfg
         self.add_cfg = add_cfg
+        
+        self.io_hdl_type = SInt if is_signed(add_cfg.encoding) else UInt
 
         def build_matrix(name: str, width: int, kind: str = "wire") -> Array:
             return Array(
                 [
                     Array(
                         [
-                            Signal(name=f"{name}_{i}_{j}", typ=UInt(width), kind=kind)
+                            Signal(name=f"{name}_{i}_{j}", typ=self.io_hdl_type(width), kind=kind)
                             for j in range(dim)
                         ]
                     )
@@ -165,7 +169,7 @@ class MatmulAccumulateComponent(Component):
                 b_col = self.B[:, j]
                 dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg)
                 acc = self.add_cfg.build(self.C[i, j], dot)
-                y_sig = Signal(name=f"y_{i}_{j}", typ=acc.typ, kind="output")
+                y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
                 row.append(y_sig)
             rows.append(Array(row))
@@ -233,15 +237,21 @@ def test_mmac_core_basic_simulation():
     c_width = 20
 
     # use sprout operators
-    #mult_cfg = MultiplierConfig(use_operator=True)
-    #add_cfg = AdderConfig(use_operator=True, full_output_bit=True)
+    # mult_cfg = MultiplierConfig(use_operator=True)
+    # add_cfg = AdderConfig(use_operator=True, full_output_bit=True)
+
+    encoding = Encoding.twos_complement
 
     # use custom multiplier and adder
-    mult_cfg = MultiplierConfig(use_operator=False,
-                                multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
-                                encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
-                                ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
-    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
+    mult_cfg = MultiplierConfig(
+        use_operator=False,
+        multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
+        encodings=TwoInputAritEncodings.with_enc(encoding),
+        ppg_opt=PPGOption.BAUGH_WOOLEY if is_signed(encoding) else PPGOption.AND,
+        ppa_opt=PPAOption.WALLACE_TREE,
+        fsa_opt=FSAOption.RIPPLE_CARRY,
+    )
+    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding)
 
     core_build_out = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
@@ -253,9 +263,12 @@ def test_mmac_core_basic_simulation():
     sim = Simulator(core_build_out.module)
 
     rng = np.random.default_rng(seed=42)
-    a_vals = rng.integers(0, 2**a_width, size=(dim, dim), dtype=int)
-    b_vals = rng.integers(0, 2**b_width, size=(dim, dim), dtype=int)
-    c_vals = rng.integers(0, 2**c_width, size=(dim, dim), dtype=int)
+    a_min, a_max = (0, 2**a_width - 1) if not is_signed(mult_cfg.encodings.a) else (-(2**(a_width - 1)), 2**(a_width - 1) - 1)
+    b_min, b_max = (0, 2**b_width - 1) if not is_signed(mult_cfg.encodings.b) else (-(2**(b_width - 1)), 2**(b_width - 1) - 1)
+    c_min, c_max = (0, 2**c_width - 1) if not is_signed(add_cfg.encoding) else (-(2**(c_width - 1)), 2**(c_width - 1) - 1)
+    a_vals = rng.integers(a_min, a_max, size=(dim, dim), dtype=int)
+    b_vals = rng.integers(b_min, b_max, size=(dim, dim), dtype=int)
+    c_vals = rng.integers(c_min, c_max, size=(dim, dim), dtype=int)
 
     for i in range(dim):
         for j in range(dim):
@@ -277,7 +290,7 @@ def test_mmac_core_basic_simulation():
     # get yosys transistor count
     yosys_metrics = get_yosys_metrics(core_build_out.module)
     print(f"Yosys metrics: {yosys_metrics}")
-    
+
     return core_build_out
 
 
