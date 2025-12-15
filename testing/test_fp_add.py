@@ -9,7 +9,14 @@ sys.path.append(ROOT)
 
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import build_fp_add
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_local
-from testing.floating_point.fp_testvectors_general import fp_encode, bits_zero, bits_inf, bits_qnan
+from testing.floating_point.fp_testvectors_general import (
+    fp_encode,
+    bits_zero,
+    bits_inf,
+    bits_qnan,
+    bits_min_normal,
+    bits_max_sub,
+)
 
 
 def build_add_vectors(EW: int, FW: int):
@@ -26,6 +33,10 @@ def build_add_vectors(EW: int, FW: int):
     neg_onept25 = fp_encode(-1.25, EW, FW)
     neg_half = fp_encode(-0.5, EW, FW)
     neg_two = fp_encode(-2.0, EW, FW)
+    min_norm = bits_min_normal(EW, FW)
+    max_sub = bits_max_sub(EW, FW)
+    neg_min_norm = min_norm | (1 << (EW + FW))
+    neg_max_sub = max_sub | (1 << (EW + FW))
     pos0 = bits_zero(EW, FW, 0)
     neg0 = bits_zero(EW, FW, 1)
     pinf = bits_inf(EW, FW, 0)
@@ -40,7 +51,10 @@ def build_add_vectors(EW: int, FW: int):
         ("1.25+0.5=1.75", onept25, half, onept75),
         ("1.5+(-1.25)=0.25", onept5, neg_onept25, quarter),
         ("1.75+(-0.5)=1.25", onept75, neg_half, onept25),
+        ("1.5+1.5=3.0", onept5, onept5, fp_encode(3.0, EW, FW)),
         ("2.5+1.5=4.0", two_pt_five, onept5, fp_encode(4.0, EW, FW)),
+        ("minNorm+(-maxSub)=0 (flush)", min_norm, neg_max_sub, pos0),
+        ("minNorm+(-minNorm)=+0", min_norm, neg_min_norm, pos0),
         ("-2+2=0", neg_two, two, pos0),
         ("(-0)+0=0", neg0, pos0, pos0),
         ("inf+(-inf)=nan", pinf, ninf, qnan),

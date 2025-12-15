@@ -9,7 +9,7 @@ of NaN/Inf/zero plus subnormal inputs by treating their implicit leading bit as
 from dataclasses import dataclass
 
 from sprouthdl.sprouthdl_module import Component, Module
-from sprouthdl.sprouthdl import Signal, UInt, cat, mux, Const
+from sprouthdl.sprouthdl import Expr, Signal, UInt, cat, mux, Const
 
 
 @dataclass
@@ -39,10 +39,18 @@ class FpAdd(Component):
     def _shift_right(self, mant, shift):
         return mant >> shift
 
-    def _leading_one_pos(self, mant, width):
-        pos = 0
-        for i in range(width):
-            pos = mux(mant[i], i, pos)
+    def _leading_one_pos(self, mant: Expr, width: int) -> Expr:
+        """
+        Return index of the most-significant set bit in mant[0:width).
+        If mant is zero, returns 0 (caller should gate with an explicit zero check).
+        """
+        pos_width = max(1, (width - 1).bit_length())
+        pos = Const(0, UInt(pos_width))
+        found = Const(0, UInt(1))
+        for i in range(width - 1, -1, -1):
+            idx = Const(i, UInt(pos_width))
+            pos = mux(found, pos, mux(mant[i], idx, pos))
+            found = found | mant[i]
         return pos
 
     def _extract_fields(self, operand):
@@ -102,7 +110,7 @@ class FpAdd(Component):
         mant_post_over = mant_mag >> 1  # normalize when carry-out is set
 
         # Otherwise, shift left so that the leading 1 sits at bit (FW+2)
-        lead_pos = self._leading_one_pos(mant_mag, self.FW + 3)
+        lead_pos = self._leading_one_pos(mant_mag, mant_mag.typ.width)
         shift_norm = (self.FW + 2) - lead_pos
         mant_norm = mux(overflow, mant_post_over, mant_mag << shift_norm)
         exp_pre = e_big + mux(overflow, 1, 0) - mux(overflow, 0, shift_norm)
