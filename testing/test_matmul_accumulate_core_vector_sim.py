@@ -15,10 +15,11 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Enco
 from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
-from testing.test_matmul_accumulate_core import (
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
     MultiplierConfig,
     build_matmul_accumulate,
+    max_y_width_unsigned,
 )
 
 
@@ -122,7 +123,7 @@ def test_mmac_core_vector_simulation():
     dim = 4
     a_width = 8
     b_width = 8
-    c_width = 20
+    c_width = max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
 
     encoding = Encoding.unsigned
 
