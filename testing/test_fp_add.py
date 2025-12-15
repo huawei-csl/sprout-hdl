@@ -35,9 +35,12 @@ def build_add_vectors(EW: int, FW: int):
     ]
 
 
-@pytest.mark.xfail(reason="Adder model is experimental and may not perfectly match IEEE rounding")
+#@pytest.mark.xfail(reason="Adder model is experimental and may not perfectly match IEEE rounding")
 def test_f16_adder_vectors():
     mod = build_fp_add("F16AddTest", EW=5, FW=10)
     vectors = build_add_vectors(5, 10)
     passed = run_vectors_local(mod, vectors, label="f16 add")
     assert passed == len(vectors)
+    
+if __name__ == "__main__":
+    test_f16_adder_vectors()

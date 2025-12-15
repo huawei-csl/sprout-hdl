@@ -158,10 +158,7 @@ class FixedPoint(HDLAggregate):
         if not isinstance(target, Signal):
             raise TypeError("FixedPoint assignment target must be backed by a Signal")
 
-        if target.kind == "reg":
-            target.next = bits
-        else:
-            target <<= bits
+        target <<= bits
 
     # ---------------------------------
     # Internal helpers for arithmetic
