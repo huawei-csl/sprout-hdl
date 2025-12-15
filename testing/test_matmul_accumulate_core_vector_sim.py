@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Dict, List, Tuple
+
 import numpy as np
 
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
@@ -9,7 +11,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
 from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
@@ -18,10 +20,6 @@ from testing.test_matmul_accumulate_core import (
     MultiplierConfig,
     build_matmul_accumulate,
 )
-
-
-from typing import Dict, List, Tuple
-import numpy as np
 
 
 def _shape2d(arr) -> tuple[int, int]:
@@ -41,7 +39,6 @@ def _build_vectors(core, num_vectors: int) -> list[tuple[str, dict[str, int], di
     a_rows, a_cols = _shape2d(core.A)  # A: (m, k)
     b_rows, b_cols = _shape2d(core.B)  # B: (k, n)
     c_rows, c_cols = _shape2d(core.C)  # C/Y: (m, n)
-    y_rows, y_cols = _shape2d(core.Y)
 
     rng = np.random.default_rng(seed=42)
     vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
@@ -76,16 +73,63 @@ def _build_vectors(core, num_vectors: int) -> list[tuple[str, dict[str, int], di
     return vectors
 
 
+def _build_vectors_encoding(
+    core, encoding: Encoding, num_vectors: int
+) -> list[tuple[str, dict[str, int], dict[str, int]]]:
+    a_width = core.A[0, 0].typ.width
+    b_width = core.B[0, 0].typ.width
+    c_width = core.C[0, 0].typ.width
+
+    a_rows, a_cols = _shape2d(core.A)  # A: (m, k)
+    dim = a_rows
+    b_rows, b_cols = _shape2d(core.B)  # B: (k, n)
+    c_rows, c_cols = _shape2d(core.C)  # C/Y: (m, n)
+
+    enc_model = EncodingModel(encoding)
+    vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
+
+    for idx in range(num_vectors):
+        a_vals = enc_model.get_uniform_sample_np(a_width, size=(dim, dim))
+        b_vals = enc_model.get_uniform_sample_np(b_width, size=(dim, dim))
+        c_vals = enc_model.get_uniform_sample_np(c_width, size=(dim, dim))
+        y_vals = a_vals @ b_vals + c_vals
+
+        ins: Dict[str, int] = {}
+        outs: Dict[str, int] = {}
+
+        # A: (m, k)
+        for i in range(a_rows):
+            for k in range(a_cols):
+                ins[core.A[i, k].name] = int(a_vals[i, k])
+
+        # B: (k, n)
+        for k in range(b_rows):
+            for j in range(b_cols):
+                ins[core.B[k, j].name] = int(b_vals[k, j])
+
+        # C/Y: (m, n)
+        for i in range(c_rows):
+            for j in range(c_cols):
+                ins[core.C[i, j].name] = int(c_vals[i, j])
+                outs[core.Y[i, j].name] = int(y_vals[i, j])
+
+        vectors.append((f"vec_{idx}", ins, outs))
+
+    return vectors
+
+
 def test_mmac_core_vector_simulation():
     dim = 4
     a_width = 8
     b_width = 8
     c_width = 20
 
+    encoding = Encoding.unsigned
+
     mult_cfg = MultiplierConfig(
         use_operator=False,
         multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
-        encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
+        encodings=TwoInputAritEncodings.with_enc(encoding),
         ppg_opt=PPGOption.AND,
         ppa_opt=PPAOption.WALLACE_TREE,
         fsa_opt=FSAOption.RIPPLE_CARRY,
@@ -94,7 +138,8 @@ def test_mmac_core_vector_simulation():
 
     core = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
-    vectors = _build_vectors(core, num_vectors=5)
+    #vectors = _build_vectors(core, num_vectors=5)
+    vectors = _build_vectors_encoding(core, encoding=encoding, num_vectors=50)
 
     sim = Simulator(core.module)
     run_vectors_on_simulator(
@@ -106,7 +151,7 @@ def test_mmac_core_vector_simulation():
     )
 
     sim_tb = TestbenchGenSimulator(core.module)
- 
+
     run_vectors_on_simulator(
         sim_tb, vectors, decoder=None, print_on_pass=False, test_name="TbGen Simulation"
     )
