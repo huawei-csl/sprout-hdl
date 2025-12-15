@@ -235,5 +235,7 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - in sprouthdl dont use the _class_name but use isinstance(), also in sprouthdl_aiger.py currently does not work for wire
 - <<= operator should also work for register, in fact make _drive and next the same. --> done
 - input with register
+- add subnormal support for fp add
+- unify run_vectors_local and run_vectors
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.

@@ -36,6 +36,10 @@ def _decode_half(bits: int) -> float:
     return float(np.frombuffer(np.uint16(bits).tobytes(), dtype=np.float16)[0])
 
 
+def _encode_half(val: float) -> int:
+    return int(np.float16(val).view(np.uint16))
+
+
 def _assert_fp_match(got_bits: int, expected_bits: int, *, require_bit_exact: bool = True):
     got_val = floatx_to_float(got_bits, 5, 10)
     expected_val = floatx_to_float(expected_bits, 5, 10)
@@ -172,3 +176,74 @@ def test_floating_point_mul_matches_subnormal_vectors():
             _assert_fp_match(got_bits, expected_bits, require_bit_exact=False)
         except AssertionError as exc:  # pragma: no cover - aids debugging
             raise AssertionError(f"Vector '{name}' failed: got 0x{got_bits:04x}, expected 0x{expected_bits:04x}") from exc
+
+
+def _build_fp_binop_module(op_name: str) -> Module:
+    ft = FloatingPointType(exponent_width=5, fraction_width=10)
+    m = Module(f"FpAgg{op_name.title()}", with_clock=False, with_reset=False)
+
+    a_bits = m.input(UInt(ft.width_total), "a")
+    b_bits = m.input(UInt(ft.width_total), "b")
+
+    a_fp = FloatingPoint(ft, bits=as_expr(a_bits))
+    b_fp = FloatingPoint(ft, bits=as_expr(b_bits))
+
+    if op_name == "add":
+        res_fp = a_fp + b_fp
+    elif op_name == "mul":
+        res_fp = a_fp * b_fp
+    else:
+        raise ValueError(f"Unsupported op '{op_name}'")
+
+    y_bits = m.output(UInt(ft.width_total), "y")
+    y_bits <<= res_fp.bits
+
+    return m
+
+
+def test_aggregate_floating_point_add():
+    reset_shared_cache()
+    mod = _build_fp_binop_module("add")
+    sim = Simulator(mod)
+
+    vectors = [
+        (1.0, 2.0),
+        (0.5, 0.5),
+        (1.5, -1.25),
+        (-2.0, 3.0),
+    ]
+
+    for a_f, b_f in vectors:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        got_bits = sim.get("y")
+        expected_bits = _encode_half(np.float16(a_f) + np.float16(b_f))
+        try:
+            _assert_fp_match(got_bits, expected_bits)
+        except AssertionError as exc:
+            raise AssertionError(
+                f"add failed for a={a_f}, b={b_f}: got 0x{got_bits:04x}, expected 0x{expected_bits:04x}"
+            ) from exc
+
+
+def test_aggregate_floating_point_mul():
+    reset_shared_cache()
+    mod = _build_fp_binop_module("mul")
+    sim = Simulator(mod)
+
+    vectors = [
+        (1.5, 2.0),
+        (1.25, -0.5),
+        (-2.0, -2.0),
+        (0.5, 0.5),
+    ]
+
+    for a_f, b_f in vectors:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        got_bits = sim.get("y")
+        expected_bits = _encode_half(np.float16(a_f) * np.float16(b_f))
+        try:
+            _assert_fp_match(got_bits, expected_bits)
+        except AssertionError as exc:
+            raise AssertionError(
+                f"mul failed for a={a_f}, b={b_f}: got 0x{got_bits:04x}, expected 0x{expected_bits:04x}"
+            ) from exc

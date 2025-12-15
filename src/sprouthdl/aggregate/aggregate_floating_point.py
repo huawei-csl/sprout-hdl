@@ -18,6 +18,7 @@ class FloatingPointType:
 
     exponent_width: int
     fraction_width: int
+    subnormal_support: bool = False
 
     def __post_init__(self) -> None:
         if self.exponent_width < 1:
@@ -40,8 +41,7 @@ class FloatingPoint(HDLAggregate):
         self,
         ftype: FloatingPointType,
         name: Optional[str] = None,
-        bits: Optional[ExprLike] = None,
-        sn_support: bool = False,
+        bits: Optional[ExprLike] = None
     ):
         self.ftype = ftype
         self._typ = ftype.to_hdl_type()
@@ -52,7 +52,6 @@ class FloatingPoint(HDLAggregate):
         else:
             bits_e = fit_width(as_expr(bits), self._typ)
             self._bits = bits_e
-        self.sn_support = sn_support
 
     # ---- Introspection ----
     @property
@@ -134,7 +133,7 @@ class FloatingPoint(HDLAggregate):
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint multiply requires matching types")
         
-        fp_cls = FpMulSN if self.sn_support else FpMul
+        fp_cls = FpMulSN if self.ftype.subnormal_support or other.ftype.subnormal_support else FpMul
 
         core = fp_cls(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width).make_internal()
 
