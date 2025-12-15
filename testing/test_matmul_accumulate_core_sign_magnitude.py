@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Iterable, List, Literal, Sequence
+from dataclasses import dataclass, field
+from typing import Callable, Iterable, List, Literal, Sequence, Type
 
 import numpy as np
 
 from sprouthdl.aggregate.aggregate_array import Array
+from sprouthdl.arithmetic.encoding.sign_magnitude import (
+    SignMagnitudeToTwosComplementDecoder,
+    TwosComplementToSignMagnitudeEncoder,
+)
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
@@ -13,12 +17,27 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import (
+    Encoding,
+    EncodingModel,
+    is_signed,
+)
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
+from testing.test_matmul_accumulate_core import max_y_width_unsigned
+
+
+@dataclass
+class SignMagnitudeEncoderConfig:
+    """Configuration for optional sign-magnitude conversion wrappers."""
+
+    encoder_cls: Type[Component] | None = TwosComplementToSignMagnitudeEncoder
+    decoder_cls: Type[Component] | None = SignMagnitudeToTwosComplementDecoder
+    encoder_clip_most_negative: bool = False
+    decoder_clip_most_negative: bool = False
 
 
 @dataclass
@@ -32,6 +51,7 @@ class MultiplierConfig:
     ppa_opt: PPAOption | None = None
     fsa_opt: FSAOption | None = None
     optim_type: Literal["area", "speed"] = "area"
+    encoding_cfg: SignMagnitudeEncoderConfig | None = field(default_factory=SignMagnitudeEncoderConfig)
 
     def build(self, a: Expr, b: Expr) -> Expr:
         if self.use_operator:
@@ -39,6 +59,20 @@ class MultiplierConfig:
 
         assert self.encodings is not None, "encodings must be provided for explicit multipliers"
         assert self.ppg_opt is not None and self.ppa_opt is not None and self.fsa_opt is not None
+
+        enc_a, enc_b = a, b
+        enc_cfg = self.encoding_cfg
+        if enc_cfg and enc_cfg.encoder_cls is not None:
+            enc_a_comp = enc_cfg.encoder_cls(
+                width=a.typ.width, clip_most_negative=enc_cfg.encoder_clip_most_negative
+            ).make_internal()
+            enc_b_comp = enc_cfg.encoder_cls(
+                width=b.typ.width, clip_most_negative=enc_cfg.encoder_clip_most_negative
+            ).make_internal()
+            enc_a_comp.io.i <<= a
+            enc_b_comp.io.i <<= b
+            enc_a = enc_a_comp.io.o
+            enc_b = enc_b_comp.io.o
 
         multiplier = self.multiplier_opt.value(
             a_w=a.typ.width,
@@ -50,9 +84,18 @@ class MultiplierConfig:
             fsa_cls=self.fsa_opt.value,
             optim_type=self.optim_type,
         ).make_internal()
-        multiplier.io.a <<= a
-        multiplier.io.b <<= b
-        return multiplier.io.y
+        multiplier.io.a <<= enc_a
+        multiplier.io.b <<= enc_b
+        y_expr: Expr = multiplier.io.y
+
+        if enc_cfg and enc_cfg.decoder_cls is not None:
+            decoder = enc_cfg.decoder_cls(
+                width=y_expr.typ.width, clip_most_negative=enc_cfg.decoder_clip_most_negative
+            ).make_internal()
+            decoder.io.i <<= y_expr
+            return decoder.io.o
+
+        return y_expr
 
 
 @dataclass
@@ -128,7 +171,6 @@ class MatmulAccumulateComponent(Component):
         c_width: int,
         mult_cfg: MultiplierConfig,
         add_cfg: AdderConfig,
-        signed_io_type: bool = False,
     ):
 
         self.dim = dim
@@ -138,7 +180,7 @@ class MatmulAccumulateComponent(Component):
         self.mult_cfg = mult_cfg
         self.add_cfg = add_cfg
 
-        self.io_hdl_type = SInt if (is_signed(add_cfg.encoding) and signed_io_type) else UInt
+        self.io_hdl_type = SInt if is_signed(add_cfg.encoding) else UInt
 
         def build_matrix(name: str, width: int, kind: str = "wire") -> Array:
             return Array(
@@ -194,9 +236,8 @@ def build_matmul_accumulate(
     c_width: int,
     mult_cfg: MultiplierConfig,
     add_cfg: AdderConfig,
-    signed_io_type: bool = False,
 ) -> MatmulAccumulateBuildOut:
-    component = MatmulAccumulateComponent(dim, a_width, b_width, c_width, mult_cfg, add_cfg, signed_io_type)
+    component = MatmulAccumulateComponent(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
     def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
         m = Module(name)
@@ -212,7 +253,7 @@ def build_matmul_accumulate(
         A_ports = make_io_matrix(wrapped.A, m.add_input)
         B_ports = make_io_matrix(wrapped.B, m.add_input)
         C_ports = make_io_matrix(wrapped.C, m.add_input)
-        Y_ports = make_io_matrix(wrapped.Y, m.add_output)        
+        Y_ports = make_io_matrix(wrapped.Y, m.add_output)
         wrapped.A <<= A_ports
         wrapped.B <<= B_ports
         wrapped.C <<= C_ports
@@ -220,7 +261,7 @@ def build_matmul_accumulate(
 
         return m, A_ports, B_ports, C_ports, Y_ports
 
-    component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core", component)
+    component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core_sign_mag", component)
 
     return MatmulAccumulateBuildOut(
         component=component,
@@ -232,61 +273,39 @@ def build_matmul_accumulate(
     )
 
 
-def ceil_log2(n: int) -> int:
-    if n <= 1:
-        return 0
-    return (n - 1).bit_length()
-
-
-def max_y_width_unsigned(a_width: int, b_width: int, k: int, *, include_carry_from_add: bool = True) -> int:
-    carry = 1 if include_carry_from_add else 0
-    return a_width + b_width + ceil_log2(k) + carry
-
-
-
-def test_mmac_core_basic_simulation():
+def test_mmac_core_sign_magnitude_pipeline():
     dim = 4
     a_width = 8
     b_width = 8
-    c_width =  max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
-    signed_io_type = True
+    c_width = max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
 
-    # use sprout operators
-    # mult_cfg = MultiplierConfig(use_operator=True)
-    # add_cfg = AdderConfig(use_operator=True, full_output_bit=True)
+    encoding = Encoding.twos_complement_symmetric
 
-    encoding = Encoding.twos_complement
+    # optional: disable encoders when using StageBasedSignMagnitudeToTwosComplementMultiplier
+    encoding_cfg = SignMagnitudeEncoderConfig(
+        encoder_clip_most_negative=False,
+        decoder_clip_most_negative=False,
+    )
 
-    # use custom multiplier and adder
     mult_cfg = MultiplierConfig(
         use_operator=False,
-        multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
-        encodings=TwoInputAritEncodings.with_enc(encoding),
-        ppg_opt=PPGOption.BAUGH_WOOLEY if is_signed(encoding) else PPGOption.AND,
+        multiplier_opt=MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER,
+        encodings=TwoInputAritEncodings.with_enc(Encoding.sign_magnitude),
+        ppg_opt=PPGOption.AND,
         ppa_opt=PPAOption.WALLACE_TREE,
         fsa_opt=FSAOption.RIPPLE_CARRY,
+        encoding_cfg=encoding_cfg,
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding)
 
-    core_build_out = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg, signed_io_type=signed_io_type)
+    core_build_out = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
 
     print(
         f"Output matrix Y has shape: ({dim}, {dim}) with element width {core_build_out.Y[0,0].typ.width} bits"
     )
 
-    # For simulation, operate on the module built directly from the reusable component.
     sim = Simulator(core_build_out.module)
 
-    # either use this
-    # a_min, a_max = EncodingModel(encoding).value_range(a_width)
-    # b_min, b_max = EncodingModel(encoding).value_range(b_width)
-    # c_min, c_max = EncodingModel(encoding).value_range(c_width)
-    # rng = np.random.default_rng(seed=42)
-    # a_vals = rng.integers(a_min, a_max, size=(dim, dim), dtype=int)
-    # b_vals = rng.integers(b_min, b_max, size=(dim, dim), dtype=int)
-    # c_vals = rng.integers(c_min, c_max, size=(dim, dim), dtype=int)
-
-    # or
     a_vals = EncodingModel(encoding).get_uniform_sample_np(a_width, size=(dim, dim))
     b_vals = EncodingModel(encoding).get_uniform_sample_np(b_width, size=(dim, dim))
     c_vals = EncodingModel(encoding).get_uniform_sample_np(c_width, size=(dim, dim))
@@ -305,23 +324,12 @@ def test_mmac_core_basic_simulation():
             y_hw[i, j] = sim.get(core_build_out.Y[i, j])
 
     y_np = a_vals @ b_vals + c_vals
-    if signed_io_type:
-        assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core"
-    else:
-        # encode each element according to the encoding
-        y_np_encoded = np.vectorize(
-            lambda x: EncodingModel(encoding).encode_value(int(x), core_build_out.Y[0, 0].typ.width)
-        )(y_np)
-        assert np.array_equal(y_hw, y_np_encoded), "Simulation mismatch for matmul accumulate core"
+    assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core with sign-magnitude wrappers"
+    print("Matmul accumulate (sign-magnitude) simulation passed. Y=\n", y_hw)
 
-
-    
-    print("Matmul accumulate simulation passed. Y=\n", y_hw)
-
-    # get yosys transistor count
     yosys_metrics = get_yosys_metrics(core_build_out.module)
     print(f"Yosys metrics: {yosys_metrics}")
 
 
 if __name__ == "__main__":
-    test_mmac_core_basic_simulation()
+    test_mmac_core_sign_magnitude_pipeline()
