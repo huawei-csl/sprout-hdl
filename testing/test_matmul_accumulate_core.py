@@ -262,14 +262,19 @@ def test_mmac_core_basic_simulation():
     # For simulation, operate on the module built directly from the reusable component.
     sim = Simulator(core_build_out.module)
 
-    rng = np.random.default_rng(seed=42)
+    # either use this
+    # a_min, a_max = EncodingModel(encoding).value_range(a_width)
+    # b_min, b_max = EncodingModel(encoding).value_range(b_width)
+    # c_min, c_max = EncodingModel(encoding).value_range(c_width)
+    # rng = np.random.default_rng(seed=42)
+    # a_vals = rng.integers(a_min, a_max, size=(dim, dim), dtype=int)
+    # b_vals = rng.integers(b_min, b_max, size=(dim, dim), dtype=int)
+    # c_vals = rng.integers(c_min, c_max, size=(dim, dim), dtype=int)
 
-    a_min, a_max = EncodingModel(encoding).value_range(a_width)
-    b_min, b_max = EncodingModel(encoding).value_range(b_width)
-    c_min, c_max = EncodingModel(encoding).value_range(c_width)
-    a_vals = rng.integers(a_min, a_max, size=(dim, dim), dtype=int)
-    b_vals = rng.integers(b_min, b_max, size=(dim, dim), dtype=int)
-    c_vals = rng.integers(c_min, c_max, size=(dim, dim), dtype=int)
+    # or
+    a_vals = EncodingModel(encoding).get_uniform_sample_np(a_width, size=(dim, dim))
+    b_vals = EncodingModel(encoding).get_uniform_sample_np(b_width, size=(dim, dim))
+    c_vals = EncodingModel(encoding).get_uniform_sample_np(c_width, size=(dim, dim))
 
     for i in range(dim):
         for j in range(dim):

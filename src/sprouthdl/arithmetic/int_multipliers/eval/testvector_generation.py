@@ -123,6 +123,18 @@ class EncodingModel:
             return raw_value
         raw_value = random.randint(lo, hi)
         return raw_value
+    
+    def get_normal_sample_np(self, width: int, tb_sigma: float, size: Tuple[int, ...]) -> int:
+        out_vals = np.empty(size, dtype=int)
+        for idx in np.ndindex(size):
+            out_vals[idx] = self.get_normal_sample(width, tb_sigma)
+        return out_vals
+    
+    def get_uniform_sample_np(self, width: int, size: Tuple[int, ...]) -> int:
+        out_vals = np.empty(size, dtype=int)
+        for idx in np.ndindex(size):
+            out_vals[idx] = self.get_uniform_sample(width)
+        return out_vals
 
 
 class TwoInputArithmeticTestVectorsBase:
