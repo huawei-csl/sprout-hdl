@@ -19,7 +19,6 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Enco
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
     MatmulAccumulateIO,
-    MMAcCfg,
     MMAcDims,
     MMAcWidths,
     MultiplierConfig as BaseMultiplierConfig,
@@ -40,14 +39,19 @@ class SignMagnitudeEncoderConfig:
     decoder_clip_most_negative: bool = False
 
 
-@dataclass
-class MultiplierConfig(BaseMultiplierConfig):
-    """Configuration for choosing between Sprout operator and explicit multiplier."""
+MultiplierConfig = BaseMultiplierConfig
 
+
+@dataclass
+class MMAcEncodedCfg:
+    dims: MMAcDims
+    widths: MMAcWidths
+    mult_cfg: BaseMultiplierConfig
+    add_cfg: AdderConfig
     encoding_cfg: SignMagnitudeEncoderConfig | None = field(default_factory=SignMagnitudeEncoderConfig)
 
 
-def build_multiplier(a: Expr, b: Expr, mult_cfg: MultiplierConfig) -> Expr:
+def build_multiplier(a: Expr, b: Expr, mult_cfg: BaseMultiplierConfig, enc_cfg: SignMagnitudeEncoderConfig | None) -> Expr:
     if mult_cfg.use_operator:
         return a * b
 
@@ -68,7 +72,6 @@ def build_multiplier(a: Expr, b: Expr, mult_cfg: MultiplierConfig) -> Expr:
     multiplier.io.b <<= b
     y_expr: Expr = multiplier.io.y
 
-    enc_cfg = mult_cfg.encoding_cfg
     if enc_cfg and enc_cfg.decoder_cls is not None:
         decoder = enc_cfg.decoder_cls(
             width=y_expr.typ.width, clip_most_negative=enc_cfg.decoder_clip_most_negative
@@ -80,14 +83,18 @@ def build_multiplier(a: Expr, b: Expr, mult_cfg: MultiplierConfig) -> Expr:
 
 
 def inner_product(
-    vec_a: Iterable[Expr], vec_b: Iterable[Expr], mult_cfg: MultiplierConfig, add_cfg: AdderConfig
+    vec_a: Iterable[Expr],
+    vec_b: Iterable[Expr],
+    mult_cfg: BaseMultiplierConfig,
+    add_cfg: AdderConfig,
+    encoding_cfg: SignMagnitudeEncoderConfig | None,
 ) -> Expr:
     a_list: List[Expr] = list(vec_a)
     b_list: List[Expr] = list(vec_b)
     if len(a_list) != len(b_list):
         raise ValueError("inner_product: length mismatch")
 
-    products = [build_multiplier(a, b, mult_cfg) for a, b in zip(a_list, b_list)]
+    products = [build_multiplier(a, b, mult_cfg, encoding_cfg) for a, b in zip(a_list, b_list)]
     return adder_tree(products, add_cfg)
 
 
@@ -96,13 +103,14 @@ class MatmulAccumulateComponent(Component):
 
     def __init__(
         self,
-        cfg: MMAcCfg,
+        cfg: MMAcEncodedCfg,
         signed_io_type: bool = False,
     ):
 
         self.cfg = cfg
         self.mult_cfg = cfg.mult_cfg
         self.add_cfg = cfg.add_cfg
+        self.encoding_cfg = cfg.encoding_cfg
         self.io_hdl_type = SInt if (is_signed(self.cfg.add_cfg.encoding) and signed_io_type) else UInt
 
         def build_matrix(name: str, width: int, rows: int, cols: int, kind: str = "wire") -> Array:
@@ -127,7 +135,7 @@ class MatmulAccumulateComponent(Component):
         self.io = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
 
     def _encode_matrix(self, matrix: Array) -> Array:
-        enc_cfg = self.mult_cfg.encoding_cfg
+        enc_cfg = self.encoding_cfg
         if enc_cfg is None or enc_cfg.encoder_cls is None:
             return matrix
 
@@ -157,7 +165,7 @@ class MatmulAccumulateComponent(Component):
             a_row = encoded_A[i, :]
             for j in range(self.cfg.dims.dim_n):
                 b_col = encoded_B[:, j]
-                dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg)
+                dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg, self.encoding_cfg)
                 acc = build_adder(self.C[i, j], dot, self.add_cfg)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
@@ -177,7 +185,7 @@ class MatmulAccumulateBuildOut:
 
 
 def build_matmul_accumulate(
-    cfg: MMAcCfg,
+    cfg: MMAcEncodedCfg,
     signed_io_type: bool = False,
 ) -> MatmulAccumulateBuildOut:
     component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)

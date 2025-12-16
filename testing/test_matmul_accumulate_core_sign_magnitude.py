@@ -10,8 +10,9 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     TwoInputAritEncodings,
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcCfg, MMAcDims, MMAcWidths, max_y_width_unsigned
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcDims, MMAcWidths, max_y_width_unsigned
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
+    MMAcEncodedCfg,
     MultiplierConfig,
     SignMagnitudeEncoderConfig,
     build_matmul_accumulate,
@@ -42,13 +43,12 @@ def test_mmac_core_sign_magnitude_pipeline():
         ppg_opt=PPGOption.AND,
         ppa_opt=PPAOption.WALLACE_TREE,
         fsa_opt=FSAOption.RIPPLE_CARRY,
-        encoding_cfg=encoding_cfg,
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding)
 
     dims = MMAcDims(dim_m=dim, dim_n=dim, dim_k=dim_k)
     widths = MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width)
-    cfg = MMAcCfg(dims=dims, widths=widths, mult_cfg=mult_cfg, add_cfg=add_cfg)
+    cfg = MMAcEncodedCfg(dims=dims, widths=widths, mult_cfg=mult_cfg, add_cfg=add_cfg, encoding_cfg=encoding_cfg)
 
     core_build_out = build_matmul_accumulate(cfg, signed_io_type=True)
 
