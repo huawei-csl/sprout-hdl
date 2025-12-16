@@ -17,6 +17,9 @@ from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
+    MMAcCfg,
+    MMAcDims,
+    MMAcWidths,
     MultiplierConfig,
     build_matmul_accumulate,
     max_y_width_unsigned,
@@ -82,7 +85,6 @@ def _build_vectors_encoding(
     c_width = core.C[0, 0].typ.width
 
     a_rows, a_cols = _shape2d(core.A)  # A: (m, k)
-    dim = a_rows
     b_rows, b_cols = _shape2d(core.B)  # B: (k, n)
     c_rows, c_cols = _shape2d(core.C)  # C/Y: (m, n)
 
@@ -90,9 +92,9 @@ def _build_vectors_encoding(
     vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
 
     for idx in range(num_vectors):
-        a_vals = enc_model.get_uniform_sample_np(a_width, size=(dim, dim))
-        b_vals = enc_model.get_uniform_sample_np(b_width, size=(dim, dim))
-        c_vals = enc_model.get_uniform_sample_np(c_width, size=(dim, dim))
+        a_vals = enc_model.get_uniform_sample_np(a_width, size=(a_rows, a_cols))
+        b_vals = enc_model.get_uniform_sample_np(b_width, size=(b_rows, b_cols))
+        c_vals = enc_model.get_uniform_sample_np(c_width, size=(c_rows, c_cols))
         y_vals = a_vals @ b_vals + c_vals
 
         ins: Dict[str, int] = {}
@@ -120,10 +122,12 @@ def _build_vectors_encoding(
 
 
 def test_mmac_core_vector_simulation():
-    dim = 4
+    dim_m = 4
+    dim_n = 4
+    dim_k = 4
     a_width = 8
     b_width = 8
-    c_width = max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
+    c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
 
     encoding = Encoding.unsigned
 
@@ -136,8 +140,15 @@ def test_mmac_core_vector_simulation():
         fsa_opt=FSAOption.RIPPLE_CARRY,
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
+    
+    core_cfg = MMAcCfg(
+        dims=MMAcDims(dim_m=dim_m, dim_n=dim_n, dim_k=dim_k),
+        widths=MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width),
+        mult_cfg=mult_cfg,
+        add_cfg=add_cfg,
+    )
 
-    core = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
+    core = build_matmul_accumulate(cfg=core_cfg, signed_io_type=False)
 
     #vectors = _build_vectors(core, num_vectors=5)
     vectors = _build_vectors_encoding(core, encoding=encoding, num_vectors=50)

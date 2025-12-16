@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable, List, Literal, Sequence
 
-import numpy as np
-
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
@@ -13,12 +11,10 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
-from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module
-from sprouthdl.sprouthdl_simulator import Simulator
 
 
 @dataclass
@@ -120,46 +116,54 @@ class MatmulAccumulateIO:
     C: Array  # input
     Y: Array  # output
 
+@dataclass
+class MMAcDims:
+    dim_m: int  # rows of A/C/Y
+    dim_n: int  # cols of B/C/Y
+    dim_k: int  # shared dimension between A and B
+
+@dataclass
+class MMAcWidths:
+    a_width: int
+    b_width: int
+    c_width: int
+
+@dataclass
+class MMAcCfg:
+    dims: MMAcDims
+    widths: MMAcWidths
+    mult_cfg: MultiplierConfig
+    add_cfg: AdderConfig
+
 
 class MatmulAccumulateComponent(Component):
     """Reusable component for matrix multiply-accumulate."""
 
     def __init__(
         self,
-        dim: int,
-        a_width: int,
-        b_width: int,
-        c_width: int,
-        mult_cfg: MultiplierConfig,
-        add_cfg: AdderConfig,
+        cfg: MMAcCfg,
         signed_io_type: bool = False,
     ):
+        
+        self.cfg = cfg
+        self.io_hdl_type = SInt if (is_signed(self.cfg.add_cfg.encoding) and signed_io_type) else UInt
 
-        self.dim = dim
-        self.a_width = a_width
-        self.b_width = b_width
-        self.c_width = c_width
-        self.mult_cfg = mult_cfg
-        self.add_cfg = add_cfg
-
-        self.io_hdl_type = SInt if (is_signed(add_cfg.encoding) and signed_io_type) else UInt
-
-        def build_matrix(name: str, width: int, kind: str = "wire") -> Array:
+        def build_matrix(name: str, width: int, rows: int, cols: int, kind: str = "wire") -> Array:
             return Array(
                 [
                     Array(
                         [
                             Signal(name=f"{name}_{i}_{j}", typ=self.io_hdl_type(width), kind=kind)
-                            for j in range(dim)
+                            for j in range(cols)
                         ]
                     )
-                    for i in range(dim)
+                    for i in range(rows)
                 ]
             )
 
-        self.A = build_matrix("a", a_width)
-        self.B = build_matrix("b", b_width)
-        self.C = build_matrix("c", c_width)
+        self.A = build_matrix("a", self.cfg.widths.a_width, self.cfg.dims.dim_m, self.cfg.dims.dim_k)
+        self.B = build_matrix("b", self.cfg.widths.b_width, self.cfg.dims.dim_k, self.cfg.dims.dim_n)
+        self.C = build_matrix("c", self.cfg.widths.c_width, self.cfg.dims.dim_m, self.cfg.dims.dim_n)
 
         self.elaborate()
 
@@ -167,13 +171,13 @@ class MatmulAccumulateComponent(Component):
 
     def elaborate(self):
         rows = []
-        for i in range(self.dim):
+        for i in range(self.cfg.dims.dim_m):
             row = []
             a_row = self.A[i, :]
-            for j in range(self.dim):
+            for j in range(self.cfg.dims.dim_n):
                 b_col = self.B[:, j]
-                dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg)
-                acc = build_adder(self.C[i, j], dot, self.add_cfg)
+                dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg)
+                acc = build_adder(self.C[i, j], dot, self.cfg.add_cfg)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
                 row.append(y_sig)
@@ -192,23 +196,21 @@ class MatmulAccumulateBuildOut:
 
 
 def build_matmul_accumulate(
-    dim: int,
-    a_width: int,
-    b_width: int,
-    c_width: int,
-    mult_cfg: MultiplierConfig,
-    add_cfg: AdderConfig,
+    cfg: MMAcCfg,
     signed_io_type: bool = False,
 ) -> MatmulAccumulateBuildOut:
-    component = MatmulAccumulateComponent(dim, a_width, b_width, c_width, mult_cfg, add_cfg, signed_io_type)
+    
+    component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
 
     def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
         m = Module(name)
 
         def make_io_matrix(template: Array, register_io_func: Callable[[Signal], None]) -> Array:
             ports = Array.wire_like(template)
-            for i in range(dim):
-                for j in range(dim):
+            rows = len(template)
+            cols = len(template[0])
+            for i in range(rows):
+                for j in range(cols):
                     register_io_func(ports[i, j])
             return ports
 
@@ -242,6 +244,8 @@ def ceil_log2(n: int) -> int:
     return (n - 1).bit_length()
 
 
-def max_y_width_unsigned(a_width: int, b_width: int, k: int, *, include_carry_from_add: bool = True) -> int:
+def max_y_width_unsigned(
+    a_width: int, b_width: int, dim_k: int, *, include_carry_from_add: bool = True
+) -> int:
     carry = 1 if include_carry_from_add else 0
-    return a_width + b_width + ceil_log2(k) + carry
+    return a_width + b_width + ceil_log2(dim_k) + carry

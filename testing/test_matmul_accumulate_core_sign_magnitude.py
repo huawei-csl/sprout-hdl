@@ -35,9 +35,10 @@ from testing.test_matmul_accumulate_core import max_y_width_unsigned
 
 def test_mmac_core_sign_magnitude_pipeline():
     dim = 4
+    dim_k = dim
     a_width = 8
     b_width = 8
-    c_width = max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
+    c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
 
     encoding = Encoding.twos_complement_symmetric
 
