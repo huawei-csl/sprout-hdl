@@ -1,22 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Callable, DefaultDict, Iterable, List, Literal, Optional
-
 import numpy as np
 
-from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageBasedMultiplierIO, TwoInputAritConfig
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MMAcDims, MMAcWidths
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import MMAcFusedCfg, MultiplierConfig, build_matmul_accumulate
 from sprouthdl.helpers import get_yosys_metrics
-from sprouthdl.sprouthdl import Concat, Expr, Signal, UInt
-from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (
-    MultiplierConfig,
-    build_matmul_accumulate,
-)
 
 
 def test_mmac_core_basic_simulation():
@@ -27,7 +17,11 @@ def test_mmac_core_basic_simulation():
 
     mult_cfg = MultiplierConfig(ppg_opt=PPGOption.AND, ppa_opt=PPAOption.WALLACE_TREE, fsa_opt=FSAOption.RIPPLE_CARRY)
 
-    core = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg)
+    dims = MMAcDims(dim_m=dim, dim_n=dim, dim_k=dim)
+    widths = MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width)
+    cfg = MMAcFusedCfg(dims=dims, widths=widths, mult_cfg=mult_cfg)
+
+    core = build_matmul_accumulate(cfg)
 
     print(
         f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.Y[0,0].typ.width} bits"

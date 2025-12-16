@@ -1,15 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Iterable, List, Literal, Sequence, Type
-
 import numpy as np
 
-from sprouthdl.aggregate.aggregate_array import Array
-from sprouthdl.arithmetic.encoding.sign_magnitude import (
-    SignMagnitudeToTwosComplementDecoder,
-    TwosComplementToSignMagnitudeEncoder,
-)
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
@@ -17,20 +9,15 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import (
-    Encoding,
-    EncodingModel,
-    is_signed,
-)
-from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcCfg, MMAcDims, MMAcWidths, max_y_width_unsigned
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
-    SignMagnitudeEncoderConfig, MultiplierConfig, AdderConfig, build_matmul_accumulate,
+    MultiplierConfig,
+    SignMagnitudeEncoderConfig,
+    build_matmul_accumulate,
 )
 from sprouthdl.helpers import get_yosys_metrics
-from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
-from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.test_matmul_accumulate_core import max_y_width_unsigned
 
 
 def test_mmac_core_sign_magnitude_pipeline():
@@ -59,7 +46,11 @@ def test_mmac_core_sign_magnitude_pipeline():
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding)
 
-    core_build_out = build_matmul_accumulate(dim, a_width, b_width, c_width, mult_cfg, add_cfg)
+    dims = MMAcDims(dim_m=dim, dim_n=dim, dim_k=dim_k)
+    widths = MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width)
+    cfg = MMAcCfg(dims=dims, widths=widths, mult_cfg=mult_cfg, add_cfg=add_cfg)
+
+    core_build_out = build_matmul_accumulate(cfg, signed_io_type=True)
 
     print(
         f"Output matrix Y has shape: ({dim}, {dim}) with element width {core_build_out.Y[0,0].typ.width} bits"
