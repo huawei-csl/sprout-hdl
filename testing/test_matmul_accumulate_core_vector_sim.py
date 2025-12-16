@@ -169,6 +169,9 @@ def test_mmac_core_vector_simulation():
     )
 
     sim_tb.to_testbench_file_from_data(filepath="mmac_core_tb_sim.v", data_file="mmac_core_vectors.dat")
+    
+    # also save verilog file
+    core.module.to_verilog_file("mmac_core.v")
 
 
 if __name__ == "__main__":

@@ -178,7 +178,7 @@ class MatmulAccumulateComponent(Component):
                 b_col = self.B[:, j]
                 dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg)
                 acc = build_adder(self.C[i, j], dot, self.cfg.add_cfg)
-                y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
+                y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="wire")
                 y_sig <<= acc
                 row.append(y_sig)
             rows.append(Array(row))
@@ -223,6 +223,8 @@ def build_matmul_accumulate(
         wrapped.B <<= B_ports
         wrapped.C <<= C_ports
         Y_ports <<= wrapped.Y
+        
+        m.collect_signals()
 
         return m, A_ports, B_ports, C_ports, Y_ports
 

@@ -182,6 +182,12 @@ class Module:
         for p in self._ports:
             spec[p.name] = p.typ
         return spec
+    
+    def collect_signals(self) -> None:
+        """
+        Walk the design starting from outputs
+        """
+        self._collect_signals_from_outputs(self._ports_of("output"))
 
     def _collect_signals_from_outputs(self, outputs: List[Signal]) -> None:
         """
