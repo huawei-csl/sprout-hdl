@@ -33,27 +33,6 @@ class MultiplierConfig:
     fsa_opt: FSAOption | None = None
     optim_type: Literal["area", "speed"] = "area"
 
-    def build(self, a: Expr, b: Expr) -> Expr:
-        if self.use_operator:
-            return a * b
-
-        assert self.encodings is not None, "encodings must be provided for explicit multipliers"
-        assert self.ppg_opt is not None and self.ppa_opt is not None and self.fsa_opt is not None
-
-        multiplier = self.multiplier_opt.value(
-            a_w=a.typ.width,
-            b_w=b.typ.width,
-            a_encoding=self.encodings.a,
-            b_encoding=self.encodings.b,
-            ppg_cls=self.ppg_opt.value,
-            ppa_cls=self.ppa_opt.value,
-            fsa_cls=self.fsa_opt.value,
-            optim_type=self.optim_type,
-        ).make_internal()
-        multiplier.io.a <<= a
-        multiplier.io.b <<= b
-        return multiplier.io.y
-
 
 @dataclass
 class AdderConfig:
@@ -65,24 +44,49 @@ class AdderConfig:
     fsa_opt: FSAOption | None = None
     full_output_bit: bool = True
 
-    def build(self, a: Expr, b: Expr) -> Expr:
-        if self.use_operator:
-            return a + b
 
-        signed = is_signed(self.encoding)
+def build_multiplier(a: Expr, b: Expr, mult_cfg: MultiplierConfig) -> Expr:
+    if mult_cfg.use_operator:
+        return a * b
 
-        adder = StageBasedPrefixAdder(
-            a_w=a.typ.width,
-            b_w=b.typ.width,
-            signed_a=signed,
-            signed_b=signed,
-            optim_type=self.optim_type,
-            fsa_cls=self.fsa_opt.value,
-            full_output_bit=self.full_output_bit,
-        ).make_internal()
-        adder.io.a <<= a
-        adder.io.b <<= b
-        return adder.io.y
+    assert mult_cfg.multiplier_opt is not None, "multiplier_opt must be provided for explicit multipliers"
+    assert mult_cfg.encodings is not None, "encodings must be provided for explicit multipliers"
+    assert mult_cfg.ppg_opt is not None and mult_cfg.ppa_opt is not None and mult_cfg.fsa_opt is not None
+
+    multiplier = mult_cfg.multiplier_opt.value(
+        a_w=a.typ.width,
+        b_w=b.typ.width,
+        a_encoding=mult_cfg.encodings.a,
+        b_encoding=mult_cfg.encodings.b,
+        ppg_cls=mult_cfg.ppg_opt.value,
+        ppa_cls=mult_cfg.ppa_opt.value,
+        fsa_cls=mult_cfg.fsa_opt.value,
+        optim_type=mult_cfg.optim_type,
+    ).make_internal()
+    multiplier.io.a <<= a
+    multiplier.io.b <<= b
+    return multiplier.io.y
+
+
+def build_adder(a: Expr, b: Expr, adder_cfg: AdderConfig) -> Expr:
+    if adder_cfg.use_operator:
+        return a + b
+
+    assert adder_cfg.fsa_opt is not None, "fsa_opt must be provided for explicit adders"
+    signed = is_signed(adder_cfg.encoding)
+
+    adder = StageBasedPrefixAdder(
+        a_w=a.typ.width,
+        b_w=b.typ.width,
+        signed_a=signed,
+        signed_b=signed,
+        optim_type=adder_cfg.optim_type,
+        fsa_cls=adder_cfg.fsa_opt.value,
+        full_output_bit=adder_cfg.full_output_bit,
+    ).make_internal()
+    adder.io.a <<= a
+    adder.io.b <<= b
+    return adder.io.y
 
 
 def adder_tree(values: Sequence[Expr], adder_cfg: AdderConfig) -> Expr:
@@ -94,7 +98,7 @@ def adder_tree(values: Sequence[Expr], adder_cfg: AdderConfig) -> Expr:
     mid = len(values) // 2
     left = adder_tree(values[:mid], adder_cfg)
     right = adder_tree(values[mid:], adder_cfg)
-    return adder_cfg.build(left, right)
+    return build_adder(left, right, adder_cfg)
 
 
 def inner_product(
@@ -105,7 +109,7 @@ def inner_product(
     if len(a_list) != len(b_list):
         raise ValueError("inner_product: length mismatch")
 
-    products = [mult_cfg.build(a, b) for a, b in zip(a_list, b_list)]
+    products = [build_multiplier(a, b, mult_cfg) for a, b in zip(a_list, b_list)]
     return adder_tree(products, add_cfg)
 
 
@@ -169,7 +173,7 @@ class MatmulAccumulateComponent(Component):
             for j in range(self.dim):
                 b_col = self.B[:, j]
                 dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg)
-                acc = self.add_cfg.build(self.C[i, j], dot)
+                acc = build_adder(self.C[i, j], dot, self.add_cfg)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
                 row.append(y_sig)
@@ -241,4 +245,3 @@ def ceil_log2(n: int) -> int:
 def max_y_width_unsigned(a_width: int, b_width: int, k: int, *, include_carry_from_add: bool = True) -> int:
     carry = 1 if include_carry_from_add else 0
     return a_width + b_width + ceil_log2(k) + carry
-

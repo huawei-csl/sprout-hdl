@@ -237,5 +237,6 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - input with register
 - add subnormal support for fp add
 - unify run_vectors_local and run_vectors
+- unify testvector_generation_fp.py and testing/floating_point/fp_testvectors_general.py and  testvector_generation.py
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.

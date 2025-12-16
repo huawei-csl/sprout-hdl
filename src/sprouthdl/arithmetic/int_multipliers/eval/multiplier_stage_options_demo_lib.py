@@ -17,6 +17,7 @@ from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPref
 
 # Options for each stage
 
+# Partial Product Generator option values have type Type[PartialProductGeneratorBase]
 class PPGOption(Enum):
     AND = AndPartialProductGenerator # and partial products
     BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
@@ -25,6 +26,7 @@ class PPGOption(Enum):
     NONE = None
 
 
+# Partial Product Accumulator option values have type Type[PartialProductAccumulatorBase]
 class PPAOption(Enum):
     ACCUMULATOR_TREE = CompressorTreeAccumulator
     WALLACE_TREE = WallaceTreeAccumulator
@@ -33,7 +35,7 @@ class PPAOption(Enum):
     FOUR_TWO_COMPRESSOR = FourTwoCompressorAccumulator
     NONE = None
 
-
+# Final Stage Adder option values have type Type[FinalStageAdderBase]
 class FSAOption(Enum):
     RIPPLE_CARRY = RippleCarryFinalAdder
     PREFIX_KOGGE_STONE = PrefixAdderFinalStage
@@ -46,6 +48,7 @@ class FSAOption(Enum):
     PLUS_OPERATOR = PlusOperatorAdderFinalStage
     NONE = None
 
+# Multiplier option values have type Type[StageBasedMultiplierBase]
 class MultiplierOption(Enum):
     STAGE_BASED_MULTIPLIER = StageBasedMultiplier
     STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER = StageBasedSignMagnitudeMultiplier
