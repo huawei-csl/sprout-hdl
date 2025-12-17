@@ -41,6 +41,22 @@ class Component(abc.ABC):
             with_reset=with_reset,
         )
         for sig in self.io.__dict__.values():
+            sig: Signal
+            
+            # if is clock/reset assign to module clk/rst
+            if sig.name == "clk":
+                if self.clk is None:
+                    self.clk = sig
+                else:
+                    self.clk <<= sig
+                continue
+            if sig.name == "rst":
+                if self.rst is None:
+                    self.rst = sig
+                else:
+                    self.rst <<= sig
+                continue
+            
             if sig.kind == "input":
                 module.add_input(sig)
             elif sig.kind == "output":
