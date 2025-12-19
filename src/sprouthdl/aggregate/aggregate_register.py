@@ -1,4 +1,4 @@
-from typing import Generic, Optional
+from typing import Generic, List, Optional
 from typing import Type, TypeVar, Union
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate, T_Agg
 from sprouthdl.sprouthdl import Expr, ExprLike, Signal, as_expr, fit_width
@@ -38,7 +38,7 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
         self._agg_kwargs = dict(agg_kwargs)
 
         # Use a wire-like instance to infer shape/width
-        proto: T_Agg = agg_cls.wire_like(*agg_args, **agg_kwargs)
+        proto: T_Agg = agg_cls.wire_like(agg_cls(*agg_args, **agg_kwargs))
         bits_typ = proto.to_bits().typ
 
         reg_name = name or f"reg_{agg_cls.__name__}_{id(self)}"
@@ -54,21 +54,13 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
 
     # ---- HDLAggregate API ----
 
-    def to_bits(self) -> Expr:
-        """Packed register contents as a flat bitvector Expr."""
-        return self._reg
+    def to_list(self) -> List[Expr]:
+        """Expose the underlying register as the sole leaf."""
+        return [self._reg]
 
     @classmethod
     def wire_like(cls, *args, **kwargs):
         raise TypeError("AggregateRegister.wire_like() is not meaningful")
-
-    def _assign_from_bits(self, bits: Expr) -> None:
-        """
-        Drive the register's next-state with the packed bits.
-        """
-        if not isinstance(self._reg, Signal) or self._reg.kind != "reg":
-            raise TypeError("AggregateRegister must wrap a register-like Signal")
-        self._reg <<= bits
 
     # ---- Convenience views ----
 
@@ -79,10 +71,6 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
         value <<= self._reg
         return value
 
-    @property
-    def Q(self) -> T_Agg:
-        """Alias for value (typical register naming)."""
-        return self.value
 
     @property
     def bits(self) -> Expr:

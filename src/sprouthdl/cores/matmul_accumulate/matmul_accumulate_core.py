@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections import namedtuple
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Literal, Sequence
+from typing import Callable, Iterable, List, Literal, NamedTuple, Sequence
 
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
@@ -161,13 +162,13 @@ class MatmulAccumulateComponent(Component):
                 ]
             )
 
-        self.A = build_matrix("a", self.cfg.widths.a_width, self.cfg.dims.dim_m, self.cfg.dims.dim_k)
-        self.B = build_matrix("b", self.cfg.widths.b_width, self.cfg.dims.dim_k, self.cfg.dims.dim_n)
-        self.C = build_matrix("c", self.cfg.widths.c_width, self.cfg.dims.dim_m, self.cfg.dims.dim_n)
+        self.A = build_matrix("a", self.cfg.widths.a_width, self.cfg.dims.dim_m, self.cfg.dims.dim_k, "input")
+        self.B = build_matrix("b", self.cfg.widths.b_width, self.cfg.dims.dim_k, self.cfg.dims.dim_n, "input")
+        self.C = build_matrix("c", self.cfg.widths.c_width, self.cfg.dims.dim_m, self.cfg.dims.dim_n, "input")
 
         self.elaborate()
 
-        self.io = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
+        self.io: MatmulAccumulateIO = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
 
     def elaborate(self):
         rows = []
@@ -178,11 +179,27 @@ class MatmulAccumulateComponent(Component):
                 b_col = self.B[:, j]
                 dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg)
                 acc = build_adder(self.C[i, j], dot, self.cfg.add_cfg)
-                y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="wire")
+                y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
                 row.append(y_sig)
             rows.append(Array(row))
         self.Y = Array(rows)
+
+
+class MatmulAccuumulateComponentWrapper(Component):
+    """Wrapper component that has only basic signals as IO."""
+
+    def __init__(self, cfg: MMAcCfg, signed_io_type: bool = False):
+        self.cfg = cfg
+        self.signed_io_type = signed_io_type
+        self.elaborate()
+
+    def elaborate(self):
+        self.comp = MatmulAccumulateComponent(self.cfg, signed_io_type=self.signed_io_type)
+
+        io_list: List[Signal] = self.comp.io.A.to_list() + self.comp.io.B.to_list() + self.comp.io.C.to_list() + self.comp.io.Y.to_list()
+        io_dict = {sig.name: sig for sig in io_list}
+        self.io = namedtuple('MatmulAccumulateIOWrapper', io_dict.keys())(**io_dict)
 
 
 @dataclass
@@ -203,28 +220,10 @@ def build_matmul_accumulate(
     component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
 
     def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
-        m = Module(name)
-
-        def make_io_matrix(template: Array, register_io_func: Callable[[Signal], None]) -> Array:
-            ports = Array.wire_like(template)
-            rows = len(template)
-            cols = len(template[0])
-            for i in range(rows):
-                for j in range(cols):
-                    register_io_func(ports[i, j])
-            return ports
-
-        # gen new matrices with ports and connect to wrapped component
-        A_ports = make_io_matrix(wrapped.A, m.add_input)
-        B_ports = make_io_matrix(wrapped.B, m.add_input)
-        C_ports = make_io_matrix(wrapped.C, m.add_input)
-        Y_ports = make_io_matrix(wrapped.Y, m.add_output)        
-        wrapped.A <<= A_ports
-        wrapped.B <<= B_ports
-        wrapped.C <<= C_ports
-        Y_ports <<= wrapped.Y
         
-        m.collect_signals()
+        comp = MatmulAccuumulateComponentWrapper(cfg, signed_io_type=signed_io_type)
+        m = comp.to_module(name)
+        A_ports, B_ports, C_ports, Y_ports = comp.comp.io.A, comp.comp.io.B, comp.comp.io.C, comp.comp.io.Y
 
         return m, A_ports, B_ports, C_ports, Y_ports
 

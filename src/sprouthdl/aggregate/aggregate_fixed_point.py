@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Union, Sequence, Type, TypeVar, Generic
+from typing import List, Optional, Union, Sequence, Type, TypeVar, Generic
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
-from sprouthdl.sprouthdl import Const, Expr, ExprLike, HDLType, Resize, Wire, as_expr, fit_width, Signal
+from sprouthdl.sprouthdl import Const, Expr, ExprLike, HDLType, Resize, Wire, as_expr, fit_width
 
 # -----------------------------
 # Fixed-point type description
@@ -125,8 +125,8 @@ class FixedPoint(HDLAggregate):
 
     # ---- HDLAggregate API ----
 
-    def to_bits(self) -> Expr:
-        return self._bits
+    def to_list(self) -> List[Expr]:
+        return [self._bits]
 
     @classmethod
     def wire_like(
@@ -146,19 +146,6 @@ class FixedPoint(HDLAggregate):
         else:
             raise TypeError(f"FixedPoint.wire_like expects FixedPoint or FixedPointType, got {type(arg)}")
         return cls(ftype, name=name, bits=None)
-
-    def _assign_from_bits(self, bits: Expr) -> None:
-        """
-        Assign to the underlying leaf Signal (wire or reg).
-
-        - If backed by a reg Signal → next-state assignment.
-        - If backed by a wire Signal → combinational driver.
-        """
-        target = self._bits
-        if not isinstance(target, Signal):
-            raise TypeError("FixedPoint assignment target must be backed by a Signal")
-
-        target <<= bits
 
     # ---------------------------------
     # Internal helpers for arithmetic

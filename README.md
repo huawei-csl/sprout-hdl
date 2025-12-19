@@ -238,5 +238,9 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - add subnormal support for fp add
 - unify run_vectors_local and run_vectors
 - unify testvector_generation_fp.py and testing/floating_point/fp_testvectors_general.py and  testvector_generation.py
+- signed for fused matmul (baugh-wooley), get_elements() for aggregate, use it for to_bits and flatten (impl in base class)
+- rename aggregate types, composite types / the others sprouthdl.py should be base type
+- probabliy not a nice pattern: type(elem).wire_like(elem), better do -> elem.get_wire_clone()
+- in testing/test_matmul_accumulate_core.py, etc use vec.to_list() to generate io dict -> to dataclass/named tuple in a wrapper componnet
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.

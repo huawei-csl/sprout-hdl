@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float import FpMul
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import FpMulSN
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
-from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, Signal, UInt, Wire, as_expr, fit_width
+from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, UInt, Wire, as_expr, fit_width
 
 
 @dataclass(frozen=True)
@@ -81,8 +81,8 @@ class FloatingPoint(HDLAggregate):
         return self._bits[self.width - 1]
 
     # ---- HDLAggregate API ----
-    def to_bits(self) -> Expr:
-        return self._bits
+    def to_list(self) -> List[Expr]:
+        return [self._bits]
 
     @classmethod
     def wire_like(
@@ -97,13 +97,6 @@ class FloatingPoint(HDLAggregate):
         else:
             raise TypeError("FloatingPoint.wire_like expects FloatingPoint or FloatingPointType, " f"got {type(arg)}")
         return cls(ftype, name=name, bits=None)
-
-    def _assign_from_bits(self, bits: Expr) -> None:
-        target = self._bits
-        if not isinstance(target, Signal):
-            raise TypeError("FloatingPoint assignment target must be backed by a Signal")
-
-        target <<= bits
 
     # ---------------------------------
     # Floating-point add helper

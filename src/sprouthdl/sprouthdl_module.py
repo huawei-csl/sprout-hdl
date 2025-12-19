@@ -7,6 +7,7 @@ from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat
 
 
 from typing import Any, Dict, List, Optional
+from dataclasses import is_dataclass, fields
 
 from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys
 
@@ -40,7 +41,17 @@ class Component(abc.ABC):
             with_clock=with_clock,
             with_reset=with_reset,
         )
-        for sig in self.io.__dict__.values():
+
+        def iter_io_values(io):
+            if isinstance(io, dict):
+                return io.values()
+            if is_dataclass(io):
+                return (getattr(io, f.name) for f in fields(io))
+            if hasattr(io, "_fields"):              # namedtuple
+                return (getattr(io, n) for n in io._fields)
+            return vars(io).values()                # normal objects
+
+        for sig in iter_io_values(self.io):
             sig: Signal
 
             # if is clock/reset assign to module clk/rst
@@ -48,13 +59,13 @@ class Component(abc.ABC):
                 if module.clk is None:
                     module.clk = sig
                 else:
-                    module.clk <<= sig
+                    raise(ValueError("Module already has a clock signal"))
                 continue
             if sig.name == "rst":
                 if module.rst is None:
                     module.rst = sig
                 else:
-                    module.rst <<= sig
+                    raise(ValueError("Module already has a reset signal"))
                 continue
 
             if sig.kind == "input":
@@ -64,7 +75,7 @@ class Component(abc.ABC):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         module.component = self # can be used for debugging
-        module._collect_signals_from_outputs([s for s in self.io.__dict__.values() if s.kind == "output"])
+        module._collect_signals_from_outputs([s for s in iter_io_values(self.io) if s.kind == "output"])
         return module 
 
     def from_module(self, module: 'Module', make_internal=False, group=False) -> Self:
