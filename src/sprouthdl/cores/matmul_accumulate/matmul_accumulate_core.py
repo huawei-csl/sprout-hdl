@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Callable, Iterable, List, Literal, NamedTuple, Sequence
 
 from sprouthdl.aggregate.aggregate_array import Array
+from sprouthdl.aggregate.aggregate_record import AggregateRecord
+from sprouthdl.aggregate.aggregate_record_dynamic import AggregateRecordDynamic
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,
@@ -111,7 +113,7 @@ def inner_product(
 
 
 @dataclass
-class MatmulAccumulateIO:
+class MatmulAccumulateIO(AggregateRecordDynamic):
     A: Array  # input
     B: Array  # input
     C: Array  # input
@@ -186,20 +188,20 @@ class MatmulAccumulateComponent(Component):
         self.Y = Array(rows)
 
 
-class MatmulAccuumulateComponentWrapper(Component):
-    """Wrapper component that has only basic signals as IO."""
+# class MatmulAccuumulateComponentWrapper(Component):
+#     """Wrapper component that has only basic signals as IO."""
 
-    def __init__(self, cfg: MMAcCfg, signed_io_type: bool = False):
-        self.cfg = cfg
-        self.signed_io_type = signed_io_type
-        self.elaborate()
+#     def __init__(self, cfg: MMAcCfg, signed_io_type: bool = False):
+#         self.cfg = cfg
+#         self.signed_io_type = signed_io_type
+#         self.elaborate()
 
-    def elaborate(self):
-        self.comp = MatmulAccumulateComponent(self.cfg, signed_io_type=self.signed_io_type)
+#     def elaborate(self):
+#         self.comp = MatmulAccumulateComponent(self.cfg, signed_io_type=self.signed_io_type)
 
-        io_list: List[Signal] = self.comp.io.A.to_list() + self.comp.io.B.to_list() + self.comp.io.C.to_list() + self.comp.io.Y.to_list()
-        io_dict = {sig.name: sig for sig in io_list}
-        self.io = namedtuple('MatmulAccumulateIOWrapper', io_dict.keys())(**io_dict)
+#         io_list: List[Signal] = self.comp.io.A.to_list() + self.comp.io.B.to_list() + self.comp.io.C.to_list() + self.comp.io.Y.to_list()
+#         io_dict = {sig.name: sig for sig in io_list}
+#         self.io = namedtuple('MatmulAccumulateIOWrapper', io_dict.keys())(**io_dict)
 
 
 @dataclass
@@ -217,17 +219,21 @@ def build_matmul_accumulate(
     signed_io_type: bool = False,
 ) -> MatmulAccumulateBuildOut:
     
-    component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
+    # component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
 
-    def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
+    # def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
         
-        comp = MatmulAccuumulateComponentWrapper(cfg, signed_io_type=signed_io_type)
-        m = comp.to_module(name)
-        A_ports, B_ports, C_ports, Y_ports = comp.comp.io.A, comp.comp.io.B, comp.comp.io.C, comp.comp.io.Y
+    #     comp = MatmulAccuumulateComponentWrapper(cfg, signed_io_type=signed_io_type)
+    #     m = comp.to_module(name)
+    #     A_ports, B_ports, C_ports, Y_ports = comp.comp.io.A, comp.comp.io.B, comp.comp.io.C, comp.comp.io.Y
 
-        return m, A_ports, B_ports, C_ports, Y_ports
+    #     return m, A_ports, B_ports, C_ports, Y_ports
 
-    component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core", component)
+    # component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core", component)
+    
+    component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
+    component_module = component.to_module("matmul_accumulate_core")
+    A, B, C, Y = component.io.A, component.io.B, component.io.C, component.io.Y
 
     return MatmulAccumulateBuildOut(
         component=component,

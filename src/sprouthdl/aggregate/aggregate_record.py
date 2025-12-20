@@ -86,21 +86,12 @@ class AggregateRecord(HDLAggregate):
 
     # ---------------- HDLAggregate API ----------------
 
-    def to_list(self) -> List[Expr]:
-        flat_list: List[Expr] = []
+    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
+        list_first_level: List[Expr | "HDLAggregate"] = []
         for name in self._record_field_templates.keys():
             v = getattr(self, name)
-            if isinstance(v, Expr):
-                flat_list.append(v)
-            elif isinstance(v, HDLAggregate):
-                flat_list.extend(v.to_list())
-            else:
-                raise TypeError(
-                    f"Unsupported field type in {self.__class__.__name__}.to_list(): {name} -> {type(v)}"
-                )
-        if not flat_list:
-            raise ValueError(f"AggregateRecord {self.__class__.__name__} has no fields")
-        return flat_list
+            list_first_level.append(v)
+        return list_first_level
 
     @classmethod
     def wire_like(

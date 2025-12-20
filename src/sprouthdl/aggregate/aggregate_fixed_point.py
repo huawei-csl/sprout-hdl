@@ -125,7 +125,7 @@ class FixedPoint(HDLAggregate):
 
     # ---- HDLAggregate API ----
 
-    def to_list(self) -> List[Expr]:
+    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
         return [self._bits]
 
     @classmethod

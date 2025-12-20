@@ -3,10 +3,12 @@ from dataclasses import dataclass, make_dataclass
 import hashlib
 import random
 import time
+
+
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat, fit_width, _SHARED, reset_shared_cache
 
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from dataclasses import is_dataclass, fields
 
 from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys
@@ -42,16 +44,7 @@ class Component(abc.ABC):
             with_reset=with_reset,
         )
 
-        def iter_io_values(io):
-            if isinstance(io, dict):
-                return io.values()
-            if is_dataclass(io):
-                return (getattr(io, f.name) for f in fields(io))
-            if hasattr(io, "_fields"):              # namedtuple
-                return (getattr(io, n) for n in io._fields)
-            return vars(io).values()                # normal objects
-
-        for sig in iter_io_values(self.io):
+        for sig in iter_values(self.io):
             sig: Signal
 
             # if is clock/reset assign to module clk/rst
@@ -75,7 +68,7 @@ class Component(abc.ABC):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         module.component = self # can be used for debugging
-        module._collect_signals_from_outputs([s for s in iter_io_values(self.io) if s.kind == "output"])
+        module._collect_signals_from_outputs([s for s in iter_values(self.io) if s.kind == "output"])
         return module 
 
     def from_module(self, module: 'Module', make_internal=False, group=False) -> Self:
@@ -573,3 +566,15 @@ class IOCollector:
         parts_lsb_to_msb = [bits[i] for i in range(typ.width)]
         agg <<= cat(*parts_lsb_to_msb)
         return agg
+
+
+def iter_values(obj: Any, *, allow_to_list: bool = True) -> Iterable[Any]:
+    if allow_to_list and hasattr(obj, "to_list"):  # HDLAggregate, returns list of Expr (should be Signals)
+        return obj.to_list()
+    if isinstance(obj, dict):
+        return obj.values()
+    if is_dataclass(obj):
+        return (getattr(obj, f.name) for f in fields(obj))
+    if hasattr(obj, "_fields"):  # namedtuple
+        return (getattr(obj, n) for n in obj._fields)
+    return vars(obj).values()  # normal object

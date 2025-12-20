@@ -24,22 +24,24 @@ class HDLAggregate(ABC):
     """
 
     @abstractmethod
-    def to_list(self) -> List[Expr]:
+    def to_list_first_level(self) -> List[Union[Expr, "HDLAggregate"]]:
         """Return the ordered list of Expr leaves (Signals, Consts, etc.)."""
         ...
 
-    @classmethod
-    @abstractmethod
-    def wire_like(
-        cls: Type[T_Agg],
-        *args,
-        **kwargs,
-    ) -> T_Agg:
-        """
-        Create a 'wire-filled' instance of this aggregate type.
-        The arguments should match your constructor need.
-        """
-        ...
+    def to_list(self) -> List[Expr]:
+        flat_list: List[Expr] = []
+        for elem in self.to_list_first_level():
+            if isinstance(elem, Expr):
+                flat_list.append(elem)
+            elif isinstance(elem, HDLAggregate):
+                flat_list.extend(elem.to_list())
+            else:
+                raise TypeError(
+                    f"Unsupported field type in {self.__class__.__name__}.to_list(): {elem} -> {type(elem)}"
+                )
+        if not flat_list:
+            raise ValueError(f"AggregateRecord {self.__class__.__name__} has no fields")
+        return flat_list
 
     # -------- Convenience API shared by all aggregates --------
 

@@ -182,22 +182,11 @@ class Array(HDLAggregate):
 
         return cls(new_elems)
 
-    def to_list(self) -> List[Expr]:
-        """
-        Flatten the Array into a list of Expr leaves (Signals, Consts, etc.)
-        by recursively traversing any nested HDLAggregates.
-        """
-        flat_list: List[Expr] = []
-
+    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
+        list_first_level: List[Expr | "HDLAggregate"] = []
         for elem in self._elems:
-            if isinstance(elem, Expr):
-                flat_list.append(elem)
-            elif isinstance(elem, HDLAggregate):
-                flat_list.extend(elem.to_list())
-            else:
-                raise TypeError(f"Unsupported element type in to_list(): {type(elem)}")
-
-        return flat_list
+            list_first_level.append(elem)
+        return list_first_level
 
     def __repr__(self) -> str:
         return f"Array(len={len(self)}, width={self.width})"
