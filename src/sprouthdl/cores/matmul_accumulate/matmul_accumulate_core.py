@@ -220,19 +220,7 @@ def build_matmul_accumulate(
     cfg: MMAcCfg,
     signed_io_type: bool = False,
 ) -> MatmulAccumulateBuildOut:
-    
-    # component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
-
-    # def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
         
-    #     comp = MatmulAccuumulateComponentWrapper(cfg, signed_io_type=signed_io_type)
-    #     m = comp.to_module(name)
-    #     A_ports, B_ports, C_ports, Y_ports = comp.comp.io.A, comp.comp.io.B, comp.comp.io.C, comp.comp.io.Y
-
-    #     return m, A_ports, B_ports, C_ports, Y_ports
-
-    # component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core", component)
-    
     component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
     component_module = component.to_module("matmul_accumulate_core")
     A, B, C, Y = component.io.A, component.io.B, component.io.C, component.io.Y
