@@ -10,6 +10,10 @@ from sprouthdl.sprouthdl_module import Module
 class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
     supported_signatures = ((True, True),)
 
+    def __init__(self, config, upper_correction: bool = True) -> None:
+        super().__init__(config)
+        self.upper_correction = upper_correction
+
     def generate_columns(
         self, io: StageBasedMultiplierIO
     ) -> DefaultDict[int, List[Expr]]:
@@ -21,6 +25,7 @@ class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
         wb = b.typ.width
         out_bits = io.y.typ.width
 
+        # ordinary partial products
         for i in range(wa - 1):
             for j in range(wb - 1):
                 weight = i + j
@@ -28,19 +33,33 @@ class BaughWooleyPartialProductGenerator(PartialProductGeneratorBase):
                     continue
                 cols[weight].append(a[i] & b[j])
 
+        # sign row (i = wa-1)
         i = wa - 1
         for j in range(wb - 1):
             cols[i + j].append(~(a[i] & b[j]))
 
+        # sign column (j = wb-1
         j = wb - 1
         for i in range(wa - 1):
             cols[i + j].append(~(a[i] & b[j]))
 
+        # sign corner (i = wa-1, j = wb-1)
         cols[wa - 1 + wb - 1].append(a[wa - 1] & b[wb - 1])
 
-        cols[wa - 1 + wb - 1 + 1].append(Const(True, Bool()))
-        cols[wa - 1].append(Const(True, Bool()))
-        cols[wb - 1].append(Const(True, Bool()))
+        # correction bit upper
+        if self.upper_correction:
+            if out_bits == wa + wb: # default case
+                cols[wa - 1 + wb - 1 + 1].append(Const(True, Bool()))
+            else: # more general case where more output bits are present
+                for i in range(wa - 1 + wb - 1 + 1, out_bits):
+                    cols[i].append(Const(True, Bool()))
+
+        # correction bits lower
+        if wa == wb:
+            cols[wa].append(Const(True, Bool()))
+        else: # more general case where a_width != b_width, not sure if correct
+            cols[wa - 1].append(Const(True, Bool()))
+            cols[wb - 1].append(Const(True, Bool()))
 
         total_bits = sum(len(v) for v in cols.values())
 

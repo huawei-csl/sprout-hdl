@@ -18,6 +18,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
+    MatmulAccumulateCore,
     MatmulAccumulateIO,
     MMAcDims,
     MMAcWidths,
@@ -98,7 +99,7 @@ def inner_product(
     return adder_tree(products, add_cfg)
 
 
-class MatmulAccumulateComponent(Component):
+class MatmulAccumulateComponent(MatmulAccumulateCore):
     """Reusable component for matrix multiply-accumulate."""
 
     def __init__(
@@ -126,9 +127,9 @@ class MatmulAccumulateComponent(Component):
                 ]
             )
 
-        self.A = build_matrix("a", self.cfg.widths.a_width, self.cfg.dims.dim_m, self.cfg.dims.dim_k)
-        self.B = build_matrix("b", self.cfg.widths.b_width, self.cfg.dims.dim_k, self.cfg.dims.dim_n)
-        self.C = build_matrix("c", self.cfg.widths.c_width, self.cfg.dims.dim_m, self.cfg.dims.dim_n)
+        self.A = build_matrix("a", self.cfg.widths.a_width, self.cfg.dims.dim_m, self.cfg.dims.dim_k, kind="input")
+        self.B = build_matrix("b", self.cfg.widths.b_width, self.cfg.dims.dim_k, self.cfg.dims.dim_n, kind="input")
+        self.C = build_matrix("c", self.cfg.widths.c_width, self.cfg.dims.dim_m, self.cfg.dims.dim_n, kind="input")
 
         self.elaborate()
 
@@ -190,31 +191,33 @@ def build_matmul_accumulate(
 ) -> MatmulAccumulateBuildOut:
     component = MatmulAccumulateComponent(cfg, signed_io_type=signed_io_type)
 
-    def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
-        m = Module(name)
+    # def build_wrapper_module(name: str, wrapped: MatmulAccumulateComponent) -> tuple[Module, Array, Array, Array, Array]:
+    #     m = Module(name)
 
-        def make_io_matrix(template: Array, register_io_func: Callable[[Signal], None]) -> Array:
-            ports = Array.wire_like(template)
-            rows = len(template)
-            cols = len(template[0])
-            for i in range(rows):
-                for j in range(cols):
-                    register_io_func(ports[i, j])
-            return ports
+    #     def make_io_matrix(template: Array, register_io_func: Callable[[Signal], None]) -> Array:
+    #         ports = Array.wire_like(template)
+    #         rows = len(template)
+    #         cols = len(template[0])
+    #         for i in range(rows):
+    #             for j in range(cols):
+    #                 register_io_func(ports[i, j])
+    #         return ports
 
-        # gen new matrices with ports and connect to wrapped component
-        A_ports = make_io_matrix(wrapped.A, m.add_input)
-        B_ports = make_io_matrix(wrapped.B, m.add_input)
-        C_ports = make_io_matrix(wrapped.C, m.add_input)
-        Y_ports = make_io_matrix(wrapped.Y, m.add_output)
-        wrapped.A <<= A_ports
-        wrapped.B <<= B_ports
-        wrapped.C <<= C_ports
-        Y_ports <<= wrapped.Y
+    #     # gen new matrices with ports and connect to wrapped component
+    #     A_ports = make_io_matrix(wrapped.A, m.add_input)
+    #     B_ports = make_io_matrix(wrapped.B, m.add_input)
+    #     C_ports = make_io_matrix(wrapped.C, m.add_input)
+    #     Y_ports = make_io_matrix(wrapped.Y, m.add_output)
+    #     wrapped.A <<= A_ports
+    #     wrapped.B <<= B_ports
+    #     wrapped.C <<= C_ports
+    #     Y_ports <<= wrapped.Y
 
-        return m, A_ports, B_ports, C_ports, Y_ports
+    #     return m, A_ports, B_ports, C_ports, Y_ports
 
-    component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core_sign_mag", component)
+    # component_module, A, B, C, Y = build_wrapper_module("matmul_accumulate_core_sign_mag", component)
+    component_module = component.to_module("matmul_accumulate_core_sign_mag")
+    A, B, C, Y = component.io.A, component.io.B, component.io.C, component.io.Y
 
     return MatmulAccumulateBuildOut(
         component=component,

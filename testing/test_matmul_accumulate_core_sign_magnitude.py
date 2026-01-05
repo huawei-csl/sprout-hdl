@@ -28,29 +28,30 @@ def test_mmac_core_sign_magnitude_pipeline():
     b_width = 8
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
 
-    encoding = Encoding.twos_complement_symmetric
+    encoding = Encoding.twos_complement_symmetric  # Encoding.twos_complement_symmetric or Encoding.twos_complement
+    signed_io_type = False
 
     # optional: disable encoders when using StageBasedSignMagnitudeToTwosComplementMultiplier
     encoding_cfg = SignMagnitudeEncoderConfig(
-        encoder_clip_most_negative=False,
+        encoder_clip_most_negative=True if encoding == Encoding.twos_complement else False,
         decoder_clip_most_negative=False,
     )
 
     mult_cfg = MultiplierConfig(
         use_operator=False,
-        multiplier_opt=MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER,
-        encodings=TwoInputAritEncodings.with_enc(Encoding.sign_magnitude),
+        multiplier_opt=MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_MULTIPLIER if encoding == Encoding.twos_complement_symmetric else MultiplierOption.STAGE_BASED_SIGN_MAGNITUDE_EXT_MULTIPLIER,
+        encodings=TwoInputAritEncodings.with_enc(Encoding.sign_magnitude if encoding == Encoding.twos_complement_symmetric else Encoding.sign_magnitude_ext),
         ppg_opt=PPGOption.AND,
         ppa_opt=PPAOption.WALLACE_TREE,
         fsa_opt=FSAOption.RIPPLE_CARRY,
     )
-    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding)
+    add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding) # what is the encoding in add_cfg
 
     dims = MMAcDims(dim_m=dim, dim_n=dim, dim_k=dim_k)
     widths = MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width)
     cfg = MMAcEncodedCfg(dims=dims, widths=widths, mult_cfg=mult_cfg, add_cfg=add_cfg, encoding_cfg=encoding_cfg)
 
-    core_build_out = build_matmul_accumulate(cfg, signed_io_type=True)
+    core_build_out = build_matmul_accumulate(cfg, signed_io_type=signed_io_type)
 
     print(
         f"Output matrix Y has shape: ({dim}, {dim}) with element width {core_build_out.Y[0,0].typ.width} bits"
@@ -76,8 +77,15 @@ def test_mmac_core_sign_magnitude_pipeline():
             y_hw[i, j] = sim.get(core_build_out.Y[i, j])
 
     y_np = a_vals @ b_vals + c_vals
-    assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core with sign-magnitude wrappers"
-    print("Matmul accumulate (sign-magnitude) simulation passed. Y=\n", y_hw)
+    if signed_io_type:
+        assert np.array_equal(y_hw, y_np), "Simulation mismatch for matmul accumulate core"
+    else:
+        sim.peek(core_build_out.Y[0, 1][0])
+        # encode each element according to the encoding
+        y_np_encoded = np.vectorize(
+            lambda x: EncodingModel(encoding).encode_value(int(x), core_build_out.Y[0, 0].typ.width)
+        )(y_np)
+        assert np.array_equal(y_hw, y_np_encoded), "Simulation mismatch for matmul accumulate core"
 
     yosys_metrics = get_yosys_metrics(core_build_out.module)
     print(f"Yosys metrics: {yosys_metrics}")

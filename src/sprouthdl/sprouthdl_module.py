@@ -52,13 +52,15 @@ class Component(abc.ABC):
                 if module.clk is None:
                     module.clk = sig
                 else:
-                    raise(ValueError("Module already has a clock signal"))
+                    #raise(ValueError("Module already has a clock signal"))
+                    pass
                 continue
             if sig.name == "rst":
                 if module.rst is None:
                     module.rst = sig
                 else:
-                    raise(ValueError("Module already has a reset signal"))
+                    #raise(ValueError("Module already has a reset signal"))
+                    pass
                 continue
 
             if sig.kind == "input":

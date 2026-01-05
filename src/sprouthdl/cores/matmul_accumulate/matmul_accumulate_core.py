@@ -138,8 +138,10 @@ class MMAcCfg:
     mult_cfg: MultiplierConfig
     add_cfg: AdderConfig
 
+class MatmulAccumulateCore(Component):
+    io: MatmulAccumulateIO
 
-class MatmulAccumulateComponent(Component):
+class MatmulAccumulateComponent(MatmulAccumulateCore):
     """Reusable component for matrix multiply-accumulate."""
 
     def __init__(
@@ -147,7 +149,7 @@ class MatmulAccumulateComponent(Component):
         cfg: MMAcCfg,
         signed_io_type: bool = False,
     ):
-        
+
         self.cfg = cfg
         self.io_hdl_type = SInt if (is_signed(self.cfg.add_cfg.encoding) and signed_io_type) else UInt
 

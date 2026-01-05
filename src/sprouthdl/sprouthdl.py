@@ -480,6 +480,18 @@ def fit_width(e: Expr, t: HDLType) -> Expr:
         e = _maybe_share(e, force_share=True)  # for verilog emission
     return Resize(e, t.width)
 
+# helper functions for sign/zero extension
+def s_ext(expr: Expr, width: int) -> Expr:
+    if expr.typ.width >= width:
+        raise ValueError("s_ext: target width must be greater than expr width")
+    return fit_width(cast(expr, SInt(expr.typ.width)), SInt(width))
+
+def z_ext(expr: Expr, width: int) -> Expr:
+    if expr.typ.width >= width:
+        raise ValueError("z_ext: target width must be greater than expr width")
+    return fit_width(cast(expr, UInt(expr.typ.width)), UInt(width))
+
+# -----------------------------
 
 def op_add(a: Expr, b: Expr) -> Expr:
     t = add_result_type(a, b)
@@ -563,5 +575,3 @@ def mux_if(if_cond: ExprLike, then_expr: ExprLike, else_expr: ExprLike) -> Expr:
 
 def cat(*parts: ExprLike) -> Expr:
     return Concat([as_expr(p) for p in parts])
-
-

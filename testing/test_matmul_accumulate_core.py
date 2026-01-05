@@ -30,7 +30,7 @@ def test_mmac_core_basic_simulation():
     b_width = 8
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
     encoding = Encoding.twos_complement
-    signed_io_type = True
+    signed_io_type = False
 
     # use sprout operators
     # mult_cfg = MultiplierConfig(use_operator=True)

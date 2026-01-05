@@ -242,5 +242,7 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - rename aggregate types, composite types / the others sprouthdl.py should be base type
 - probabliy not a nice pattern: type(elem).wire_like(elem), better do -> elem.get_wire_clone()
 - in testing/test_matmul_accumulate_core.py, etc use vec.to_list() to generate io dict -> to dataclass/named tuple in a wrapper componnet
+- todo: non signed input types for sm core and fused core.
+- remove shared cache, no longer necessary if we scan the entire 
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.
