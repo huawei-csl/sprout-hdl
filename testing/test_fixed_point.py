@@ -1,12 +1,11 @@
-
-
+from __future__ import annotations
 from sprouthdl.aggregate.aggregate_register import AggregateRegister
 from sprouthdl.aggregate.aggregate_fixed_point import ARITHQuant, FixedPoint, FixedPointType
 from sprouthdl.sprouthdl import HDLType, UInt, as_expr, fit_width
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
-        
+
 from sprouthdl.sprouthdl import (
     Expr,
     Const,
@@ -100,8 +99,6 @@ def test_sim_aggregate_register():
         assert sim.peek(acc_val.bits) == expected
         
         print(f"After cycle {cycle}: acc_reg = {sim.get('acc_reg')}")  # Debug print
-        
-
 
 
 # Small helper: evaluate an Expr to an integer using the simulator
@@ -324,7 +321,7 @@ def test_fixedpoint_resize_truncate_to_smaller_total_width():
     # Since 5 fits in 7 bits, value should be unchanged
     assert v == raw
 
-        
+
 if __name__ == "__main__":
     test_sim_aggregate_register()
     test_fixedpoint_add_full_precision_unsigned()

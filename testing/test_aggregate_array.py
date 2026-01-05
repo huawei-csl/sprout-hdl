@@ -1,4 +1,4 @@
-# test_array.py
+from __future__ import annotations
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.sprouthdl import (
@@ -14,7 +14,6 @@ from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.test_aggregate_register_and_array import DummyAgg
-
 
 
 # -------------------------------------------------------------------

@@ -16,7 +16,6 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude imp
     MatmulAccumulateComponent,
     MultiplierConfig,
     SignMagnitudeEncoderConfig,
-    build_matmul_accumulate,
 )
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_simulator import Simulator
