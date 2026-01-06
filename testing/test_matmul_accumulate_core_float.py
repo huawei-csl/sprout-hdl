@@ -44,7 +44,7 @@ def _float16_matmul_accumulate(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> n
 
 def test_fp_matmul_accumulate_simulation():
     dim = 4
-    ft = FloatingPointType(exponent_width=5, fraction_width=10)
+    ft = FloatingPointType(exponent_width=5, fraction_width=8)
     #ft = FloatingPointType(exponent_width=3, fraction_width=4)
     module, A, B, C, Y = build_fp_matmul_accumulate(dim, ft)
 
@@ -83,8 +83,8 @@ def test_fp_matmul_accumulate_simulation():
                       ).all(), f"Expected {y_expected} but got {y_hw}"
 
     # get yosys transistor count
-    yosys_metrics = get_yosys_metrics(module)
-    print(f"Yosys metrics: {yosys_metrics}")
+    #yosys_metrics = get_yosys_metrics(module)
+    #print(f"Yosys metrics: {yosys_metrics}")
 
 if __name__ == "__main__":
     test_fp_matmul_accumulate_simulation()
