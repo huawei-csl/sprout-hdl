@@ -125,8 +125,8 @@ def test_mmac_core_vector_simulation():
     dim_m = 4
     dim_n = 4
     dim_k = 4
-    a_width = 8
-    b_width = 8
+    a_width = 4
+    b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
 
     encoding = Encoding.unsigned

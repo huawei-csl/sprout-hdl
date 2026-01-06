@@ -73,6 +73,7 @@ def build_multiplier(a: Expr, b: Expr, mult_cfg: BaseMultiplierConfig, enc_cfg: 
     multiplier.io.a <<= a
     multiplier.io.b <<= b
     y_expr: Expr = multiplier.io.y
+    y_expr.name = f"mult_y"
 
     if enc_cfg and enc_cfg.decoder_cls is not None:
         decoder = enc_cfg.decoder_cls(
