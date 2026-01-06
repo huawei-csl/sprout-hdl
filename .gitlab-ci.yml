@@ -5,7 +5,7 @@ stages:
 # Test job
 pytest:
   stage: test
-  image: python:3.13
+  image: python:3.12
   cache:
     paths:
       - .pip-cache/

@@ -27,7 +27,7 @@ def test_mmac_core_sign_magnitude_pipeline():
     a_width = 4
     b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
-    no_encoding = False # just for testing
+    no_encoding_decoding = False # just for testing
 
     encoding = Encoding.twos_complement_symmetric  # Encoding.twos_complement_symmetric or Encoding.twos_complement
     signed_io_type = False
@@ -48,13 +48,14 @@ def test_mmac_core_sign_magnitude_pipeline():
     )
 
     # for testing - remove encoder/decoders
-    if no_encoding:
+    if no_encoding_decoding:
         encoding = Encoding.twos_complement
         encoding_cfg.encoder_cls = None
         encoding_cfg.decoder_cls = None
         mult_cfg.multiplier_opt = MultiplierOption.STAGE_BASED_MULTIPLIER
         mult_cfg.encodings = TwoInputAritEncodings.with_enc(encoding)
         mult_cfg.ppg_opt = PPGOption.BAUGH_WOOLEY if is_signed(encoding) else PPGOption.AND
+        
 
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding) # what is the encoding in add_cfg
 
