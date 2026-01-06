@@ -129,6 +129,8 @@ def test_mmac_core_vector_simulation():
     b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
 
+    signed_io_type = False
+
     encoding = Encoding.unsigned
 
     mult_cfg = MultiplierConfig(
@@ -140,7 +142,7 @@ def test_mmac_core_vector_simulation():
         fsa_opt=FSAOption.RIPPLE_CARRY,
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
-    
+
     core_cfg = MMAcCfg(
         dims=MMAcDims(dim_m=dim_m, dim_n=dim_n, dim_k=dim_k),
         widths=MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width),
@@ -148,9 +150,9 @@ def test_mmac_core_vector_simulation():
         add_cfg=add_cfg,
     )
 
-    core = build_matmul_accumulate(cfg=core_cfg, signed_io_type=False)
+    core = build_matmul_accumulate(cfg=core_cfg, signed_io_type=signed_io_type)
 
-    #vectors = _build_vectors(core, num_vectors=5)
+    # vectors = _build_vectors(core, num_vectors=5)
     vectors = _build_vectors_encoding(core, encoding=encoding, num_vectors=50)
 
     sim = Simulator(core.module)
@@ -169,7 +171,7 @@ def test_mmac_core_vector_simulation():
     )
 
     sim_tb.to_testbench_file_from_data(filepath="mmac_core_tb_sim.v", data_file="mmac_core_vectors.dat")
-    
+
     # also save verilog file
     core.module.to_verilog_file("mmac_core.v")
 
