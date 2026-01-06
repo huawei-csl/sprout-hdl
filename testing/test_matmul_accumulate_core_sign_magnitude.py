@@ -9,7 +9,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcDims, MMAcWidths, max_y_width_unsigned
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
     MMAcEncodedCfg,
@@ -24,9 +24,10 @@ from sprouthdl.sprouthdl_simulator import Simulator
 def test_mmac_core_sign_magnitude_pipeline():
     dim = 4
     dim_k = dim
-    a_width = 8
-    b_width = 8
+    a_width = 4
+    b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
+    no_encoding = False # just for testing
 
     encoding = Encoding.twos_complement_symmetric  # Encoding.twos_complement_symmetric or Encoding.twos_complement
     signed_io_type = False
@@ -34,7 +35,7 @@ def test_mmac_core_sign_magnitude_pipeline():
     # optional: disable encoders when using StageBasedSignMagnitudeToTwosComplementMultiplier
     encoding_cfg = SignMagnitudeEncoderConfig(
         encoder_clip_most_negative=True if encoding == Encoding.twos_complement else False,
-        decoder_clip_most_negative=False,
+        decoder_clip_most_negative=False
     )
 
     mult_cfg = MultiplierConfig(
@@ -45,6 +46,16 @@ def test_mmac_core_sign_magnitude_pipeline():
         ppa_opt=PPAOption.WALLACE_TREE,
         fsa_opt=FSAOption.RIPPLE_CARRY,
     )
+
+    # for testing - remove encoder/decoders
+    if no_encoding:
+        encoding = Encoding.twos_complement
+        encoding_cfg.encoder_cls = None
+        encoding_cfg.decoder_cls = None
+        mult_cfg.multiplier_opt = MultiplierOption.STAGE_BASED_MULTIPLIER
+        mult_cfg.encodings = TwoInputAritEncodings.with_enc(encoding)
+        mult_cfg.ppg_opt = PPGOption.BAUGH_WOOLEY if is_signed(encoding) else PPGOption.AND
+
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True, encoding=encoding) # what is the encoding in add_cfg
 
     dims = MMAcDims(dim_m=dim, dim_n=dim, dim_k=dim_k)
@@ -57,7 +68,8 @@ def test_mmac_core_sign_magnitude_pipeline():
         f"Output matrix Y has shape: ({dim}, {dim}) with element width {core.io.Y[0,0].typ.width} bits"
     )
 
-    sim = Simulator(core.to_module("matmul_accumulate_core_sign_mag"))
+    module = core.to_module("matmul_accumulate_core_sign_mag")
+    sim = Simulator(module)
 
     a_vals = EncodingModel(encoding).get_uniform_sample_np(a_width, size=(dim, dim))
     b_vals = EncodingModel(encoding).get_uniform_sample_np(b_width, size=(dim, dim))
@@ -87,7 +99,7 @@ def test_mmac_core_sign_magnitude_pipeline():
         )(y_np)
         assert np.array_equal(y_hw, y_np_encoded), "Simulation mismatch for matmul accumulate core"
 
-    yosys_metrics = get_yosys_metrics(core.to_module("matmul_accumulate_core_sign_mag"))
+    yosys_metrics = get_yosys_metrics(module)
     print(f"Yosys metrics: {yosys_metrics}")
 
 

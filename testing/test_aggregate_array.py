@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.sprouthdl import (
     UInt,

@@ -81,7 +81,7 @@ class FloatingPoint(HDLAggregate):
         return self._bits[self.width - 1]
 
     # ---- HDLAggregate API ----
-    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
+    def to_list_first_level(self) -> List[Expr | HDLAggregate]:
         return [self._bits]
 
     @classmethod

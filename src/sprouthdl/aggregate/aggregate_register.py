@@ -54,7 +54,7 @@ class AggregateRegister(HDLAggregate, Generic[T_Agg]):
 
     # ---- HDLAggregate API ----
 
-    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
+    def to_list_first_level(self) -> List[Expr | HDLAggregate]:
         """Expose the underlying register as the sole leaf."""
         return [self._reg]
 

@@ -4,20 +4,20 @@ import numpy as np
 
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, PPAOption, PPGOption, TwoInputAritEncodings
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MMAcDims, MMAcWidths
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import MMAcFusedCfg, MatmulAccumulateComponent, MultiplierConfig, build_matmul_accumulate
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MMAcDims, MMAcWidths, max_y_width_unsigned
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import MMAcFusedCfg, MatmulAccumulateComponent, MultiplierConfig
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
 def test_mmac_core_basic_simulation():
     dim = 4
-    a_width = 4 #8
-    b_width = 4 #8
-    c_width = 10 #18
+    a_width = 8
+    b_width = 8
+    c_width = max_y_width_unsigned(a_width, b_width, dim, include_carry_from_add=False)
 
-    encoding = Encoding.unsigned # for twos_complement see test_matmul_accumulate_core.py and make sure the input type into ppa is signed
-    signed_io_type = True
+    encoding = Encoding.twos_complement # for twos_complement see test_matmul_accumulate_core.py and make sure the input type into ppa is signed
+    signed_io_type = False
 
     mult_cfg = MultiplierConfig(
         ppg_opt=PPGOption.BAUGH_WOOLEY if encoding == Encoding.twos_complement else PPGOption.AND,

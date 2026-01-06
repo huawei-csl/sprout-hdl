@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Iterable, List, Sequence, Union, Tuple
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
@@ -182,8 +181,8 @@ class Array(HDLAggregate):
 
         return cls(new_elems)
 
-    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
-        list_first_level: List[Expr | "HDLAggregate"] = []
+    def to_list_first_level(self) -> List[Expr | HDLAggregate]:
+        list_first_level: List[Expr | HDLAggregate] = []
         for elem in self._elems:
             list_first_level.append(elem)
         return list_first_level

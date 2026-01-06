@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Any, Dict, List, Type, TypeVar, Union
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
@@ -86,8 +85,8 @@ class AggregateRecord(HDLAggregate):
 
     # ---------------- HDLAggregate API ----------------
 
-    def to_list_first_level(self) -> List[Expr | "HDLAggregate"]:
-        list_first_level: List[Expr | "HDLAggregate"] = []
+    def to_list_first_level(self) -> List[Expr | HDLAggregate]:
+        list_first_level: List[Expr | HDLAggregate] = []
         for name in self._record_field_templates.keys():
             v = getattr(self, name)
             list_first_level.append(v)

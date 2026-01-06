@@ -5,6 +5,7 @@ from typing import Callable, Iterable, List, Type
 
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.arithmetic.encoding.sign_magnitude import (
+    EncoderDecoderBase,
     SignMagnitudeToTwosComplementDecoder,
     TwosComplementToSignMagnitudeEncoder,
 )
@@ -34,8 +35,8 @@ from sprouthdl.sprouthdl_module import Component, Module
 class SignMagnitudeEncoderConfig:
     """Configuration for optional sign-magnitude conversion wrappers."""
 
-    encoder_cls: Type[Component] | None = TwosComplementToSignMagnitudeEncoder
-    decoder_cls: Type[Component] | None = SignMagnitudeToTwosComplementDecoder
+    encoder_cls: Type[EncoderDecoderBase] | None = TwosComplementToSignMagnitudeEncoder
+    decoder_cls: Type[EncoderDecoderBase] | None = SignMagnitudeToTwosComplementDecoder
     encoder_clip_most_negative: bool = False
     decoder_clip_most_negative: bool = False
 
@@ -109,9 +110,7 @@ class MatmulAccumulateComponent(MatmulAccumulateCore):
     ):
 
         self.cfg = cfg
-        self.mult_cfg = cfg.mult_cfg
-        self.add_cfg = cfg.add_cfg
-        self.encoding_cfg = cfg.encoding_cfg
+
         self.io_hdl_type = SInt if (is_signed(self.cfg.add_cfg.encoding) and signed_io_type) else UInt
 
         def build_matrix(name: str, width: int, rows: int, cols: int, kind: str = "wire") -> Array:
@@ -136,7 +135,7 @@ class MatmulAccumulateComponent(MatmulAccumulateCore):
         self.io = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
 
     def _encode_matrix(self, matrix: Array) -> Array:
-        enc_cfg = self.encoding_cfg
+        enc_cfg = self.cfg.encoding_cfg
         if enc_cfg is None or enc_cfg.encoder_cls is None:
             return matrix
 
@@ -166,8 +165,8 @@ class MatmulAccumulateComponent(MatmulAccumulateCore):
             a_row = encoded_A[i, :]
             for j in range(self.cfg.dims.dim_n):
                 b_col = encoded_B[:, j]
-                dot = inner_product(a_row, b_col, self.mult_cfg, self.add_cfg, self.encoding_cfg)
-                acc = build_adder(self.C[i, j], dot, self.add_cfg)
+                dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg, self.cfg.encoding_cfg)
+                acc = build_adder(self.C[i, j], dot, self.cfg.add_cfg)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
                 row.append(y_sig)
@@ -183,4 +182,3 @@ class MatmulAccumulateBuildOut:
     B: Array
     C: Array
     Y: Array
-

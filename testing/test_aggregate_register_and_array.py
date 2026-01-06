@@ -45,8 +45,8 @@ class DummyAgg(HDLAggregate):
         Create a new DummyAgg with same width as template, new backing wire.
         """
         return cls(width=template.width, name=template.sig.name + "_w")
-    
-    def to_list(self)-> List[Expr]:
+
+    def to_list_first_level(self) -> List[Expr]:
         return [self.sig]
 
     def __repr__(self) -> str:
