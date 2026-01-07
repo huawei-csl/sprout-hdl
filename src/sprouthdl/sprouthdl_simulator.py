@@ -20,6 +20,15 @@ class Simulator:
         self.regs = [s for s in self.m._signals if s.kind == "reg"]
         self.wires = [s for s in self.m._signals if s.kind == "wire"]
 
+        def check_or_duplicate_name(signals):
+            seen = set()
+            for s in signals:
+                if s.name in seen:
+                    raise ValueError(f"Duplicate signal name detected: '{s.name}'")
+                seen.add(s.name)
+
+        check_or_duplicate_name(self.m._signals)
+
         self._by_name = {s.name: s for s in self.m._signals}
 
         self._cache_expr: dict[int, int] = {}

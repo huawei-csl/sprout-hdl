@@ -444,7 +444,8 @@ class AigerExporter:
                 for i in range(p.typ.width):
                     lit = self.aig._new_var()
                     self.aig.inputs.append(lit)
-                    self.aig.sym_inputs.append(f"{p.name}[{i}]")
+                    name = p.name if p.typ.width == 1 else f"{p.name}[{i}]"
+                    self.aig.sym_inputs.append(name)
                     bits.append(lit)
                 self._sig_bits[id(p)] = bits
 
@@ -455,7 +456,8 @@ class AigerExporter:
                 for i in range(s.typ.width):
                     q = self.aig._new_var()  # current state literal
                     bits.append(q)
-                    self.aig.sym_latches.append(f"{s.name}[{i}]")
+                    name = s.name if s.typ.width == 1 else f"{s.name}[{i}]"
+                    self.aig.sym_latches.append(name)
                 self._sig_bits[id(s)] = bits
                 self._reg_list.append(s)
 

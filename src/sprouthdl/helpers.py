@@ -9,7 +9,7 @@ from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing,
 from pyosys import libyosys as ys
 
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
-from sprouthdl.sprouthdl import Expr
+from sprouthdl.sprouthdl import Expr, Op2
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
@@ -88,11 +88,9 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10, simple=False) ->
 
 
 def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=10) -> Module:
-    # -- swact --
-    optim = True
     # get AIG
     aag = AigerExporter(module).get_aag()
-    if optim:
+    if optimize:
         aag = optimize_aag(aag, n_iter_optimizations=n_iter_optimizations)
     m_aig = AigerImporter(aag).get_sprout_module()
     try:
@@ -141,8 +139,8 @@ def run_vectors(
         raise_on_fail=raise_on_fail, print_on_pass=print_on_pass,
     )
     return sim.trace_history
-    
-    
+
+
 def run_vectors_on_simulator(
     sim: Simulator, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
     decoder: Callable[[int], float] | None = None,
@@ -214,6 +212,24 @@ def get_switch_count(states_list) -> float:
     # sum up all switches
     total_switches = sum(switches.values())
     return total_switches / len(states_list)  # average per vector
+
+def sim_and_switch_count(module: Module, vectors: list[tuple[str, dict[str, int], dict[str, int]]]) -> Module:
+
+    m_aig = refactor_module_to_aig(module)
+
+    # AIG network test sim
+    run_vectors(m_aig, vectors[0:min(16, len(vectors))])  # smoke test
+
+    exprs = m_aig.all_exprs()
+    all_ands = [e for e in exprs if isinstance(e, Op2) and e.op == "&"]
+
+    def run_and_count(vecs_run) -> int:
+        states_list = run_vectors(m_aig, vecs_run, exprs=all_ands)
+        return get_switch_count(states_list)             
+
+    switches = run_and_count(vectors)
+
+    return switches
 
 
 def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
