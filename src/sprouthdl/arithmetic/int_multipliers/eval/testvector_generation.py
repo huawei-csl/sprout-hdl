@@ -293,3 +293,37 @@ class AdderTestVectors(TwoInputArithmeticTestVectorsBase):
             )
 
         return vecs
+
+
+class EncoderDecoderTestVectors:
+    def __init__(
+        self,
+        width: int,
+        num_vectors: Optional[int] = None,
+        tb_sigma: Optional[float] = None,
+        input_encoding: Encoding = Encoding.twos_complement,
+        output_encoding: Encoding = Encoding.sign_magnitude,
+    ):
+        self.width = width
+        self.num_vectors = num_vectors
+        self.tb_sigma = tb_sigma
+        self.input_encoding_model = EncodingModel(input_encoding)
+        self.output_encoding_model = EncodingModel(output_encoding)
+
+    def _sample_value(self) -> int:
+        if self.tb_sigma is not None:
+            return self.input_encoding_model.get_normal_sample(self.width, self.tb_sigma)
+        return self.input_encoding_model.get_uniform_sample(self.width)
+
+    def generate(self) -> Tuple:
+        if self.num_vectors is None:
+            self.num_vectors = 64
+
+        vecs = []
+        for _ in range(self.num_vectors):
+            value = self._sample_value()
+            i_encoded = self.input_encoding_model.encode_value(value, self.width)
+            o_encoded = self.output_encoding_model.encode_value(value, self.width)
+            vecs.append((f"{value}", {"i": i_encoded}, {"o": o_encoded}))
+
+        return vecs

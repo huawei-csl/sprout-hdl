@@ -1,5 +1,3 @@
-# test_array.py
-
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.sprouthdl import (
     UInt,
@@ -13,50 +11,7 @@ from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-
-
-# -------------------------------------------------------------------
-# Simple HDLAggregate implementation for testing
-# -------------------------------------------------------------------
-class DummyAgg(HDLAggregate):
-    """
-    Tiny aggregate for tests: just wraps a single Wire of a given width.
-    """
-
-    def __init__(self, width: int, name: str = "dummy"):
-        self._width = width
-        self.sig = Wire(UInt(width), name=name)
-
-    # --- HDLAggregate required API ---
-
-    def to_bits(self) -> Expr:
-        return self.sig
-
-    @classmethod
-    def wire_like(cls, template: "DummyAgg") -> "DummyAgg":
-        """
-        Create a new DummyAgg with same width as template, new backing wire.
-        """
-        return cls(width=template.width, name=template.sig.name + "_w")
-
-    def _assign_from_bits(self, bits: Expr) -> None:
-        """
-        Assign to underlying wire (combinational).
-        """
-        self.sig <<= bits
-
-    # Let HDLAggregate.width property compute from to_bits()
-    @property
-    def width(self) -> int:
-        return self.to_bits().typ.width
-
-    # Optional: element-wise semantics (used when DummyAgg appears inside Array and we do lhs <<= rhs)
-    def __ilshift__(self, rhs: "DummyAgg") -> "DummyAgg":
-        self.sig <<= rhs.sig
-        return self
-
-    def __repr__(self) -> str:
-        return f"DummyAgg(width={self.width}, name={self.sig.name})"
+from testing.test_aggregate_register_and_array import DummyAgg
 
 
 # -------------------------------------------------------------------

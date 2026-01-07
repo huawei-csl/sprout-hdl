@@ -2,7 +2,7 @@ from typing import Optional
 
 import numpy as np
 from sprouthdl.aggregate.aggregate_array import Array  # your renamed class
-from sprouthdl.sprouthdl import Expr, ExprLike, Const, UInt, Wire, fit_width
+from sprouthdl.sprouthdl import Expr, ExprLike, Const, UInt, Wire, fit_width, reset_shared_cache
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
@@ -224,6 +224,7 @@ def test_matmul_accumulate_twice_with_reg():
       - compute C_next = C_prev + A*B (combinational)
       - drive c_reg with C_next bits
     """
+    reset_shared_cache()
     m, c_reg, C_init, A, B, C_prev, C_next, ab_np = build_matmul_accum_reg_module()
     sim = Simulator(m)
     acc_w = 16

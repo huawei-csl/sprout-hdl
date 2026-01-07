@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Iterable, List, Sequence, Union, Tuple
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
@@ -7,9 +6,7 @@ from sprouthdl.sprouthdl import (
     ExprLike,
     Signal,
     Wire,
-    Concat,
     as_expr,
-    fit_width
 )
 
 
@@ -157,21 +154,6 @@ class Array(HDLAggregate):
                 raise TypeError(f"Unsupported element type in width(): {type(elem)}")
         return total
 
-    def to_bits(self) -> Expr:
-        """
-        Flatten this Array to a single Expr bitvector.
-        Layout is consistent with _assign_from_bits.
-        """
-        parts: List[Expr] = []
-        for elem in self._elems:
-            if isinstance(elem, Expr):
-                parts.append(elem)
-            elif isinstance(elem, HDLAggregate):
-                parts.append(elem.to_bits())
-            else:
-                raise TypeError(f"Unsupported element type in to_bits(): {type(elem)}")
-        return Concat(parts)
-
     @classmethod
     def wire_like(cls, template: "Array") -> "Array":
         """
@@ -199,69 +181,11 @@ class Array(HDLAggregate):
 
         return cls(new_elems)
 
-    def _assign_from_bits(self, bits: Expr) -> None:
-        """
-        Drive the underlying leaves from a flat bitvector 'bits'.
-        This is what HDLAggregate.assign / <<= eventually calls.
-        """
-        bit_pos = 0
-        for i, elem in enumerate(self._elems):
-            if isinstance(elem, Expr):
-                w = elem.typ.width
-                slice_bits = bits[bit_pos : bit_pos + w]
-                bit_pos += w
-
-                if isinstance(elem, Signal):
-                    # Combinational driver
-                    elem <<= slice_bits
-                else:
-                    # Replace non-Signal Expr with an Expr of the right width
-                    self._elems[i] = fit_width(slice_bits, elem.typ)
-
-            elif isinstance(elem, HDLAggregate):
-                w = elem.width
-                slice_bits = bits[bit_pos : bit_pos + w]
-                bit_pos += w
-                # Delegate to the aggregate's packed assignment
-                elem.assign(slice_bits)
-
-            else:
-                raise TypeError(f"Unsupported element type in _assign_from_bits(): {type(elem)}")
-
-        # Optional sanity check:
-        # if bit_pos != bits.typ.width:
-        #     raise ValueError("Bit-slice consumption mismatch in Array._assign_from_bits")
-
-    # --------------------------------------------------------------
-    # Element-wise assignment (shape-agnostic)
-    # --------------------------------------------------------------
-    def __imatmul__(self, rhs: "Array"):
-        """
-        Element-wise assignment:
-          lhs @= rhs
-
-        This is orthogonal to HDLAggregate's packed assignment (lhs <<= rhs).
-        """
-        if len(self) != len(rhs):
-            raise ValueError("Array.__imatmul__: length mismatch")
-
-        for i in range(len(self)):
-            lhs = self._elems[i]
-            r = rhs._elems[i]
-
-            if isinstance(lhs, Expr) and isinstance(r, Expr):
-                if isinstance(lhs, Signal):
-                    lhs <<= r
-                else:
-                    self._elems[i] = r
-
-            elif isinstance(lhs, HDLAggregate) and isinstance(r, HDLAggregate):
-                # Delegate to the aggregate's own element-wise semantics
-                lhs <<= r
-
-            else:
-                raise TypeError("Incompatible element types in Array.__ilshift__: " f"{type(lhs)} <<= {type(r)}")
-        return self
+    def to_list_first_level(self) -> List[Expr | HDLAggregate]:
+        list_first_level: List[Expr | HDLAggregate] = []
+        for elem in self._elems:
+            list_first_level.append(elem)
+        return list_first_level
 
     def __repr__(self) -> str:
         return f"Array(len={len(self)}, width={self.width})"

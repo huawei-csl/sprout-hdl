@@ -56,9 +56,9 @@ class MultiplierConfig(TwoInputAritConfig):  # might be renamed to StageMultipli
 
 
 class StageBase(abc.ABC):
-    def __init__(self, config: MultiplierConfig) -> None:
+
+    def __init__(self, config: TwoInputAritConfig) -> None:
         self.config = config
-        self.multiplier_config = config
 
 
 class PartialProductGeneratorBase(StageBase, abc.ABC):

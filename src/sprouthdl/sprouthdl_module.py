@@ -3,10 +3,13 @@ from dataclasses import dataclass, make_dataclass
 import hashlib
 import random
 import time
+
+
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat, fit_width, _SHARED, reset_shared_cache
 
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
+from dataclasses import is_dataclass, fields
 
 from sprouthdl.aig.aig_yosys import verilog_to_aag_lines_via_yosys
 
@@ -40,7 +43,8 @@ class Component(abc.ABC):
             with_clock=with_clock,
             with_reset=with_reset,
         )
-        for sig in self.io.__dict__.values():
+
+        for sig in iter_values(self.io):
             sig: Signal
 
             # if is clock/reset assign to module clk/rst
@@ -48,13 +52,15 @@ class Component(abc.ABC):
                 if module.clk is None:
                     module.clk = sig
                 else:
-                    module.clk <<= sig
+                    #raise(ValueError("Module already has a clock signal"))
+                    pass
                 continue
             if sig.name == "rst":
                 if module.rst is None:
                     module.rst = sig
                 else:
-                    module.rst <<= sig
+                    #raise(ValueError("Module already has a reset signal"))
+                    pass
                 continue
 
             if sig.kind == "input":
@@ -64,7 +70,8 @@ class Component(abc.ABC):
             else:
                 raise ValueError(f"Signal {sig.name} has unsupported kind '{sig.kind}'")
         module.component = self # can be used for debugging
-        module._collect_signals_from_outputs([s for s in self.io.__dict__.values() if s.kind == "output"])
+        reset_shared_cache() # no longer needed as we collect signals
+        module._collect_signals_from_outputs([s for s in iter_values(self.io) if s.kind == "output"])
         return module 
 
     def from_module(self, module: 'Module', make_internal=False, group=False) -> Self:
@@ -144,7 +151,7 @@ class Module:
         self._signals.append(s)
         self._ports.append(s)
         return s
-    
+
     def add_input(self, signal: Signal) -> None:
         if signal.kind != "input":
             # change to input
@@ -159,7 +166,7 @@ class Module:
         self._signals.append(s)
         self._ports.append(s)
         return s
-    
+
     def add_output(self, signal: Signal) -> None:
         if signal.kind != "output":
             # change to output
@@ -192,13 +199,13 @@ class Module:
     def _internals_of(self, kind: str) -> List[Signal]:
         # Avoid `s not in self._ports` (it calls __eq__). Use identity instead.
         return [s for s in self._signals if s.kind == kind and not self._is_port(s)]
-    
+
     def get_spec(self) -> Dict[str, UInt]:
         spec = {}
         for p in self._ports:
             spec[p.name] = p.typ
         return spec
-    
+
     def collect_signals(self) -> None:
         """
         Walk the design starting from outputs
@@ -212,6 +219,9 @@ class Module:
         input/output that is not a port raises. Name collisions are avoided by
         suffixing internal signal names.
         """
+
+        # clean signals as we collect them
+        self._signals = self._ports.copy()
         # Track names already in use (ports first, keep their names stable)
         name_to_sig: Dict[str, Signal] = {p.name: p for p in self._ports}
         visited_signals = set()
@@ -272,7 +282,7 @@ class Module:
 
         for out in outputs:
             visit_signal(out)
-    
+
     def to_component(self) -> Component:
         """
         Create a lightweight Component wrapper that exposes this module's ports as
@@ -310,7 +320,7 @@ class Module:
         IO = make_dataclass("IO", fields)
 
         # Minimal concrete Component instance with populated IO
-        #class _ModuleWrappedComponent(Component):
+        # class _ModuleWrappedComponent(Component):
         #    pass
 
         comp = Component() #_ModuleWrappedComponent()
@@ -342,11 +352,11 @@ class Module:
             lines.append(f"  {dir_} {sign}{rng} {p.name};")
 
         # Internals
-        #wires = self._internals_of("wire") + _SHARED.wires
+        # wires = self._internals_of("wire") + _SHARED.wires
         # instead of the above merge to avoid duplication if called multiple times
         wires = self._internals_of("wire")
         wires += [s for s in _SHARED.wires if not any(s is w for w in wires)]
-        
+
         regs = self._internals_of("reg")
         lines.append('// Wires')
         for w in wires:
@@ -390,11 +400,11 @@ class Module:
 
         lines.append("endmodule")
         return lines
-    
+
     def to_verilog(self) -> str:
         lines = self.to_verilog_lines() + [""]  # final newline
         return "\n".join(lines)
-    
+
     def to_verilog_file(self, filepath: str) -> None:
         verilog_str = self.to_verilog()
         with open(filepath, "w") as f:
@@ -417,23 +427,22 @@ class Module:
           - Const: depth=0
         """
         return _Analyzer(include_wiring, include_consts, include_reg_cones).run(self)
-    
-    
+
     def all_exprs(self) -> List[Expr]:
         """Depth-first traversal of every expression in the module."""
         seen = set()
         exprs = []
-        
+
         def add_expr(e: Expr):
             if id(e) not in seen:
                 seen.add(id(e))
                 exprs.append(e)
-    
+
         def visit(e: Expr):
-            
+
             if id(e) in seen:
                 return
-            
+
             add_expr(e)
             # Recurse through children
             if hasattr(e, "a"):
@@ -448,14 +457,14 @@ class Module:
             if hasattr(e, "_driver"):
                 if e._driver is not None:
                     visit(e._driver)
-    
+
         for s in self._signals:
             # outputs
             if s.kind == "output":
                 add_expr(s)
             if s._driver is not None:
                 visit(s._driver)
-    
+
         return exprs
 
 def gen_spec(class_instance: Component) -> Dict[str, UInt]:
@@ -562,3 +571,15 @@ class IOCollector:
         parts_lsb_to_msb = [bits[i] for i in range(typ.width)]
         agg <<= cat(*parts_lsb_to_msb)
         return agg
+
+
+def iter_values(obj: Any, *, allow_to_list: bool = True) -> Iterable[Any]:
+    if allow_to_list and hasattr(obj, "to_list"):  # HDLAggregate, returns list of Expr (should be Signals)
+        return obj.to_list()
+    if isinstance(obj, dict):
+        return obj.values()
+    if is_dataclass(obj):
+        return (getattr(obj, f.name) for f in fields(obj))
+    if hasattr(obj, "_fields"):  # namedtuple
+        return (getattr(obj, n) for n in obj._fields)
+    return vars(obj).values()  # normal object

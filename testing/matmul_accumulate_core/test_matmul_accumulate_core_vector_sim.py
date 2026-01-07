@@ -12,7 +12,9 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     TwoInputAritEncodings,
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
-from sprouthdl.helpers import run_vectors_on_simulator
+from sprouthdl.helpers import refactor_module_to_aig, run_vectors_on_simulator, sim_and_switch_count
+from sprouthdl.sprouthdl import Op2
+from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
@@ -96,6 +98,12 @@ def _build_vectors_encoding(
         b_vals = enc_model.get_uniform_sample_np(b_width, size=(b_rows, b_cols))
         c_vals = enc_model.get_uniform_sample_np(c_width, size=(c_rows, c_cols))
         y_vals = a_vals @ b_vals + c_vals
+        
+        # encode the values according to the encoding
+        a_vals = np.vectorize(lambda x: enc_model.encode_value(int(x), a_width))(a_vals)
+        b_vals = np.vectorize(lambda x: enc_model.encode_value(int(x), b_width))(b_vals)
+        c_vals = np.vectorize(lambda x: enc_model.encode_value(int(x), c_width))(c_vals)
+        y_vals = np.vectorize(lambda x: enc_model.encode_value(int(x), core.Y[0, 0].typ.width))(y_vals)
 
         ins: Dict[str, int] = {}
         outs: Dict[str, int] = {}
@@ -120,14 +128,15 @@ def _build_vectors_encoding(
 
     return vectors
 
-
 def test_mmac_core_vector_simulation():
     dim_m = 4
     dim_n = 4
     dim_k = 4
-    a_width = 8
-    b_width = 8
+    a_width = 4
+    b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
+
+    signed_io_type = False
 
     encoding = Encoding.unsigned
 
@@ -140,7 +149,7 @@ def test_mmac_core_vector_simulation():
         fsa_opt=FSAOption.RIPPLE_CARRY,
     )
     add_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, full_output_bit=True)
-    
+
     core_cfg = MMAcCfg(
         dims=MMAcDims(dim_m=dim_m, dim_n=dim_n, dim_k=dim_k),
         widths=MMAcWidths(a_width=a_width, b_width=b_width, c_width=c_width),
@@ -148,9 +157,11 @@ def test_mmac_core_vector_simulation():
         add_cfg=add_cfg,
     )
 
-    core = build_matmul_accumulate(cfg=core_cfg, signed_io_type=False)
+    core = build_matmul_accumulate(cfg=core_cfg, signed_io_type=signed_io_type)
 
-    #vectors = _build_vectors(core, num_vectors=5)
+    core.module = refactor_module_to_aig(core.module)
+
+    # vectors = _build_vectors(core, num_vectors=5)
     vectors = _build_vectors_encoding(core, encoding=encoding, num_vectors=50)
 
     sim = Simulator(core.module)
@@ -169,9 +180,13 @@ def test_mmac_core_vector_simulation():
     )
 
     sim_tb.to_testbench_file_from_data(filepath="mmac_core_tb_sim.v", data_file="mmac_core_vectors.dat")
-    
+
     # also save verilog file
     core.module.to_verilog_file("mmac_core.v")
+
+    # swact simulation -------------------------------
+    switches = sim_and_switch_count(core.module, vectors)
+    print(f"Average AND switches: {switches}")
 
 
 if __name__ == "__main__":

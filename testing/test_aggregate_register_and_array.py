@@ -1,5 +1,6 @@
-# test_aggregate_register.py
+from __future__ import annotations
 
+from typing import List
 from sprouthdl.aggregate.aggregate_register import AggregateRegister
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
 from sprouthdl.sprouthdl import (
@@ -38,32 +39,15 @@ class DummyAgg(HDLAggregate):
 
     # ---- HDLAggregate API ----
 
-    def to_bits(self) -> Expr:
-        return self.sig
-
     @classmethod
-    def wire_like(
-        cls,
-        width: int,
-        name: str = "dummy_w",
-    ) -> "DummyAgg":
-        # New instance with a fresh backing wire
-        return cls(width=width, bits=None, name=name)
+    def wire_like(cls, template: "DummyAgg") -> "DummyAgg":
+        """
+        Create a new DummyAgg with same width as template, new backing wire.
+        """
+        return cls(width=template.width, name=template.sig.name + "_w")
 
-    def _assign_from_bits(self, bits: Expr) -> None:
-        # Drive the underlying wire
-        if not isinstance(self.sig, Signal):
-            raise TypeError("DummyAgg assignment target must be backed by a Signal")
-        self.sig <<= bits
-
-    @property
-    def width(self) -> int:
-        return self._width
-
-    # def __ilshift__(self, rhs: "DummyAgg") -> "DummyAgg":
-    #     # Element-wise semantics (if used inside Array, etc.)
-    #     self.sig <<= rhs.sig
-    #     return self
+    def to_list_first_level(self) -> List[Expr]:
+        return [self.sig]
 
     def __repr__(self) -> str:
         return f"DummyAgg(width={self.width}, sig={self.sig})"
@@ -95,7 +79,7 @@ def test_aggregate_register_with_dummyagg_basic():
     assert val.width == 5
     assert val.to_bits().typ.width == 5
     # For DummyAgg.from_bits, we expect it's a view on the reg's bits
-    assert val.to_bits()._driver is bits
+    assert val.to_bits()._driver._driver.a is bits
 
 
 def test_aggregate_register_dummyagg_assign_from_int():
@@ -130,7 +114,7 @@ def test_aggregate_register_dummyagg_assign_from_agg():
     assert reg.bits._driver is not None
     assert reg.bits._driver.typ.width == 5
     # Next-state should be driven by src.to_bits()
-    assert reg.bits._driver is src.to_bits()
+    assert reg.bits._driver._driver.a is src.to_bits()
 
 
 def test_aggregate_register_dummyagg_init_from_int():
@@ -191,7 +175,7 @@ def test_aggregate_register_with_fixedpoint_basic():
     assert val.ftype.width_frac == 8
     assert val.ftype.signed is True
     # The view's bits should be the reg itself (from_bits view semantics)
-    assert val.bits._driver is bits
+    assert val.bits._driver._driver.a is bits
 
 
 def test_aggregate_register_fixedpoint_assign():
@@ -216,7 +200,7 @@ def test_aggregate_register_fixedpoint_assign():
     acc <<= src
     assert acc.bits._driver is not None
     assert acc.bits._driver.typ.width == 16
-    assert acc.bits._driver is src.bits
+    assert acc.bits._driver._driver.a is src.bits
 
 
 def test_aggregate_register_fixedpoint_init():

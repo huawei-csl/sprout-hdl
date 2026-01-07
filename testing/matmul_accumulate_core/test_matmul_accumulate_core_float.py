@@ -20,7 +20,6 @@ from sprouthdl.sprouthdl_simulator import Simulator
 from testing.floating_point.fp_testvectors_general import fp_decode, fp_encode
 
 
-
 def _encode_matrix(values: np.ndarray, ft: FloatingPointType) -> np.ndarray:
     encode = np.vectorize(lambda x: fp_encode(float(np.float16(x)), ft.exponent_width, ft.fraction_width))
     return encode(values)
@@ -45,7 +44,8 @@ def _float16_matmul_accumulate(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> n
 
 def test_fp_matmul_accumulate_simulation():
     dim = 4
-    ft = FloatingPointType(exponent_width=5, fraction_width=10)
+    ft = FloatingPointType(exponent_width=5, fraction_width=8)
+    #ft = FloatingPointType(exponent_width=3, fraction_width=4)
     module, A, B, C, Y = build_fp_matmul_accumulate(dim, ft)
 
     sim = Simulator(module)
@@ -83,8 +83,8 @@ def test_fp_matmul_accumulate_simulation():
                       ).all(), f"Expected {y_expected} but got {y_hw}"
 
     # get yosys transistor count
-    # yosys_metrics = get_yosys_metrics(module)
-    # print(f"Yosys metrics: {yosys_metrics}")
+    #yosys_metrics = get_yosys_metrics(module)
+    #print(f"Yosys metrics: {yosys_metrics}")
 
 if __name__ == "__main__":
     test_fp_matmul_accumulate_simulation()

@@ -1,11 +1,11 @@
 # -----------------------------
 # High-level aggregates (Bundle, Array, FixedPoint, ...)
 # -----------------------------
-
+from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Type, TypeVar, Union
+from typing import List, Type, TypeVar, Union
 
-from sprouthdl.sprouthdl import Expr, ExprLike, as_expr, fit_width
+from sprouthdl.sprouthdl import Concat, Expr, ExprLike, Signal, as_expr, fit_width
 
 
 T_Agg = TypeVar("T_Agg", bound="HDLAggregate")
@@ -17,45 +17,31 @@ class HDLAggregate(ABC):
     Base class for structured HDL values (Bundle, Array, FixedPoint, ...).
 
     Requirements for subclasses:
-      - to_bits(self) -> Expr
-          Flatten the structure into a single bitvector Expr.
-      - from_bits(cls, bits: Expr, *shape_args, **shape_kwargs) -> instance
-          Reconstruct the same structure from a bitvector.
+      - to_list(self) -> List[Expr]
+          Flatten the structure into an ordered list of Expr leaves.
       - wire_like(cls, *shape_args, **shape_kwargs) -> instance
           Create a 'wire-filled' instance of this structure (all leaves are wires).
-      - _assign_from_bits(self, bits: Expr)
-          Drive the underlying leaf Signals from the given bits.
     """
 
     @abstractmethod
-    def to_bits(self) -> Expr:
-        """Flatten this aggregate into a single Expr bitvector."""
+    def to_list_first_level(self) -> List[Union[Expr, "HDLAggregate"]]:
+        """Return the ordered list of Expr leaves (Signals, Consts, etc.)."""
         ...
 
-    @classmethod
-    @abstractmethod
-    def wire_like(
-        cls: Type[T_Agg],
-        *args,
-        **kwargs,
-    ) -> T_Agg:
-        """
-        Create a 'wire-filled' instance of this aggregate type.
-        The arguments should match your constructor need.
-        """
-        ...
-
-    @abstractmethod
-    def _assign_from_bits(self, bits: Expr) -> None:
-        """
-        Drive the underlying leaf Signals from the flat bitvector 'bits'.
-
-        For example, a leaf backed by:
-          - a combinational wire Signal:   sig <<= bits_slice
-          - a register Signal (kind='reg'): sig <<= bits_slice
-        Bundles/arrays chunk 'bits' and recurse into fields/elements.
-        """
-        ...
+    def to_list(self) -> List[Expr]:
+        flat_list: List[Expr] = []
+        for elem in self.to_list_first_level():
+            if isinstance(elem, Expr):
+                flat_list.append(elem)
+            elif isinstance(elem, HDLAggregate):
+                flat_list.extend(elem.to_list())
+            else:
+                raise TypeError(
+                    f"Unsupported field type in {self.__class__.__name__}.to_list(): {elem} -> {type(elem)}"
+                )
+        if not flat_list:
+            raise ValueError(f"AggregateRecord {self.__class__.__name__} has no fields")
+        return flat_list
 
     # -------- Convenience API shared by all aggregates --------
 
@@ -63,6 +49,40 @@ class HDLAggregate(ABC):
     def width(self) -> int:
         """Total bit-width of this aggregate."""
         return self.to_bits().typ.width
+
+    def to_bits(self) -> Expr:
+        """
+        Flatten this aggregate into a single Expr bitvector using the leaf list.
+        """
+        parts = self.to_list()
+        if not parts:
+            raise ValueError(f"{self.__class__.__name__}.to_list() returned no leaves")
+        if len(parts) == 1:
+            return parts[0]
+        return Concat(parts)
+
+    def _assign_from_bits(self, bits: Expr) -> None:
+        """
+        Default packed assignment: slice the incoming bits across Signal leaves.
+        """
+        leaves = self.to_list()
+        bit_pos = 0
+        for leaf in leaves:
+            width = leaf.typ.width
+            slice_bits = bits[bit_pos : bit_pos + width]
+            bit_pos += width
+
+            if not isinstance(leaf, Signal):
+                raise TypeError(
+                    f"Aggregate assignment expects Signal leaves, got {type(leaf)} in {self.__class__.__name__}"
+                )
+            leaf <<= slice_bits
+
+        if bit_pos != bits.typ.width:
+            raise ValueError(
+                f"Bit-slice consumption mismatch in {self.__class__.__name__}: "
+                f"used {bit_pos} of {bits.typ.width} bits"
+            )
 
     def _coerce_rhs_to_bits(self, rhs: Union["HDLAggregate", ExprLike]) -> Expr:
         """
@@ -92,6 +112,32 @@ class HDLAggregate(ABC):
         """
         bits = self._coerce_rhs_to_bits(rhs)
         self._assign_from_bits(bits)
+
+    def __imatmul__(self: SelfAgg, rhs: "HDLAggregate") -> SelfAgg:
+        """
+        Element-wise assignment across Signal leaves:
+          lhs @= rhs
+        """
+        if not isinstance(rhs, HDLAggregate):
+            raise TypeError(f"{self.__class__.__name__} @= expects an HDLAggregate, got {type(rhs)}")
+
+        lhs_leaves = self.to_list()
+        rhs_leaves = rhs.to_list()
+        if len(lhs_leaves) != len(rhs_leaves):
+            raise ValueError(
+                f"{self.__class__.__name__} @= leaf count mismatch: "
+                f"{len(lhs_leaves)} vs {len(rhs_leaves)}"
+            )
+
+        for lhs_leaf, rhs_leaf in zip(lhs_leaves, rhs_leaves):
+            if not isinstance(lhs_leaf, Signal):
+                raise TypeError(
+                    f"Aggregate element-wise assignment expects Signal leaves, got {type(lhs_leaf)} "
+                    f"in {self.__class__.__name__}"
+                )
+            lhs_leaf <<= rhs_leaf
+
+        return self
 
     def __ilshift__(self: SelfAgg, rhs: Union["HDLAggregate", ExprLike]) -> SelfAgg:
         """

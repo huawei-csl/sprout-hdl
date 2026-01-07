@@ -48,7 +48,7 @@ class StageBasedMultiplier(StageBasedMultiplierBase):
         def get_type(enc: Encoding,) -> Type:
             if enc == Encoding.unsigned:
                 return UInt
-            elif enc == Encoding.twos_complement:
+            elif enc == Encoding.twos_complement or enc == Encoding.twos_complement_symmetric:
                 return SInt
 
         self.io: StageBasedMultiplierIO = StageBasedMultiplierIO(

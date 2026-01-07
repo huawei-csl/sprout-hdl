@@ -9,8 +9,11 @@ class EncodingIO:
     i: Signal
     o: Signal
 
+class EncoderDecoderBase(Component):
+    io: EncodingIO
 
-class TwosComplementToSignMagnitudeEncoder(Component):
+
+class TwosComplementToSignMagnitudeEncoder(EncoderDecoderBase):
     def __init__(self, width: int, *, clip_most_negative: bool = False) -> None:
         self.width = width
         assert self.width >= 2, "Width must be >= 2 for sign-magnitude conversions"
@@ -42,7 +45,7 @@ class TwosComplementToSignMagnitudeEncoder(Component):
             self.io.o <<= unsigned_result
 
 
-class SignMagnitudeToTwosComplementDecoder(Component):
+class SignMagnitudeToTwosComplementDecoder(EncoderDecoderBase):
     def __init__(self, width: int, *, clip_most_negative: bool = False) -> None:
         self.width = width
         assert self.width >= 2, "Width must be >= 2 for sign-magnitude conversions"
