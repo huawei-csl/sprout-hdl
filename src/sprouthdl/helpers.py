@@ -15,12 +15,13 @@ from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
-def optimize_aig_elaborate(aig_in) -> dict:
+
+def optimize_aig_elaborate(aig_in, n_iter_optimizations=3) -> dict:
 
     # Track the best gate and depth
     best_gate = None
     best_depth = None
-    
+
     best_stats = None
     best_aig = None
 
@@ -32,7 +33,7 @@ def optimize_aig_elaborate(aig_in) -> dict:
         # Load the aig file
         aig = aig_in.clone()
         # Loop through the sequences 3 times
-        for i in range(3):
+        for i in range(n_iter_optimizations):
             for op in op_seq:
                 # Perform the operation
                 op(aig)
@@ -59,13 +60,14 @@ def optimize_aig_elaborate(aig_in) -> dict:
 
     return best_aig, best_stats
 
-def optimize_aig_simple(aig, n_iter_optimizations=10) -> dict:
+
+def optimize_aig_simple(aig, n_iter_optimizations=3) -> dict:
     for i in range(n_iter_optimizations):
         for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
             optimization(aig)
     return aig
 
-def optimize_aag(aag_lines: List[str], n_iter_optimizations=10, simple=False) -> List[str]:
+def optimize_aag(aag_lines: List[str], n_iter_optimizations=3, simple=False) -> List[str]:
 
     # convert to aigverse object
     aig = conv_aag_into_aig(aag_lines)    
@@ -73,17 +75,11 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=10, simple=False) ->
     if simple:
         aig = optimize_aig_simple(aig, n_iter_optimizations=n_iter_optimizations)
     else:
-        aig, _ = optimize_aig_elaborate(aig)
+        aig, _ = optimize_aig_elaborate(aig, n_iter_optimizations=n_iter_optimizations)
 
     # aig back to aag
     aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
 
-    return aag_optimized
-    aig = optimize_aig_elaborate(aig)[0]
-
-    # aig back to aag
-    aag_optimized = conv_aig_into_aag(aig, symbols=_get_aag_sym(aag_lines))
-    
     return aag_optimized
 
 
@@ -282,18 +278,21 @@ def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
     return stats
 
 
-def get_yosys_metrics(m: Module, n_iter_optimizations=10, deepsyn=False) -> int:
+def get_yosys_metrics(m: Module, n_iter_optimizations=3, deepsyn=False) -> int:
+    print("Exporting AAG...")
     aag_lines = AigerExporter(m).get_aag()
+    print("Exporting AAG done")
 
     if n_iter_optimizations > 0:
         aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
 
+    print("Optimizing AAG done")
     stat = extract_yosys_metrics(aag_lines, deepsyn=deepsyn)
     return stat
 
 def get_transistor_count_from_stats(stats: dict) -> int:
     return stats["estimated_num_transistors"]
 
-def get_yosys_transistor_count(m: Module, n_iter_optimizations=10, deepsyn=False) -> int:
+def get_yosys_transistor_count(m: Module, n_iter_optimizations=3, deepsyn=False) -> int:
     stats = get_yosys_metrics(m, n_iter_optimizations=n_iter_optimizations, deepsyn=deepsyn)
     return get_transistor_count_from_stats(stats)

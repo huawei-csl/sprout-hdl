@@ -15,11 +15,12 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcCfg, MMAcDims, MMAcWidths, MatmulAccumulateComponent, MultiplierConfig, build_matmul_accumulate, max_y_width_unsigned
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_winograd import AdderConfig, MMAcCfg, MMAcDims, MMAcWidths, MatmulAccumulateComponent, MultiplierConfig, build_matmul_accumulate, max_y_width_unsigned
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
+from testing.matmul_accumulate_core.test_matmul_accumulate_core import set_matrix
 
 
 def test_mmac_core_basic_simulation():
@@ -30,8 +31,8 @@ def test_mmac_core_basic_simulation():
     b_width = 16
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
     encoding = Encoding.twos_complement
-    signed_io_type = False
-    n_iter_optimizations = 0 # none for default
+    signed_io_type = True
+    n_iter_optimizations = 0  # none for default
 
     # use sprout operators
     # mult_cfg = MultiplierConfig(use_operator=True)
@@ -83,7 +84,7 @@ def test_mmac_core_basic_simulation():
 
     set_matrix(sim, core.io.A, a_vals)
     set_matrix(sim, core.io.B, b_vals)
-    set_matrix(sim, core.io.C, c_vals)    
+    set_matrix(sim, core.io.C, c_vals)
 
     sim.eval()
 
@@ -100,18 +101,9 @@ def test_mmac_core_basic_simulation():
         y_np_encoded = np.vectorize(lambda x: EncodingModel(encoding).encode_value(int(x), core.io.Y[0, 0].typ.width))(y_np)
         assert np.array_equal(y_hw, y_np_encoded), "Simulation mismatch for matmul accumulate core"
 
-    print("Simulation successful.")
-
     # get yosys transistor count
-    print("Getting Yosys metrics...")
     yosys_metrics = get_yosys_metrics(module, n_iter_optimizations=n_iter_optimizations)
     print(f"Yosys metrics: {yosys_metrics}")
-
-
-def set_matrix(sim: Simulator, port2d, vals):
-    for i, row in enumerate(vals):
-        for j, v in enumerate(row):
-            sim.set(port2d[i, j], int(v))
 
 
 if __name__ == "__main__":

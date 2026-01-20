@@ -16,7 +16,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
-from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
+from sprouthdl.sprouthdl import Expr, HDLType, SInt, Signal, UInt, cast
 from sprouthdl.sprouthdl_module import Component, Module
 
 
@@ -101,15 +101,36 @@ def adder_tree(values: Sequence[Expr], adder_cfg: AdderConfig) -> Expr:
 
 
 def inner_product(
-    vec_a: Iterable[Expr], vec_b: Iterable[Expr], mult_cfg: MultiplierConfig, add_cfg: AdderConfig
+    vec_a: Iterable[Expr], vec_b: Iterable[Expr], mult_cfg: MultiplierConfig, add_cfg: AdderConfig,
+    alpha: Expr, beta: Expr
 ) -> Expr:
     a_list: List[Expr] = list(vec_a)
     b_list: List[Expr] = list(vec_b)
     if len(a_list) != len(b_list):
         raise ValueError("inner_product: length mismatch")
 
-    products = [build_multiplier(a, b, mult_cfg) for a, b in zip(a_list, b_list)]
-    return adder_tree(products, add_cfg)
+    mult_k_list = []
+    dim_k = len(a_list)
+    for k in range(0, dim_k//2):  
+
+        a_s0 = a_list[2*k]
+        b_s0 = b_list[2*k+1]
+        s0 = build_adder(a_s0, b_s0, add_cfg)
+        a_s1 = a_list[2*k+1]
+        b_s1 = b_list[2*k]
+        s1 = build_adder(a_s1, b_s1, add_cfg)
+        mult_k = build_multiplier(s0, s1, mult_cfg)
+        mult_k_list.append(mult_k)
+
+    summands = mult_k_list + [-cast(alpha, SInt(alpha.typ.width)), -cast(beta, SInt(beta.typ.width))]
+
+    # same with sprout operators
+    # for k in range(0, dim_k//2):
+    #     mult_k = (a_list[2*k] + b_list[2*k+1]) * (a_list[2*k+1] + b_list[2*k])
+    #     mult_k_list.append(mult_k)
+    # return sum(summands)
+
+    return adder_tree(summands, add_cfg)
 
 
 @dataclass
@@ -175,13 +196,40 @@ class MatmulAccumulateComponent(MatmulAccumulateCore):
         self.io: MatmulAccumulateIO = MatmulAccumulateIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
 
     def elaborate(self):
+        
+        # Calculate alphas and betas
+        alphas = []
+        for i in range(self.cfg.dims.dim_m):
+            alpha_ks = []
+            for k in range(self.cfg.dims.dim_k//2):
+                alpha_ks.append(build_multiplier(self.A[i, 2*k], self.A[i, 2*k + 1], self.cfg.mult_cfg))
+            alpha_k = adder_tree(alpha_ks, self.cfg.add_cfg)
+            alphas.append(alpha_k)
+            
+        betas = []
+        for j in range(self.cfg.dims.dim_n):
+            beta_ks = []
+            for k in range(self.cfg.dims.dim_k//2):
+                beta_ks.append(build_multiplier(self.B[2*k, j], self.B[2*k + 1, j], self.cfg.mult_cfg))
+            beta_k = adder_tree(beta_ks, self.cfg.add_cfg)
+            betas.append(beta_k)
+            
+        # same with sprout operators
+        # alphas = []
+        # for i in range(self.cfg.dims.dim_m):
+        #     alphas.append(sum([self.A[i, 2*k] * self.A[i, 2*k + 1] for k in range(self.cfg.dims.dim_k//2)]))
+        # betas = []
+        # for j in range(self.cfg.dims.dim_n):
+        #     betas.append(sum([self.B[2*k, j] * self.B[2*k + 1, j] for k in range(self.cfg.dims.dim_k//2)]))    
+        
+        # inner product and accumulation for each output element 
         rows = []
         for i in range(self.cfg.dims.dim_m):
             row = []
             a_row = self.A[i, :]
             for j in range(self.cfg.dims.dim_n):
                 b_col = self.B[:, j]
-                dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg)
+                dot = inner_product(a_row, b_col, self.cfg.mult_cfg, self.cfg.add_cfg, alphas[i], betas[j])
                 acc = build_adder(self.C[i, j], dot, self.cfg.add_cfg)
                 y_sig = Signal(name=f"y_{i}_{j}", typ=self.io_hdl_type(acc.typ.width), kind="output")
                 y_sig <<= acc
