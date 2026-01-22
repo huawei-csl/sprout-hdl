@@ -16,7 +16,17 @@ from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 
 
-def optimize_aig_elaborate(aig_in, n_iter_optimizations=3) -> dict:
+DEFAULT_N_ITER_OPTIMIZATIONS = 3
+
+
+def _resolve_n_iter_optimizations(n_iter_optimizations: Optional[int]) -> int:
+    """Resolve None to the shared default iteration count."""
+    return DEFAULT_N_ITER_OPTIMIZATIONS if n_iter_optimizations is None else n_iter_optimizations
+
+
+def optimize_aig_elaborate(aig_in, n_iter_optimizations: Optional[int] = None) -> dict:
+
+    n_iter_optimizations = _resolve_n_iter_optimizations(n_iter_optimizations)
 
     # Track the best gate and depth
     best_gate = None
@@ -61,13 +71,14 @@ def optimize_aig_elaborate(aig_in, n_iter_optimizations=3) -> dict:
     return best_aig, best_stats
 
 
-def optimize_aig_simple(aig, n_iter_optimizations=3) -> dict:
+def optimize_aig_simple(aig, n_iter_optimizations: Optional[int] = None) -> dict:
+    n_iter_optimizations = _resolve_n_iter_optimizations(n_iter_optimizations)
     for i in range(n_iter_optimizations):
         for optimization in [aig_resubstitution, sop_refactoring, aig_cut_rewriting]: #, balancing]: balancing increases size
             optimization(aig)
     return aig
 
-def optimize_aag(aag_lines: List[str], n_iter_optimizations=3, simple=False) -> List[str]:
+def optimize_aag(aag_lines: List[str], n_iter_optimizations: Optional[int] = None, simple=False) -> List[str]:
 
     # convert to aigverse object
     aig = conv_aag_into_aig(aag_lines)    
@@ -83,7 +94,7 @@ def optimize_aag(aag_lines: List[str], n_iter_optimizations=3, simple=False) -> 
     return aag_optimized
 
 
-def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=10) -> Module:
+def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations: Optional[int] = None) -> Module:
     # get AIG
     aag = AigerExporter(module).get_aag()
     if optimize:
@@ -97,14 +108,14 @@ def refactor_module_to_aig(module: Module, optimize=True, n_iter_optimizations=1
     return m_aig
 
 
-def get_aig_stats(m: Module, n_iter_optimizations=10, simple=False) -> dict:
+def get_aig_stats(m: Module, n_iter_optimizations: Optional[int] = None, simple=False) -> dict:
     aag_lines = AigerExporter(m).get_aag()
     aig = conv_aag_into_aig(aag_lines)
 
     if simple:
         aig = optimize_aig_simple(aig, n_iter_optimizations=n_iter_optimizations)
     else:
-        aig, _ = optimize_aig_elaborate(aig)
+        aig, _ = optimize_aig_elaborate(aig, n_iter_optimizations=n_iter_optimizations)
 
     depth_aig = DepthAig(aig)
 
@@ -278,12 +289,12 @@ def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
     return stats
 
 
-def get_yosys_metrics(m: Module, n_iter_optimizations=3, deepsyn=False) -> int:
+def get_yosys_metrics(m: Module, n_iter_optimizations: Optional[int] = None, deepsyn=False) -> int:
     print("Exporting AAG...")
     aag_lines = AigerExporter(m).get_aag()
     print("Exporting AAG done")
 
-    if n_iter_optimizations > 0:
+    if n_iter_optimizations is None or n_iter_optimizations > 0:
         aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
 
     print("Optimizing AAG done")
@@ -293,6 +304,6 @@ def get_yosys_metrics(m: Module, n_iter_optimizations=3, deepsyn=False) -> int:
 def get_transistor_count_from_stats(stats: dict) -> int:
     return stats["estimated_num_transistors"]
 
-def get_yosys_transistor_count(m: Module, n_iter_optimizations=3, deepsyn=False) -> int:
+def get_yosys_transistor_count(m: Module, n_iter_optimizations: Optional[int] = None, deepsyn=False) -> int:
     stats = get_yosys_metrics(m, n_iter_optimizations=n_iter_optimizations, deepsyn=deepsyn)
     return get_transistor_count_from_stats(stats)

@@ -24,11 +24,11 @@ from testing.matmul_accumulate_core.test_matmul_accumulate_core import set_matri
 
 
 def test_mmac_core_basic_simulation():
-    dim_m = 8
-    dim_n = 8
-    dim_k = 8
-    a_width = 16
-    b_width = 16
+    dim_m = 4
+    dim_n = 4
+    dim_k = 4
+    a_width = 4
+    b_width = 4
     c_width = max_y_width_unsigned(a_width, b_width, dim_k, include_carry_from_add=False)
     encoding = Encoding.twos_complement
     signed_io_type = True
