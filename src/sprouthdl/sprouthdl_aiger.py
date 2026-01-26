@@ -424,19 +424,19 @@ class AigerExporter:
 
     # ---- public API
 
-    def write_aag(self, path: str, *, flatten_outputs: bool = True) -> None:
+    def write_aag(self, path: str) -> None:
         """Builds AIG from module and writes an .aag file."""
-        self._build_network(flatten_outputs=flatten_outputs)
+        self._build_network()
         self._write_aag_file(path)
 
     def get_aag(self) -> List[str]:
         """Builds AIG from module and returns the AIGER ASCII lines."""
-        self._build_network(flatten_outputs=True)
+        self._build_network()
         return self._get_aag_lines()
 
     # ---- network construction
 
-    def _build_network(self, *, flatten_outputs: bool):
+    def _build_network(self):
         # 1) allocate all input bits first (AIGER requires inputs before gates)
         for p in self.m._ports:
             if p.kind == "input":
@@ -444,8 +444,7 @@ class AigerExporter:
                 for i in range(p.typ.width):
                     lit = self.aig._new_var()
                     self.aig.inputs.append(lit)
-                    name = p.name if p.typ.width == 1 else f"{p.name}[{i}]"
-                    self.aig.sym_inputs.append(name)
+                    self.aig.sym_inputs.append(self._bit_name(p, i))
                     bits.append(lit)
                 self._sig_bits[id(p)] = bits
 
@@ -456,8 +455,7 @@ class AigerExporter:
                 for i in range(s.typ.width):
                     q = self.aig._new_var()  # current state literal
                     bits.append(q)
-                    name = s.name if s.typ.width == 1 else f"{s.name}[{i}]"
-                    self.aig.sym_latches.append(name)
+                    self.aig.sym_latches.append(self._bit_name(s, i))
                 self._sig_bits[id(s)] = bits
                 self._reg_list.append(s)
 
@@ -495,16 +493,10 @@ class AigerExporter:
             drv_bits = self._eval_expr_bits(p._driver) if p._driver is not None else [lit_const0()] * p.typ.width
             drv_bits = self._fit_bits(drv_bits, p.typ.width, signed=getattr(p.typ, "signed", False))
 
-            if flatten_outputs or p.typ.width == 1:
-                for i, b in enumerate(drv_bits):
-                    self.aig.outputs.append(b)
-                    self.aig.sym_outputs.append(f"{p.name}[{i}]")
-            else:
-                # If someone wants one literal per word, they'd need an encoder;
-                # Spec requires single-bit outputs, so we default to flattened.
-                for i, b in enumerate(drv_bits):
-                    self.aig.outputs.append(b)
-                    self.aig.sym_outputs.append(f"{p.name}[{i}]")
+            # AIGER supports only single-bit outputs, so multi-bit ports are always flattened.
+            for i, b in enumerate(drv_bits):
+                self.aig.outputs.append(b)
+                self.aig.sym_outputs.append(self._bit_name(p, i))
 
     # ---- expression bit-blasting
 
@@ -526,6 +518,9 @@ class AigerExporter:
             return bits
         raise TypeError(f"Unknown signal kind: {s.kind}")
 
+    def _bit_name(self, sig: Any, i: int) -> str:
+        return sig.name if sig.typ.width == 1 else f"{sig.name}[{i}]"
+
     def _fit_bits(self, bits: List[int], w: int, *, signed: bool) -> List[int]:
         if len(bits) == w:
             return bits
@@ -540,9 +535,9 @@ class AigerExporter:
         if eid in self._expr_cache:
             return self._expr_cache[eid]
 
-        #k = e.__class__.__name__
+        # k = e.__class__.__name__
         def is_expr_instance(obj, instance_type):
-            #return _clsname(obj) == instance_type.__name__
+            # return _clsname(obj) == instance_type.__name__
             return isinstance(obj, instance_type)
 
         if is_expr_instance(e, Const):
@@ -689,13 +684,13 @@ class AigerExporter:
 # ---- public convenience function --------------------------------------------
 
 
-def export_module_to_aiger(module: Any, file_path: str, *, flatten_outputs: bool = True) -> None:
+def export_module_to_aiger(module: Any, file_path: str) -> None:
     """
     Usage:
         from sprout_to_aiger import export_module_to_aiger
         export_module_to_aiger(my_module, "out.aag")
     """
-    AigerExporter(module).write_aag(file_path, flatten_outputs=flatten_outputs)
+    AigerExporter(module).write_aag(file_path)
 
 
 # ---------- SproutHDL adapter ----------
