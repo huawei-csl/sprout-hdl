@@ -18,3 +18,4 @@ playground_nogit
 data/*
 *.vcd
 *.dat
+*.json
