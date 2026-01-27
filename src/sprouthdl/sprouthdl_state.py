@@ -3,7 +3,7 @@
 Declare states as class variables using :func:`state` so the IDE can
 see (and autocomplete) every state name::
 
-    class MyFSM(State, encoding="binary"):
+    class MyFSM(State, encoding=Encoding.BINARY):
         IDLE = state()
         RUN  = state()
         DONE = state()
@@ -15,7 +15,15 @@ Supported encodings: ``"binary"`` (default), ``"onehot"``, ``"gray"``.
 
 from __future__ import annotations
 
+from enum import Enum
+
 from sprouthdl.sprouthdl import Const, HDLType, UInt
+
+
+class Encoding(Enum):
+    BINARY = "binary"
+    ONEHOT = "onehot"
+    GRAY = "gray"
 
 
 class _StatePlaceholder:
@@ -33,15 +41,13 @@ def state() -> Const:
     return _StatePlaceholder()  # type: ignore[return-value]
 
 
-_ENCODINGS = {"binary", "onehot", "gray"}
-
 
 class State:
     """Base class for FSM state enumerations.
 
     Subclass and use :func:`state` for each entry::
 
-        class MyFSM(State, encoding="onehot"):
+        class MyFSM(State, encoding=Encoding.ONEHOT):
             IDLE = state()
             RUN  = state()
             DONE = state()
@@ -51,16 +57,16 @@ class State:
     """
 
     typ: HDLType
-    encoding: str
+    encoding: Encoding
     names: list[str]
     _width: int
     _values: dict[str, int]
 
-    def __init_subclass__(cls, encoding: str = "binary", **kwargs):
+    def __init_subclass__(cls, encoding: Encoding = Encoding.BINARY, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        if encoding not in _ENCODINGS:
-            raise ValueError(f"Unknown encoding '{encoding}', expected one of {_ENCODINGS}")
+        if not isinstance(encoding, Encoding):
+            raise ValueError(f"Unknown encoding '{encoding}', expected one of {list(Encoding)}")
 
         # Collect state names in declaration order
         names: list[str] = []
@@ -73,13 +79,13 @@ class State:
 
         n = len(names)
 
-        if encoding == "binary":
+        if encoding == Encoding.BINARY:
             values = list(range(n))
             width = max(1, (n - 1).bit_length())
-        elif encoding == "onehot":
+        elif encoding == Encoding.ONEHOT:
             values = [1 << i for i in range(n)]
             width = n
-        elif encoding == "gray":
+        elif encoding == Encoding.GRAY:
             values = [i ^ (i >> 1) for i in range(n)]
             width = max(1, (n - 1).bit_length())
 

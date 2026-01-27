@@ -1,24 +1,24 @@
 from sprouthdl.sprouthdl import Bool, UInt
-from sprouthdl.sprouthdl_state import State, state
+from sprouthdl.sprouthdl_state import Encoding, State, state
 from sprouthdl.sprouthdl_control_strutures import case_, default, if_, switch_
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator, _sid
 
 
-class BinaryFSM(State, encoding="binary"):
+class BinaryFSM(State, encoding=Encoding.BINARY):
     IDLE = state()
     RUN = state()
     DONE = state()
 
 
-class OnehotFSM(State, encoding="onehot"):
+class OnehotFSM(State, encoding=Encoding.ONEHOT):
     A = state()
     B = state()
     C = state()
     D = state()
 
 
-class GrayFSM(State, encoding="gray"):
+class GrayFSM(State, encoding=Encoding.GRAY):
     S0 = state()
     S1 = state()
     S2 = state()
