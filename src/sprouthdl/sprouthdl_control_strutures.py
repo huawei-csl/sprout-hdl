@@ -285,20 +285,22 @@ def default() -> _ConditionalContext:
 _PATCHED = False
 
 
-def _apply_active_conditions_to_expr(signal: Signal, rhs: ExprLike, *, is_next: bool) -> ExprLike:
+def _apply_active_conditions_to_expr(signal: Signal, rhs: ExprLike) -> ExprLike:
     cond = _combined_condition()
     if cond is None:
         return rhs
 
     rhs_expr = as_expr(rhs)
 
-    if is_next:
-        fallback: ExprLike = signal._next if signal._next is not None else signal
-    else:
-        if signal._driver is None:
+    if signal._driver is None:
+        if signal.kind == "reg":
+            # For registers without a prior driver, fall back to the register's current value
+            fallback: ExprLike = signal
+        else:
             raise RuntimeError(
                 f"Conditional assignment to signal '{signal.name}' requires a prior driver to fall back to"
             )
+    else:
         fallback = signal._driver
 
     return mux(cond, rhs_expr, fallback)
@@ -312,21 +314,10 @@ def _patch_signal_assignments() -> None:
     original_ilshift = Signal.__ilshift__
 
     def conditional_ilshift(self: Signal, rhs: ExprLike):
-        wrapped_rhs = _apply_active_conditions_to_expr(self, rhs, is_next=False)
+        wrapped_rhs = _apply_active_conditions_to_expr(self, rhs)
         return original_ilshift(self, wrapped_rhs)
 
     Signal.__ilshift__ = conditional_ilshift  # type: ignore[assignment]
-
-    next_prop = Signal.next
-    original_next_get = next_prop.fget
-    original_next_set = next_prop.fset
-    original_next_del = next_prop.fdel
-
-    def conditional_next(self: Signal, rhs: ExprLike):
-        wrapped_rhs = _apply_active_conditions_to_expr(self, rhs, is_next=True)
-        return original_next_set(self, wrapped_rhs)
-
-    Signal.next = property(original_next_get, conditional_next, original_next_del, doc=next_prop.__doc__)  # type: ignore
 
     _PATCHED = True
 
