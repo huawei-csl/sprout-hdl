@@ -1,37 +1,78 @@
-"""FSM state enumeration for Sprout-HDL."""
+"""FSM state enumeration for Sprout-HDL.
+
+Declare states as class variables using :func:`state` so the IDE can
+see (and autocomplete) every state name::
+
+    class MyFSM(State, encoding="binary"):
+        IDLE = state()
+        RUN  = state()
+        DONE = state()
+
+    reg = m.reg(MyFSM.typ, "state", init=MyFSM.IDLE)
+
+Supported encodings: ``"binary"`` (default), ``"onehot"``, ``"gray"``.
+"""
 
 from __future__ import annotations
 
-from sprouthdl.sprouthdl import Const, UInt
+from sprouthdl.sprouthdl import Const, HDLType, UInt
+
+
+class _StatePlaceholder:
+    """Sentinel returned by :func:`state` to mark class-level state entries."""
+
+
+def state() -> Const:
+    """Declare a state entry inside a :class:`State` subclass.
+
+    The return type is annotated as ``Const`` so that the IDE treats the
+    attribute as an expression usable in ``switch_``/``case_``/``==``.
+    At class-creation time the placeholder is replaced with the real
+    ``Const`` value.
+    """
+    return _StatePlaceholder()  # type: ignore[return-value]
+
+
+_ENCODINGS = {"binary", "onehot", "gray"}
 
 
 class State:
-    """Lightweight FSM state enumeration with automatic width and encoding.
+    """Base class for FSM state enumerations.
 
-    Usage::
+    Subclass and use :func:`state` for each entry::
 
-        fsm = State("IDLE", "RUN", "DONE", encoding="binary")
-        reg = m.reg(fsm.typ, "state", init=fsm.IDLE)
-        with switch_(reg):
-            with case_(fsm.IDLE):
-                reg <<= fsm.RUN
+        class MyFSM(State, encoding="onehot"):
+            IDLE = state()
+            RUN  = state()
+            DONE = state()
 
-    Supported encodings: ``"binary"`` (default), ``"onehot"``, ``"gray"``.
+        MyFSM.IDLE   # Const – IDE autocompletes this
+        MyFSM.typ    # HDLType matching the encoding width
     """
 
-    _ENCODINGS = {"binary", "onehot", "gray"}
+    typ: HDLType
+    encoding: str
+    names: list[str]
+    _width: int
+    _values: dict[str, int]
 
-    def __init__(self, *names: str, encoding: str = "binary"):
+    def __init_subclass__(cls, encoding: str = "binary", **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if encoding not in _ENCODINGS:
+            raise ValueError(f"Unknown encoding '{encoding}', expected one of {_ENCODINGS}")
+
+        # Collect state names in declaration order
+        names: list[str] = []
+        for attr in list(vars(cls)):
+            if isinstance(getattr(cls, attr), _StatePlaceholder):
+                names.append(attr)
+
         if not names:
-            raise ValueError("State requires at least one state name")
-        if encoding not in self._ENCODINGS:
-            raise ValueError(f"Unknown encoding '{encoding}', expected one of {self._ENCODINGS}")
+            return  # allow intermediate base classes with no states
 
-        self.encoding = encoding
-        self.names = list(names)
         n = len(names)
 
-        # Compute encoded values and width
         if encoding == "binary":
             values = list(range(n))
             width = max(1, (n - 1).bit_length())
@@ -42,16 +83,20 @@ class State:
             values = [i ^ (i >> 1) for i in range(n)]
             width = max(1, (n - 1).bit_length())
 
-        self._width = width
-        self.typ = UInt(width)
-        self._values = dict(zip(names, values))
+        typ = UInt(width)
 
-        # Expose each state as a Const attribute
-        for name, val in self._values.items():
-            setattr(self, name, Const(val, self.typ))
+        cls.encoding = encoding
+        cls.names = names
+        cls._width = width
+        cls._values = dict(zip(names, values))
+        cls.typ = typ
+
+        # Replace placeholders with real Const values
+        for name, val in cls._values.items():
+            setattr(cls, name, Const(val, typ))
 
     def __len__(self) -> int:
         return len(self.names)
 
     def __repr__(self) -> str:
-        return f"State({', '.join(self.names)}, encoding={self.encoding!r}, width={self._width})"
+        return f"{type(self).__name__}({', '.join(self.names)}, encoding={self.encoding!r}, width={self._width})"

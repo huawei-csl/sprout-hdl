@@ -1,98 +1,111 @@
 from sprouthdl.sprouthdl import Bool, UInt
-from sprouthdl.sprouthdl_state import State
+from sprouthdl.sprouthdl_state import State, state
 from sprouthdl.sprouthdl_control_strutures import case_, default, if_, switch_
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator, _sid
 
 
+class BinaryFSM(State, encoding="binary"):
+    IDLE = state()
+    RUN = state()
+    DONE = state()
+
+
+class OnehotFSM(State, encoding="onehot"):
+    A = state()
+    B = state()
+    C = state()
+    D = state()
+
+
+class GrayFSM(State, encoding="gray"):
+    S0 = state()
+    S1 = state()
+    S2 = state()
+    S3 = state()
+
+
 def test_state_binary_encoding():
-    fsm = State("IDLE", "RUN", "DONE", encoding="binary")
-    assert fsm._width == 2
-    assert fsm.IDLE.value == 0
-    assert fsm.RUN.value == 1
-    assert fsm.DONE.value == 2
-    assert len(fsm) == 3
+    assert BinaryFSM._width == 2
+    assert BinaryFSM.IDLE.value == 0
+    assert BinaryFSM.RUN.value == 1
+    assert BinaryFSM.DONE.value == 2
+    assert len(BinaryFSM.names) == 3
 
 
 def test_state_onehot_encoding():
-    fsm = State("A", "B", "C", "D", encoding="onehot")
-    assert fsm._width == 4
-    assert fsm.A.value == 0b0001
-    assert fsm.B.value == 0b0010
-    assert fsm.C.value == 0b0100
-    assert fsm.D.value == 0b1000
+    assert OnehotFSM._width == 4
+    assert OnehotFSM.A.value == 0b0001
+    assert OnehotFSM.B.value == 0b0010
+    assert OnehotFSM.C.value == 0b0100
+    assert OnehotFSM.D.value == 0b1000
 
 
 def test_state_gray_encoding():
-    fsm = State("S0", "S1", "S2", "S3", encoding="gray")
-    assert fsm._width == 2
-    assert fsm.S0.value == 0b00
-    assert fsm.S1.value == 0b01
-    assert fsm.S2.value == 0b11
-    assert fsm.S3.value == 0b10
+    assert GrayFSM._width == 2
+    assert GrayFSM.S0.value == 0b00
+    assert GrayFSM.S1.value == 0b01
+    assert GrayFSM.S2.value == 0b11
+    assert GrayFSM.S3.value == 0b10
 
 
 def test_state_machine_simulation():
     """Simple 3-state FSM: IDLE -> RUN -> DONE -> IDLE, controlled by 'go' input."""
-    fsm = State("IDLE", "RUN", "DONE")
-
     m = Module("FSM", with_clock=True, with_reset=False)
     go = m.input(Bool(), "go")
-    state = m.reg(fsm.typ, "state", init=fsm.IDLE)
+    reg = m.reg(BinaryFSM.typ, "state", init=BinaryFSM.IDLE)
     out = m.output(UInt(2), "out")
 
     out <<= 0
 
-    with switch_(state):
-        with case_(fsm.IDLE):
+    with switch_(reg):
+        with case_(BinaryFSM.IDLE):
             out <<= 0
             with if_(go):
-                state <<= fsm.RUN
-        with case_(fsm.RUN):
+                reg <<= BinaryFSM.RUN
+        with case_(BinaryFSM.RUN):
             out <<= 1
-            state <<= fsm.DONE
-        with case_(fsm.DONE):
+            reg <<= BinaryFSM.DONE
+        with case_(BinaryFSM.DONE):
             out <<= 2
-            state <<= fsm.IDLE
+            reg <<= BinaryFSM.IDLE
         with default():
-            state <<= fsm.IDLE
+            reg <<= BinaryFSM.IDLE
 
     sim = Simulator(m)
     sim.eval()
 
     # Initial state: IDLE, out=0
-    assert sim.get("state") == fsm.IDLE.value
-    assert sim.get("out") == 0
+    assert sim.get(reg) == BinaryFSM.IDLE.value
+    assert sim.get(out) == 0
 
     # No go signal: stays in IDLE
-    sim.set("go", 0)
-    ns = sim._compute_next_state()
-    assert ns[_sid(state)] == fsm.IDLE.value
+    sim.set(go, 0)
+    sim.step()
+    assert sim.get(reg) == BinaryFSM.IDLE.value
 
     # Assert go: next state is RUN
-    sim.set("go", 1)
-    ns = sim._compute_next_state()
-    assert ns[_sid(state)] == fsm.RUN.value
+    sim.set(go, 1)
+    sim.step()
+    assert sim.get(reg) == BinaryFSM.RUN.value
 
     # Advance to RUN
-    sim.set("state", fsm.RUN.value)
+    sim.set(reg, BinaryFSM.RUN.value)
     sim.eval()
-    assert sim.get("out") == 1
-    ns = sim._compute_next_state()
-    assert ns[_sid(state)] == fsm.DONE.value
+    assert sim.get(out) == 1
+    sim.step()
+    assert sim.get(reg) == BinaryFSM.DONE.value
 
     # Advance to DONE
-    sim.set("state", fsm.DONE.value)
+    sim.set(reg, BinaryFSM.DONE.value)
     sim.eval()
-    assert sim.get("out") == 2
-    ns = sim._compute_next_state()
-    assert ns[_sid(state)] == fsm.IDLE.value
+    assert sim.get(out) == 2
+    sim.step()
+    assert sim.get(reg) == BinaryFSM.IDLE.value
 
 if __name__ == "__main__":
     print("Running tests...")
-    test_state_machine_simulation()
     test_state_binary_encoding()
     test_state_onehot_encoding()
     test_state_gray_encoding()
     test_state_machine_simulation()
-        
