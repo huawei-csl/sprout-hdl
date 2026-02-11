@@ -282,7 +282,6 @@ class TestbenchGenSimulator:
     def to_testbench_file_from_data(
         self,
         filepath: Union[str, Path],
-        *,
         data_file: Union[str, Path],
         input_stimuli: Optional[List[str]] = None,
         outputs_expected: Optional[List[str]] = None,

@@ -1,6 +1,6 @@
 from enum import Enum
 import random
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -135,9 +135,19 @@ class EncodingModel:
         for idx in np.ndindex(size):
             out_vals[idx] = self.get_uniform_sample(width)
         return out_vals
+    
+
+TestVector = Tuple[str, dict, dict] # alias for vectors: list of (label, inputs{name->int}, expected{name->int})
+TestVectors = List[TestVector]
+    
+class TestVectorGenerator:
+    
+    def generate(self) -> TestVectors:
+        # output vectors: list of (label, inputs{name->int}, expected{name->int})
+        raise NotImplementedError("Subclasses must implement generate() method to produce test vectors")
 
 
-class TwoInputArithmeticTestVectorsBase:
+class TwoInputArithmeticTestVectorsBase(TestVectorGenerator):
 
     def __init__(
         self,
@@ -159,12 +169,12 @@ class TwoInputArithmeticTestVectorsBase:
         self.b_encoding_model = EncodingModel(b_encoding)
         self.y_encoding_model = EncodingModel(y_encoding)
         
-    def generate(self) -> Tuple:
+    def generate(self) -> TestVectors:
         raise NotImplementedError()
 
 class MultiplierTestVectors(TwoInputArithmeticTestVectorsBase):
 
-    def generate(self) -> Tuple:
+    def generate(self) -> TestVectors:
 
         if self.num_vectors is None:
             self.num_vectors = 64  # default number of vectors
@@ -215,7 +225,7 @@ class MultiplierTestVectorsExhaustive(TwoInputArithmeticTestVectorsBase):
 
         return a_table, b_table, y_table
 
-    def generate(self) -> Tuple:
+    def generate(self) -> TestVectors:
 
         if self.num_vectors is not None or self.tb_sigma is not None:
             raise ValueError("num_vectors must be None for exhaustive test vector generation")       
@@ -269,7 +279,7 @@ class AdderTestVectors(TwoInputArithmeticTestVectorsBase):
             y_encoding=y_encoding,
         )
 
-    def generate(self) -> Tuple:
+    def generate(self) -> TestVectors:
         if self.num_vectors is None:
             self.num_vectors = 64
 
@@ -315,7 +325,7 @@ class EncoderDecoderTestVectors:
             return self.input_encoding_model.get_normal_sample(self.width, self.tb_sigma)
         return self.input_encoding_model.get_uniform_sample(self.width)
 
-    def generate(self) -> Tuple:
+    def generate(self) -> TestVectors:
         if self.num_vectors is None:
             self.num_vectors = 64
 
