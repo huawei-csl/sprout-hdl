@@ -11,7 +11,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     PPGOption,
     TwoInputAritEncodings,
 )
-from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, TestVectors
 from sprouthdl.helpers import refactor_module_to_aig, run_vectors_on_simulator, sim_and_switch_count
 from sprouthdl.sprouthdl import Op2
 from sprouthdl.sprouthdl_module import Module
@@ -81,7 +81,7 @@ def _build_vectors(core, num_vectors: int) -> list[tuple[str, dict[str, int], di
 
 def _build_vectors_encoding(
     core, encoding: Encoding, num_vectors: int
-) -> list[tuple[str, dict[str, int], dict[str, int]]]:
+) -> TestVectors:
     a_width = core.A[0, 0].typ.width
     b_width = core.B[0, 0].typ.width
     c_width = core.C[0, 0].typ.width
@@ -91,7 +91,7 @@ def _build_vectors_encoding(
     c_rows, c_cols = _shape2d(core.C)  # C/Y: (m, n)
 
     enc_model = EncodingModel(encoding)
-    vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
+    vectors: TestVectors = []
 
     for idx in range(num_vectors):
         a_vals = enc_model.get_uniform_sample_np(a_width, size=(a_rows, a_cols))

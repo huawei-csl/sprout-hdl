@@ -9,6 +9,7 @@ from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing,
 from pyosys import libyosys as ys
 
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import TestVectors
 from sprouthdl.sprouthdl import Expr, Op2
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
 from sprouthdl.sprouthdl_module import IOCollector
@@ -132,7 +133,7 @@ def get_aig_stats(m: Module, n_iter_optimizations: Optional[int] = None, simple=
 # -- sim
 
 def run_vectors(
-    m: Module, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
+    m: Module, vectors: TestVectors, 
     decoder: Callable[[int], float] | None = None, exprs: Optional[List[Expr]] = None,
     use_signed: bool = False,
     raise_on_fail: bool = True,
@@ -149,7 +150,7 @@ def run_vectors(
 
 
 def run_vectors_on_simulator(
-    sim: Simulator, vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]], *, 
+    sim: Simulator, vectors: TestVectors,
     decoder: Callable[[int], float] | None = None,
     use_signed: bool = False,
     raise_on_fail: bool = True,
@@ -220,7 +221,8 @@ def get_switch_count(states_list) -> float:
     total_switches = sum(switches.values())
     return total_switches / len(states_list)  # average per vector
 
-def sim_and_switch_count(module: Module, vectors: list[tuple[str, dict[str, int], dict[str, int]]]) -> Module:
+
+def sim_and_switch_count(module: Module, vectors: TestVectors) -> Module:
 
     m_aig = refactor_module_to_aig(module)
 

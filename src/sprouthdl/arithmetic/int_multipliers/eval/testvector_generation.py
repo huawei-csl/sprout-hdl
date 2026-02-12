@@ -1,6 +1,6 @@
 from enum import Enum
 import random
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 
@@ -137,7 +137,7 @@ class EncodingModel:
         return out_vals
     
 
-TestVector = Tuple[str, dict, dict] # alias for vectors: list of (label, inputs{name->int}, expected{name->int})
+TestVector = Tuple[str, Dict[str, int], Dict[str, int]] # alias for vectors: list of (label, inputs{name->int}, expected{name->int})
 TestVectors = List[TestVector]
     
 class TestVectorGenerator:
