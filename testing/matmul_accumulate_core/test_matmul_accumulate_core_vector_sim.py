@@ -16,7 +16,7 @@ from sprouthdl.helpers import refactor_module_to_aig, run_vectors_on_simulator, 
 from sprouthdl.sprouthdl import Op2
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, to_data_file_from_test_vectors
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, write_vector_data_file
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     AdderConfig,
     MMAcCfg,
@@ -179,7 +179,7 @@ def test_mmac_core_vector_simulation():
         sim_tb, vectors, decoder=None, print_on_pass=False, test_name="TbGen Simulation"
     )
 
-    to_data_file_from_test_vectors(vectors, "mmac_core_vectors.dat")
+    write_vector_data_file(vectors, "mmac_core_vectors.dat")
     sim_tb.to_data_driver_testbench_file(filepath="mmac_core_tb_sim.v", data_file="mmac_core_vectors.dat")
 
     # also save verilog file

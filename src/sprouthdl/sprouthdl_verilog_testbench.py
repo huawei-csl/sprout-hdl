@@ -26,12 +26,10 @@ class _Event:
     payload: dict
 
 
-def to_data_file_from_test_vectors(
+def write_vector_data_file(
     vectors: "TestVectors", data_file: Union[str, Path]
 ) -> None:
     """Write TestVectors to a whitespace-separated data file for Verilog testbenches."""
-    if not vectors:
-        raise ValueError("No test vectors provided.")
 
     _, first_inputs, first_outputs = vectors[0]
     input_names = list(first_inputs.keys())
@@ -39,14 +37,10 @@ def to_data_file_from_test_vectors(
 
     with open(data_file, "w") as f:
         f.write("# " + " ".join(input_names + output_names) + "\n")
-        for idx, (_, inputs, outputs) in enumerate(vectors, start=1):
-            if list(inputs.keys()) != input_names:
-                raise ValueError(f"Inconsistent input keys in vector {idx}.")
-            if list(outputs.keys()) != output_names:
-                raise ValueError(f"Inconsistent output keys in vector {idx}.")
-            values = [str(inputs[name]) for name in input_names]
-            values.extend(str(outputs[name]) for name in output_names)
-            f.write(" ".join(values) + "\n")
+        for _, inputs, outputs in vectors:
+            # f.write(f"{inputs['a']} {inputs['b']} {outputs['y']}\n")
+            f.write(" ".join([str(inputs[k]) for k, _ in inputs.items()]) + " " + 
+                    " ".join([str(outputs[k]) for k, _ in outputs.items()]) + "\n")
 
 
 class TestbenchGenSimulator:
@@ -471,7 +465,7 @@ class TestbenchGenSimulator:
         input_names = list(first_inputs.keys())
         output_names = list(first_outputs.keys())
 
-        to_data_file_from_test_vectors(vectors, data_file)
+        write_vector_data_file(vectors, data_file)
         self.to_data_driver_testbench_file(
             filepath=filepath,
             data_file=data_file,
@@ -565,4 +559,4 @@ class TestbenchGenSimulator:
             lines.append("")
 
 
-__all__ = ["TestbenchGenSimulator", "to_data_file_from_test_vectors"]
+__all__ = ["TestbenchGenSimulator", "write_vector_data_file"]

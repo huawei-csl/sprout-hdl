@@ -4,7 +4,7 @@ from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core impo
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocksStrong
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, to_data_file_from_test_vectors
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, write_vector_data_file
 from sprouthdl.various.vcd_writer import write_vcd
 
 
@@ -83,7 +83,7 @@ def int_tb_sim():
     data_tb_filename = "int_multiplier_tb_data.v"
     data_filename = "int_multiplier_vectors.dat"
 
-    to_data_file_from_test_vectors(vecs, data_filename)
+    write_vector_data_file(vecs, data_filename)
 
     verilog_filename = "int_multiplier.v"
     sim_tb.to_testbench_file(tb_filename, tb_module_name=module.name+"_tb")
