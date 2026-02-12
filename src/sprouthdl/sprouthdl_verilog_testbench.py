@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
 
 from sprouthdl.sprouthdl import Expr, Signal
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator as PythonSimulator
+
+if TYPE_CHECKING:
+    from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import TestVectors
 
 
 @dataclass
@@ -21,6 +24,29 @@ class _Event:
     action: str
     delay: float
     payload: dict
+
+
+def to_data_file_from_test_vectors(
+    vectors: "TestVectors", data_file: Union[str, Path]
+) -> None:
+    """Write TestVectors to a whitespace-separated data file for Verilog testbenches."""
+    if not vectors:
+        raise ValueError("No test vectors provided.")
+
+    _, first_inputs, first_outputs = vectors[0]
+    input_names = list(first_inputs.keys())
+    output_names = list(first_outputs.keys())
+
+    with open(data_file, "w") as f:
+        f.write("# " + " ".join(input_names + output_names) + "\n")
+        for idx, (_, inputs, outputs) in enumerate(vectors, start=1):
+            if list(inputs.keys()) != input_names:
+                raise ValueError(f"Inconsistent input keys in vector {idx}.")
+            if list(outputs.keys()) != output_names:
+                raise ValueError(f"Inconsistent output keys in vector {idx}.")
+            values = [str(inputs[name]) for name in input_names]
+            values.extend(str(outputs[name]) for name in output_names)
+            f.write(" ".join(values) + "\n")
 
 
 class TestbenchGenSimulator:
@@ -279,7 +305,7 @@ class TestbenchGenSimulator:
     # ------------------------------------------------------------------
     # Data-driven Verilog testbench (reads vectors from file)
     # ------------------------------------------------------------------
-    def to_testbench_file_from_data(
+    def to_data_driver_testbench_file(
         self,
         filepath: Union[str, Path],
         data_file: Union[str, Path],
@@ -292,9 +318,9 @@ class TestbenchGenSimulator:
     ) -> None:
         """
         Emit a Verilog testbench that reads test vectors from a data file and
-        checks the DUT. Each line of the data file should contain whitespace-
-        separated values for the inputs (in the given order) followed by the
-        expected output(s).
+        checks the DUT. Data lines should contain whitespace-separated values
+        for the inputs (in the given order) followed by expected output(s).
+        Optional header/comment lines that begin with '#' are ignored.
 
         input_stimuli: optional list of input signal names matching the column order
                        in the data file (do NOT include clk/rst here). If None,
@@ -345,10 +371,12 @@ class TestbenchGenSimulator:
 
         lines.append("  integer fd;")
         lines.append("  integer rc;")
+        lines.append("  integer line_read;")
         lines.append("  integer line;")
         lines.append("  integer pass_cnt;")
         lines.append("  integer fail_cnt;")
         lines.append("  reg mismatch;")
+        lines.append("  string line_buf;")
         lines.append("")
         lines.append("  initial begin")
 
@@ -370,11 +398,21 @@ class TestbenchGenSimulator:
         lines.append("    line = 0; pass_cnt = 0; fail_cnt = 0;")
         lines.append("    while (!$feof(fd)) begin")
         fmt_parts = ["%d"] * (len(data_inputs) + len(expected_outputs))
-        fmt = " ".join(fmt_parts) + "\\n"
+        fmt = " ".join(fmt_parts)
         expected_names = [f"expected_{s.name}" for s in expected_outputs]
         lvalues = ", ".join([s.name for s in data_inputs] + expected_names)
-        lines.append(f"      rc = $fscanf(fd, \"{fmt}\", {lvalues});")
+        lines.append("      line_read = $fgets(line_buf, fd);")
+        lines.append("      if (line_read == 0) begin")
+        lines.append("        continue;")
+        lines.append("      end")
         lines.append("      line = line + 1;")
+        lines.append("      if (line_buf.len() == 0) begin")
+        lines.append("        continue;")
+        lines.append("      end")
+        lines.append("      if (line_buf.substr(0, 0) == \"#\") begin")
+        lines.append("        continue;")
+        lines.append("      end")
+        lines.append(f"      rc = $sscanf(line_buf, \"{fmt}\", {lvalues});")
         lines.append("      if (rc != {n}) begin".format(n=len(data_inputs) + len(expected_outputs)))
         lines.append("        $display(\"Skipping line %0d (rc=%0d)\", line, rc);")
         lines.append("        continue;")
@@ -414,6 +452,37 @@ class TestbenchGenSimulator:
 
         with open(filepath, "w") as f:
             f.write("\n".join(lines) + "\n")
+
+    def to_data_driver_testbench_file_incl_dat(
+        self,
+        filepath: Union[str, Path],
+        vectors: "TestVectors",
+        data_file: Union[str, Path],
+        timescale: Optional[str] = "1ns/1ps",
+        with_clk: bool = False,
+        dump_vcd: bool = True,
+        dumpfile: str = "dump.vcd",
+    ) -> None:
+        """Write vector data file and emit data-driven testbench from TestVectors."""
+        if not vectors:
+            raise ValueError("No test vectors provided.")
+
+        _, first_inputs, first_outputs = vectors[0]
+        input_names = list(first_inputs.keys())
+        output_names = list(first_outputs.keys())
+
+        to_data_file_from_test_vectors(vectors, data_file)
+        self.to_data_driver_testbench_file(
+            filepath=filepath,
+            data_file=data_file,
+            input_stimuli=input_names,
+            outputs_expected=output_names,
+            timescale=timescale,
+            with_clk=with_clk,
+            dump_vcd=dump_vcd,
+            dumpfile=dumpfile,
+        )
+
 
     # ------------------------------------------------------------------
     # Internals
@@ -496,4 +565,4 @@ class TestbenchGenSimulator:
             lines.append("")
 
 
-__all__ = ["TestbenchGenSimulator"]
+__all__ = ["TestbenchGenSimulator", "to_data_file_from_test_vectors"]

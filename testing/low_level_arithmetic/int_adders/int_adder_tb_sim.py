@@ -2,7 +2,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Adde
 from sprouthdl.arithmetic.prefix_adders.adders import RippleCarryFinalAdder, StageBasedPrefixAdder
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, to_data_file_from_test_vectors
 from sprouthdl.various.vcd_writer import write_vcd
 
 
@@ -65,13 +65,11 @@ def int_adders_tb_sim():
     data_tb_filename = "int_adder_tb_data.v"
     data_filename = "int_adder_vectors.dat"
 
-    with open(data_filename, "w") as f:
-        for _, inputs, outputs in vecs:
-            f.write(f"{inputs['a']} {inputs['b']} {outputs['y']}\n")
+    to_data_file_from_test_vectors(vecs, data_filename)
 
     verilog_filename = "int_adder.v"
     sim_tb.to_testbench_file(tb_filename, tb_module_name=module.name + "_tb")
-    sim_tb.to_testbench_file_from_data(
+    sim_tb.to_data_driver_testbench_file(
         data_tb_filename,
         data_file=data_filename,
         with_clk=False,

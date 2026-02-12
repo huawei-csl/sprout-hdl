@@ -7,12 +7,13 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import (
     EncoderDecoderTestVectors,
 )
 from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
+from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.various.vcd_writer import write_vcd
 
 
-def _run_component(module, vecs, base_filename: str, *, test_name: str, with_clk: bool = False) -> None:
+def _run_component(module: Module, vecs, base_filename: str, *, test_name: str, with_clk: bool = False) -> None:
 
     run_vectors(module, vecs, print_on_pass=True)
 
@@ -39,21 +40,13 @@ def _run_component(module, vecs, base_filename: str, *, test_name: str, with_clk
         sim_tb, vecs, print_on_pass=False, with_clk=with_clk, test_name=test_name
     )
 
-    input_names = list(vecs[0][1].keys())
-    output_names = list(vecs[0][2].keys())
     data_filename = f"{base_filename}_vectors.dat"
-    with open(data_filename, "w") as f:
-        for _, inputs, outputs in vecs:
-            inputs_str = " ".join(str(inputs[name]) for name in input_names)
-            outputs_str = " ".join(str(outputs[name]) for name in output_names)
-            f.write(f"{inputs_str} {outputs_str}\n")
 
     sim_tb.to_testbench_file(f"{base_filename}.v", tb_module_name=module.name + "_tb")
-    sim_tb.to_testbench_file_from_data(
+    sim_tb.to_data_driver_testbench_file_incl_dat(
         f"{base_filename}_data.v",
+        vectors=vecs,
         data_file=data_filename,
-        input_stimuli=input_names,
-        outputs_expected=output_names,
         with_clk=with_clk,
     )
     module.to_verilog_file(f"{base_filename}_module.v")
