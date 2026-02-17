@@ -72,6 +72,61 @@ Modules can be exported to Verilog, AIG, or AAG for downstream synthesis, equiva
 - `Component` subclasses package reusable structures.  They can materialize new modules (`to_module`), import designs from Verilog or AIG formats (`from_verilog`, `from_aag_lines`), and retag ports as internals (`make_internal`).  Components also expose `get_spec()` to drive `IOCollector` regrouping when you import flattened designs (see [`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
 - `Module` is typically used at the top level or as an intermediate representation while you are still wiring a design.  It offers constructors for inputs, outputs, wires, and registers; utilities for enumerating signals; Verilog emission with automatic width fitting; and a `module_analyze()` routine that reports combinational depth and node counts for timing exploration ([`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
 - `IOCollector` helps rebuild packed buses (e.g., `a[0] … a[N-1]` → `a[N-1:0]`) after reading back designs from AIG/AAG files or external synthesizers ([`sprouthdl_module.py`](src/sprouthdl/sprouthdl_module.py)).
+- Minimal end-to-end component example: [`testing/examples/simple_component.py`](testing/examples/simple_component.py).
+
+Short component + hierarchy usage example:
+
+```python
+from dataclasses import dataclass
+from sprouthdl.sprouthdl import UInt, Signal
+from sprouthdl.sprouthdl_module import Component
+
+class SimpleAdder(Component):
+    def __init__(self, width=8):
+        self.width = width
+        @dataclass
+        class IO:
+            a: Signal
+            b: Signal
+            sum: Signal
+        self.io = IO(
+            a=Signal(name="a", typ=UInt(width), kind="input"),
+            b=Signal(name="b", typ=UInt(width), kind="input"),
+            sum=Signal(name="sum", typ=UInt(width + 1), kind="output"),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        self.io.sum <<= self.io.a + self.io.b
+
+class Sum3Hier(Component):
+    def __init__(self):
+        @dataclass
+        class IO:
+            a: Signal
+            b: Signal
+            c: Signal
+            sum: Signal
+        self.io = IO(
+            a=Signal(name="a", typ=UInt(8), kind="input"),
+            b=Signal(name="b", typ=UInt(8), kind="input"),
+            c=Signal(name="c", typ=UInt(8), kind="input"),
+            sum=Signal(name="sum", typ=UInt(10), kind="output"),
+        )
+        self.elaborate()
+
+    def elaborate(self):
+        add_ab = SimpleAdder(width=8).make_internal()     # first sub-component
+        add_abc = SimpleAdder(width=9).make_internal()    # second sub-component
+        add_ab.io.a <<= self.io.a
+        add_ab.io.b <<= self.io.b
+        add_abc.io.a <<= add_ab.io.sum
+        add_abc.io.b <<= self.io.c
+        self.io.sum <<= add_abc.io.sum
+
+module = Sum3Hier().to_module(name="Sum3Hier")
+print(module.to_verilog())  # one top module, built from internal components
+```
 
 ### Hierarchical design with components
 
