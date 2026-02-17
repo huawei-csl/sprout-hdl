@@ -439,7 +439,6 @@ class Resize(Expr):
 # Operator helpers
 # -----------------------------
 
-
 def bits_required(v: int) -> int:
     if v == 0:
         return 1
@@ -525,32 +524,10 @@ def op_shift(a: Expr, b: Expr, sym: str) -> Expr:
         t = HDLType(a.typ.width, signed=a.typ.signed)
     return Op2(a, b, sym, t)
 
-# works fine except for emitting verilog with different widths
-# def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-#     return Op2(a, b, sym, Bool())
-
-# only necessary for hdl generation, otherwise incorrect results
-# def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-#     # Align widths for equality/inequality as *unsigned* bitwise compares
-#     if sym in ("==", "!="):
-#         w = max(a.typ.width, b.typ.width)
-#         t_uns = HDLType(w, signed=False)
-#         a_al = fit_width(a, t_uns)
-#         b_al = fit_width(b, t_uns)
-#         return Op2(a_al, b_al, sym, Bool())
-#     else:
-#         # Relational compares: align to common width, and if either is signed, align as signed
-#         w = max(a.typ.width, b.typ.width)
-#         signed = a.typ.signed or b.typ.signed
-#         t_rel = HDLType(w, signed=signed)
-#         a_al = fit_width(a, t_rel)
-#         b_al = fit_width(b, t_rel)
-#         return Op2(a_al, b_al, sym, Bool())
-
 
 def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-    # Align widths for equality/inequality as *unsigned* bitwise compares
 
+    # for verilog emmission we need to align widths for all compares, and if either is signed, align as signed
     w = max(a.typ.width, b.typ.width)
     t_target = HDLType(w, signed=a.typ.signed or b.typ.signed)
     # if a is not const
