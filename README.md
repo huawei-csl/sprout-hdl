@@ -2,6 +2,8 @@
 
 Sprout-HDL is a Python embedded domain-specific language (EDSL) for building digital hardware in a concise, composable way.  It lets you describe logic with Python expressions, compile the result to synthesizable Verilog or AIG/AAG netlists, and iterate quickly with a built-in cycle-accurate simulator.
 
+![Sprout HDL](imgs/sprout_hdl.png)
+
 ## Project overview
 
 Sprout-HDL revolves around a small set of core modules:
@@ -15,7 +17,7 @@ Supporting packages add reusable arithmetic building blocks and importer utiliti
 ## Installation
 
 ```bash
-git clone https://github.com/username/sprout-hdl.git
+git clone https://github.com/huawei-csl/sprout-hdl.git
 cd sprout-hdl
 pip install -e .
 ```
@@ -258,15 +260,15 @@ For some scripts you might need to add `PYTHONPATH=$(pwd)` before running the co
 ### Integers
 Run the evaluation script 
 ```bash
-python sprouthdl/arithmetic/int_multipliers/eval/run_multiplier_stage_options_eval_ext_stat.py
+python -m sprouthdl.arithmetic.int_multipliers.eval.run_multiplier_stage_options_eval_ext_stat
 ```
 This will generate a parquet file in the folder `data`. Visualization can be done with the plotly app via 
 ```bash
-python sprouthdl/arithmetic/int_multipliers/eval/plot/plotly_app.py --file data/data_file.parquet
+python -m sprouthdl.arithmetic.int_multipliers.eval.plot.plotly_app --file data/data_file.parquet
 ``` 
 or with the script 
 ```bash
-python sprouthdl/arithmetic/int_multipliers/eval/plot/multiplier_stage_plot.py --file data/data_file.parquet
+python -m sprouthdl.arithmetic.int_multipliers.eval.plot.multiplier_stage_plot --file data/data_file.parquet
 ```
 Replace `data_file.parquet` with the file produced by the evaluate script.
 
@@ -275,9 +277,9 @@ If desired, new multiplier options can be added here: `sprouthdl/arithmetic/int_
 #### Optimized Multipliers
 The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py` rely on precomputed AIGs (and map files). By default they load packaged assets from `sprouthdl/arithmetic/int_multipliers/data/optimized/` using the following filenames:
 
-- `unsigned_3b|4b|8b/{out_aiger.aig,aiger_map_cleaned.map}`
-- `signed_3b|4b|8b/{out_aiger.aig,aiger_map_cleaned.map}`
-- `unsigned_4b_strong/{out_aiger_strong.aig,out_aiger_map_strong.map}`
+- `unsigned_3b|4b|8b`
+- `signed_3b|4b|8b`
+- `unsigned_4b_strong`
 
 To point at your own artifacts, set `SPROUTHDL_OPT_MULT_DIR=/path/to/optimized` (keep the same subdirectory names/files) or pass a custom `f_aag_lines` callable when constructing the multiplier. Clear errors are raised if neither packaged nor user-supplied assets are found.
 
@@ -311,34 +313,21 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 
 ## Todo
 
-- create package out of this --> done
-- add pytest to gitlab to be run automatically --> done
 - remove _SHARED object (now used for verilog generation)
 - remove is_bool flag, probably not necessary, just use length of 1
-- parse wires and regs from graph
-- test peek / watch logic --> done
-- add better hierarchy capablities / all in graph.  m.wire / m.reg not necessary.
-- type conversions: sint, uint, etc
+- add better hierarchy capablities / all in graph.
 - Uint(value), optional length bit?
 - simulation: get any signal in graph wich is there implicitly, run simulation just on function and after setting starting nodes to a value
 - unify get and peek (same thing but one is with sign conversion, the other is not)
 - unify log_expression_states and watches in the Simulator.
-- clean up two versions of testvector generation and the exhaustive testvector generation
 - in module there is all_exprs and _collect_signals_from_outputs maybe this can be merged, especially by removing the _signal attribute (maybe still retain it as a cache)
-- all imports of sprout hdl simulator on top --> done
-- in sprouthdl dont use the _class_name but use isinstance(), also in sprouthdl_aiger.py currently does not work for wire
-- <<= operator should also work for register, in fact make _drive and next the same. --> done
-- input with register
 - add subnormal support for fp add
 - unify run_vectors_local and run_vectors
 - unify testvector_generation_fp.py and testing/floating_point/fp_testvectors_general.py and  testvector_generation.py
-- signed for fused matmul (baugh-wooley), get_elements() for aggregate, use it for to_bits and flatten (impl in base class)
 - rename aggregate types, composite types / the others sprouthdl.py should be base type
 - probabliy not a nice pattern: type(elem).wire_like(elem), better do -> elem.get_wire_clone()
 - in testing/test_matmul_accumulate_core.py, etc use vec.to_list() to generate io dict -> to dataclass/named tuple in a wrapper componnet
-- todo: non signed input types for sm core and fused core.
-- remove shared cache, no longer necessary if we scan the entire
-- now synthax of control strucutres is _if, _else. maybe change to when and otherwise or elsewhen, so we can drop the underscore.
+- new synthax of control strucutres is _if, _else. maybe change to when and otherwise or elsewhen, so we can drop the underscore.
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.
 

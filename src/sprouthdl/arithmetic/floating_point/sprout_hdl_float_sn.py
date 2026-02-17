@@ -322,61 +322,6 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
     comp = FpMulSN(EW, FW, subnormals=subnormals)
     return comp.to_module(name, with_clock=False, with_reset=False)
 
-
-# sanity_fp_mul_subnormals.py
-# Requires your SproutHDL builders with subnormals enabled:
-#   build_f16_mul(..., subnormals=True)
-#   build_bf16_mul(..., subnormals=True)
-# and your Simulator (inline or separate).
-
-
-# --- decode helpers (for nice printouts) ---
-# def half_to_float(h):
-#     s = (h >> 15) & 1
-#     e = (h >> 10) & 0x1F
-#     f = h & 0x3FF
-#     bias = 15
-#     if e == 0:
-#         if f == 0:
-#             return -0.0 if s else 0.0
-#         return ((-1.0) ** s) * (2 ** (1 - bias)) * (f / (1 << 10))
-#     if e == 0x1F:
-#         if f == 0:
-#             return float("-inf") if s else float("inf")
-#         return float("nan")
-#     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 10))
-
-# def bf16_to_float(b):
-#     s = (b >> 15) & 1
-#     e = (b >> 7) & 0xFF
-#     f = b & 0x7F
-#     bias = 127
-#     if e == 0:
-#         if f == 0:
-#             return -0.0 if s else 0.0
-#         return ((-1.0) ** s) * (2 ** (1 - bias)) * (f / (1 << 7))
-#     if e == 0xFF:
-#         if f == 0:
-#             return float("-inf") if s else float("inf")
-#         return float("nan")
-#     return ((-1.0) ** s) * (2 ** (e - bias)) * (1.0 + f / (1 << 7))
-
-# # --- generic runner ---
-# def run_vectors(mod, vectors, *, label="", decoder=None):
-#     sim = Simulator(mod)
-#     print(f"\n== {label} ==")
-#     ok = 0
-#     for name, a_hex, b_hex, exp_hex in vectors:
-#         sim.set("a", a_hex).set("b", b_hex).eval()
-#         got = sim.get("y")
-#         pf = "PASS" if got == exp_hex else "FAIL"
-#         extra = ""
-#         if decoder is not None:
-#             extra = f"  val={decoder(got):.8g} (exp {decoder(exp_hex):.8g})"
-#         print(f"{pf:4s}  {name:35s} a=0x{a_hex:04X}  b=0x{b_hex:04X} -> y=0x{got:04X} (exp 0x{exp_hex:04X}){extra}")
-#         ok += (got == exp_hex)
-#     print(f"Summary: {ok}/{len(vectors)} passed.\n")
-
 # -----------------------
 # float16 (binary16) vectors with SUBNORMALS
 # -----------------------

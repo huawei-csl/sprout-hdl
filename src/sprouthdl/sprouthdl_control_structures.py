@@ -11,7 +11,7 @@ Usage example::
 
     from sprouthdl.sprouthdl import Bool, UInt
     from sprouthdl.sprouthdl_module import Module
-    from sprouthdl.sprouthdl_control_strutures import case_, default, if_, elif_, else_, switch_
+    from sprouthdl.sprouthdl_control_structures import case_, default, if_, elif_, else_, switch_
 
     m = Module("Example", with_clock=False, with_reset=False)
     sel = m.input(Bool(), "sel")

@@ -1,7 +1,7 @@
 import pytest
 
 from sprouthdl.sprouthdl import Bool, UInt
-from sprouthdl.sprouthdl_control_strutures import case_, default, else_, elif_, if_, switch_
+from sprouthdl.sprouthdl_control_structures import case_, default, else_, elif_, if_, switch_
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator, _sid
 

@@ -1,4 +1,5 @@
 *.png
+!imgs/sprout_hdl.png
 *.pyc
 *.v
 *.aig

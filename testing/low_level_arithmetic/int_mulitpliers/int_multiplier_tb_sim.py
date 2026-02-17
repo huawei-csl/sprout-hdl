@@ -120,27 +120,6 @@ def int_tb_sim():
     )
     module.to_verilog_file(verilog_filename)
 
-    # tb = VerilogTestbenchSimulator.from_multiplier_module(
-    #     module,
-    #     specs,
-    #     vecs,
-    #     decoder,
-    #     clock_period=10.0,
-    #     eval_delay=1.0,
-    # )
-
-    # tb.reset(True)
-    # tb.step()  # capture reset behaviour
-    # tb.deassert_reset()
-
-    # for vec in vecs:
-    #     tb.set_inputs_from_vector(vec)
-    #     tb.eval()
-    #     tb.step()
-    #     tb.check_outputs_against_vector(vec)
-
-    # print("All test vectors passed!")
-
     return
 
 if __name__ == "__main__":

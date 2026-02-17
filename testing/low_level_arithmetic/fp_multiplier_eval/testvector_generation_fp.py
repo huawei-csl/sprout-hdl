@@ -226,52 +226,6 @@ class FPMultiplierTestVectors:
 
             a_bits = self.a_fmt.encode(a_val)
             b_bits = self.b_fmt.encode(b_val)
-            # 1. update: simple neighbor search with tie preference
-            # v -> encode -> decode neighbors; on tie, up for +, down for -
-            # if isinstance(self.y_fmt, IEEEFormat) and math.isfinite(y_val):
-            #     total_bits = 1 + self.y_fmt.EW + self.y_fmt.FW
-            #     max_code = (1 << total_bits) - 1
-
-            #     b0 = self.y_fmt.encode(y_val)
-            #     bdn = max(0, b0 - 1)
-            #     bup = min(max_code, b0 + 1)
-
-            #     v0 = fp_decode(b0, self.y_fmt.EW, self.y_fmt.FW)
-            #     vdn = fp_decode(bdn, self.y_fmt.EW, self.y_fmt.FW)
-            #     vup = fp_decode(bup, self.y_fmt.EW, self.y_fmt.FW)
-
-            #     def dist(v: float) -> float:
-            #         return abs(v - y_val) if math.isfinite(v) else float("inf")
-
-            #     d0, ddn, dup = dist(v0), dist(vdn), dist(vup)
-            #     min_d = min(d0, ddn, dup)
-
-            #     # tolerance proportional to neighbor spacing
-            #     span = abs(vup - vdn)
-            #     tol = span * 1e-15 if math.isfinite(span) else 0.0
-
-            #     tied: List[Tuple[int, float]] = []
-            #     if abs(d0 - min_d) <= tol:
-            #         tied.append((b0, v0))
-            #     if abs(ddn - min_d) <= tol:
-            #         tied.append((bdn, vdn))
-            #     if abs(dup - min_d) <= tol:
-            #         tied.append((bup, vup))
-
-            #     if len(tied) == 1:
-            #         y_bits = tied[0][0]
-            #     else:
-            #         # break ties: away from zero (up for +, down for -)
-            #         if y_val > 0.0:
-            #             y_bits = max(tied, key=lambda kv: kv[1])[0]
-            #         elif y_val < 0.0:
-            #             y_bits = min(tied, key=lambda kv: kv[1])[0]
-            #         else:
-            #             # y_val == 0.0: keep default
-            #             y_bits = b0
-            # else:
-            #     y_bits = self.y_fmt.encode(y_val)
-
             y_bits = self.y_fmt.encode(y_val)
 
             name = f"{a_val:.6g}*{b_val:.6g}"
