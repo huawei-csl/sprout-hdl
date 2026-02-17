@@ -1,0 +1,442 @@
+from __future__ import annotations
+
+import argparse
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Literal, Sequence
+
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+    FSAOption,
+    MultiplierOption,
+    PPAOption,
+    PPGOption,
+    TwoInputAritEncodings,
+    encoding_for_multiplier,
+    supports_stages,
+)
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import (
+    AdderTestVectors,
+    Encoding,
+    MultiplierTestVectors,
+    is_signed,
+)
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
+from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
+from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
+from sprouthdl.sprouthdl_aiger import AigerExporter
+from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator import Simulator
+
+
+@dataclass(frozen=True)
+class MultiplierGeneratorConfig:
+    n_bits: int
+    multiplier_opt: MultiplierOption = MultiplierOption.STAGE_BASED_MULTIPLIER
+    ppg_opt: PPGOption = PPGOption.AND
+    ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    input_encoding: Encoding = Encoding.unsigned
+    output_encoding: Encoding | None = None
+    optim_type: Literal["area", "speed"] = "area"
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class AdderGeneratorConfig:
+    n_bits: int
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    input_encoding: Encoding = Encoding.unsigned
+    output_encoding: Encoding | None = None
+    optim_type: Literal["area", "speed"] = "area"
+    full_output_bit: bool = True
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class GenerationActions:
+    verilog_out: str | Path | None = None
+    aag_out: str | Path | None = None
+    simulate: bool = False
+    num_vectors: int = 64
+    tb_sigma: float | None = None
+    yosys_stats: bool = False
+    yosys_deepsyn: bool = False
+    yosys_opt_iterations: int | None = None
+
+
+@dataclass
+class GenerationResult:
+    module: Module
+    component: Any
+    input_encoding: Encoding
+    output_encoding: Encoding
+    vectors: list[tuple[str, dict[str, int], dict[str, int]]] | None = None
+    simulation_failures: int | None = None
+    verilog_out: Path | None = None
+    aag_out: Path | None = None
+    yosys_stats: dict[str, Any] | None = None
+
+    @property
+    def transistor_count(self) -> int | None:
+        if self.yosys_stats is None:
+            return None
+        return int(self.yosys_stats["estimated_num_transistors"])
+
+
+def _enum_type(enum_cls):
+    def _parse(raw: str):
+        for item in enum_cls:
+            if raw.upper() == item.name.upper() or raw.lower() == str(item.value).lower():
+                return item
+        valid = ", ".join(item.name for item in enum_cls)
+        raise argparse.ArgumentTypeError(f"Invalid {enum_cls.__name__}: '{raw}'. Valid values: {valid}")
+
+    return _parse
+
+
+def _resolve_path(path_like: str | Path) -> Path:
+    return path_like if isinstance(path_like, Path) else Path(path_like)
+
+
+def _ensure_parent(path: Path) -> None:
+    if path.parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_multiplier_encodings(cfg: MultiplierGeneratorConfig) -> TwoInputAritEncodings:
+    supported = encoding_for_multiplier(cfg.multiplier_opt.value)
+    matching_inputs = [enc for enc in supported if enc.a == cfg.input_encoding and enc.b == cfg.input_encoding]
+    if not matching_inputs:
+        supported_inputs = sorted({enc.a.name for enc in supported if enc.a == enc.b})
+        raise ValueError(
+            f"{cfg.multiplier_opt.name} does not support input encoding {cfg.input_encoding.name}. "
+            f"Supported (a=b) encodings: {supported_inputs}"
+        )
+
+    if cfg.output_encoding is None:
+        return matching_inputs[0]
+
+    for enc in matching_inputs:
+        if enc.y == cfg.output_encoding:
+            return enc
+
+    supported_outputs = sorted({enc.y.name for enc in matching_inputs})
+    raise ValueError(
+        f"{cfg.multiplier_opt.name} with input encoding {cfg.input_encoding.name} does not support "
+        f"output encoding {cfg.output_encoding.name}. Supported outputs: {supported_outputs}"
+    )
+
+
+def _resolve_adder_output_encoding(cfg: AdderGeneratorConfig) -> Encoding:
+    if cfg.output_encoding is not None:
+        return cfg.output_encoding
+    if cfg.full_output_bit:
+        return cfg.input_encoding
+    return Encoding.twos_complement_overflow if is_signed(cfg.input_encoding) else Encoding.unsigned_overflow
+
+
+def _validate_clock_reset(with_clock: bool, with_reset: bool) -> None:
+    if with_reset and not with_clock:
+        raise ValueError("with_reset=True requires with_clock=True")
+
+
+def _apply_actions(
+    module: Module,
+    vectors: list[tuple[str, dict[str, int], dict[str, int]]] | None,
+    *,
+    actions: GenerationActions,
+    with_clock: bool,
+) -> tuple[int | None, Path | None, Path | None, dict[str, Any] | None]:
+    sim_failures = None
+    verilog_out = None
+    aag_out = None
+    yosys_stats = None
+
+    if actions.simulate:
+        if vectors is None:
+            raise ValueError("Simulation was requested but no vectors were generated")
+        sim = Simulator(module)
+        sim_failures = run_vectors_on_simulator(
+            sim,
+            vectors,
+            use_signed=False,
+            raise_on_fail=True,
+            print_on_pass=False,
+            with_clk=with_clock,
+        )
+
+    if actions.verilog_out is not None:
+        verilog_out = _resolve_path(actions.verilog_out)
+        _ensure_parent(verilog_out)
+        module.to_verilog_file(str(verilog_out))
+
+    if actions.aag_out is not None:
+        aag_out = _resolve_path(actions.aag_out)
+        _ensure_parent(aag_out)
+        AigerExporter(module).write_aag(str(aag_out))
+
+    if actions.yosys_stats:
+        yosys_stats = get_yosys_metrics(
+            module,
+            n_iter_optimizations=actions.yosys_opt_iterations,
+            deepsyn=actions.yosys_deepsyn,
+        )
+
+    return sim_failures, verilog_out, aag_out, yosys_stats
+
+
+def generate_multiplier(
+    cfg: MultiplierGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    if cfg.n_bits <= 0:
+        raise ValueError("n_bits must be > 0")
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    encodings = _resolve_multiplier_encodings(cfg)
+    use_stage_options = supports_stages(cfg.multiplier_opt)
+    component = cfg.multiplier_opt.value(
+        a_w=cfg.n_bits,
+        b_w=cfg.n_bits,
+        a_encoding=encodings.a,
+        b_encoding=encodings.b,
+        ppg_cls=cfg.ppg_opt.value if use_stage_options else None,
+        ppa_cls=cfg.ppa_opt.value if use_stage_options else None,
+        fsa_cls=cfg.fsa_opt.value if use_stage_options else None,
+        optim_type=cfg.optim_type,
+    )
+    if not isinstance(component, StageBasedMultiplierBase):
+        raise TypeError(f"Expected StageBasedMultiplierBase, got {type(component)}")
+
+    module_name = cfg.module_name or f"mul_{cfg.n_bits}_{cfg.multiplier_opt.name.lower()}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = MultiplierTestVectors(
+        a_w=cfg.n_bits,
+        b_w=cfg.n_bits,
+        y_w=component.io.y.typ.width,
+        num_vectors=actions.num_vectors,
+        tb_sigma=actions.tb_sigma,
+        a_encoding=encodings.a,
+        b_encoding=encodings.b,
+        y_encoding=encodings.y,
+    ).generate()
+
+    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+        module,
+        vectors,
+        actions=actions,
+        with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=encodings.a,
+        output_encoding=encodings.y,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        yosys_stats=yosys_stats,
+    )
+
+
+def generate_adder(
+    cfg: AdderGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    if cfg.n_bits <= 0:
+        raise ValueError("n_bits must be > 0")
+    if cfg.input_encoding not in {Encoding.unsigned, Encoding.twos_complement}:
+        raise ValueError(
+            f"Adder input encoding {cfg.input_encoding.name} is not supported. "
+            "Use Encoding.unsigned or Encoding.twos_complement."
+        )
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    adder_output_encoding = _resolve_adder_output_encoding(cfg)
+    signed = is_signed(cfg.input_encoding)
+
+    component = StageBasedPrefixAdder(
+        a_w=cfg.n_bits,
+        b_w=cfg.n_bits,
+        signed_a=signed,
+        signed_b=signed,
+        optim_type=cfg.optim_type,
+        fsa_cls=cfg.fsa_opt.value,
+        full_output_bit=cfg.full_output_bit,
+    )
+
+    module_name = cfg.module_name or f"add_{cfg.n_bits}_{cfg.fsa_opt.name.lower()}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = AdderTestVectors(
+        a_w=cfg.n_bits,
+        b_w=cfg.n_bits,
+        y_w=component.io.y.typ.width,
+        num_vectors=actions.num_vectors,
+        tb_sigma=actions.tb_sigma,
+        a_encoding=cfg.input_encoding,
+        b_encoding=cfg.input_encoding,
+        y_encoding=adder_output_encoding,
+    ).generate()
+
+    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+        module,
+        vectors,
+        actions=actions,
+        with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=cfg.input_encoding,
+        output_encoding=adder_output_encoding,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        yosys_stats=yosys_stats,
+    )
+
+
+def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--verilog-out", type=str, default=None, help="Optional path for generated Verilog")
+    parser.add_argument("--aag-out", type=str, default=None, help="Optional path for generated .aag")
+    parser.add_argument("--simulate", action="store_true", help="Run vector simulation after generation")
+    parser.add_argument("--num-vectors", type=int, default=64, help="Number of vectors for simulation")
+    parser.add_argument("--tb-sigma", type=float, default=None, help="Optional sigma for normal-distributed vectors")
+    parser.add_argument("--yosys-stats", action="store_true", help="Collect Yosys stats")
+    parser.add_argument("--yosys-deepsyn", action="store_true", help="Use Yosys/ABC deepsyn flow")
+    parser.add_argument(
+        "--yosys-opt-iterations",
+        type=int,
+        default=None,
+        help="AIG optimization iterations before stats (default uses internal project default)",
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Generate integer adders/multipliers with optional exports/stats")
+    sub = parser.add_subparsers(dest="kind", required=True)
+
+    multiplier_parser = sub.add_parser("multiplier", help="Generate multiplier module")
+    multiplier_parser.add_argument("--n-bits", type=int, required=True)
+    multiplier_parser.add_argument("--module-name", type=str, default=None)
+    multiplier_parser.add_argument(
+        "--multiplier-opt",
+        type=_enum_type(MultiplierOption),
+        default=MultiplierOption.STAGE_BASED_MULTIPLIER,
+    )
+    multiplier_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    multiplier_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    multiplier_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    multiplier_parser.add_argument("--encoding", type=_enum_type(Encoding), default=Encoding.unsigned)
+    multiplier_parser.add_argument("--output-encoding", type=_enum_type(Encoding), default=None)
+    multiplier_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    multiplier_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
+    multiplier_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
+    _add_common_action_args(multiplier_parser)
+
+    adder_parser = sub.add_parser("adder", help="Generate adder module")
+    adder_parser.add_argument("--n-bits", type=int, required=True)
+    adder_parser.add_argument("--module-name", type=str, default=None)
+    adder_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    adder_parser.add_argument("--encoding", type=_enum_type(Encoding), default=Encoding.unsigned)
+    adder_parser.add_argument("--output-encoding", type=_enum_type(Encoding), default=None)
+    adder_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    adder_parser.add_argument(
+        "--full-output-bit",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When false, generate overflow-width output",
+    )
+    adder_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
+    adder_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
+    _add_common_action_args(adder_parser)
+
+    return parser
+
+
+def _actions_from_args(args: argparse.Namespace) -> GenerationActions:
+    return GenerationActions(
+        verilog_out=args.verilog_out,
+        aag_out=args.aag_out,
+        simulate=args.simulate,
+        num_vectors=args.num_vectors,
+        tb_sigma=args.tb_sigma,
+        yosys_stats=args.yosys_stats,
+        yosys_deepsyn=args.yosys_deepsyn,
+        yosys_opt_iterations=args.yosys_opt_iterations,
+    )
+
+
+def _result_to_dict(result: GenerationResult) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "module_name": result.module.name,
+        "input_encoding": result.input_encoding.name,
+        "output_encoding": result.output_encoding.name,
+        "vector_count": len(result.vectors) if result.vectors is not None else 0,
+        "simulation_failures": result.simulation_failures,
+        "verilog_out": str(result.verilog_out) if result.verilog_out is not None else None,
+        "aag_out": str(result.aag_out) if result.aag_out is not None else None,
+        "transistor_count": result.transistor_count,
+    }
+    if result.yosys_stats is not None:
+        data["yosys_stats"] = result.yosys_stats
+    return data
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    actions = _actions_from_args(args)
+
+    if args.kind == "multiplier":
+        cfg = MultiplierGeneratorConfig(
+            n_bits=args.n_bits,
+            multiplier_opt=args.multiplier_opt,
+            ppg_opt=args.ppg_opt,
+            ppa_opt=args.ppa_opt,
+            fsa_opt=args.fsa_opt,
+            input_encoding=args.encoding,
+            output_encoding=args.output_encoding,
+            optim_type=args.optim_type,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_multiplier(cfg, actions=actions)
+    else:
+        cfg = AdderGeneratorConfig(
+            n_bits=args.n_bits,
+            fsa_opt=args.fsa_opt,
+            input_encoding=args.encoding,
+            output_encoding=args.output_encoding,
+            optim_type=args.optim_type,
+            full_output_bit=args.full_output_bit,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_adder(cfg, actions=actions)
+
+    print(json.dumps(_result_to_dict(result), indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

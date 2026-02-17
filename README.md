@@ -184,6 +184,44 @@ The `sprouthdl/arithmetic` package collects reusable datapath blocks:
 
 Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
 
+### Unified adder/multiplier generator
+
+For integer adders and multipliers there is a unified generator with both Python API and CLI frontend:
+[`int_arithmetic_generator.py`](src/sprouthdl/arithmetic/int_arithmetic_generator.py).
+
+It can optionally:
+- write Verilog
+- write AAG
+- run vector simulation
+- collect Yosys metrics (including `estimated_num_transistors`)
+
+Multiplier/Adder Python API usage reference:
+[`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
+
+
+CLI examples:
+
+```bash
+python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
+  --n-bits 8 \
+  --multiplier-opt STAGE_BASED_MULTIPLIER \
+  --ppg-opt BAUGH_WOOLEY \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --encoding twos_complement \
+  --simulate --num-vectors 128 \
+  --verilog-out out/mul8.v \
+  --aag-out out/mul8.aag \
+  --yosys-stats
+
+python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
+  --n-bits 16 \
+  --fsa-opt PREFIX_BRENT_KUNG \
+  --encoding twos_complement \
+  --simulate --num-vectors 128 \
+  --verilog-out out/add16.v
+```
+
 ## Main development flow
 
 1. **Model logic in Python.** Use `Module` and DSL expressions to capture datapaths, state machines, and control logic.
@@ -198,6 +236,7 @@ Check out the `testing/examples/` directory for practical examples:
 - **`simple_component.py`** – A minimal example showing how to define a Component with IO ports and generate Verilog
 - **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
 - **`module_with_component.py`** – Shows how to integrate Components within Module-based designs
+- **`testing/riscv/rv32i.py`** – Minimal RV32I core example; see `testing/riscv/test_rv32i.py` for simulation-based checks.
 
 See the [examples README](testing/examples/README.md) for detailed documentation and key concepts.
 
@@ -302,3 +341,9 @@ PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --exp
 - now synthax of control strucutres is _if, _else. maybe change to when and otherwise or elsewhen, so we can drop the underscore.
 
 Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.
+
+## References
+HiFloat8 implementation according to:
+[1] Luo, Y., Zhang, Z., Wu, R., Liu, H., Jin, Y., Zheng, K., ... & Huang, Z. (2024). Ascend hifloat8 format for deep learning. arXiv preprint arXiv:2409.16626.
+Winograd inner product:
+[2] S. Winograd. A new algorithm for inner product. IEEE Trans. Comput., C-18: 693–694, 1968.
