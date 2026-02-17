@@ -526,8 +526,8 @@ def op_shift(a: Expr, b: Expr, sym: str) -> Expr:
     return Op2(a, b, sym, t)
 
 # works fine except for emitting verilog with different widths
-def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
-    return Op2(a, b, sym, Bool())
+# def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:
+#     return Op2(a, b, sym, Bool())
 
 # only necessary for hdl generation, otherwise incorrect results
 # def op_cmp(a: Expr, b: Expr, sym: str) -> Expr:

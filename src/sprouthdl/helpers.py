@@ -241,54 +241,79 @@ def sim_and_switch_count(module: Module, vectors: TestVectors) -> Module:
     return switches
 
 
-def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
-
-    fd, aag_tmp_file = tempfile.mkstemp(suffix=".aag")
-    os.close(fd)
-    with open(aag_tmp_file, "w") as f:
-        f.write("\n".join(aag_lines) + "\n")
-
+def _run_yosys_metric_flow(read_cmd: str, deepsyn: bool = False, auto_top: bool = False) -> dict:
     fd, stat_tmp_file = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
 
     silence_output = True
+    prepend = "tee -q " if silence_output else ""
 
-    if silence_output:
-        prepend = "tee -q "
-    else:
-        prepend = ""
+    abc_tmp_file = None
     if deepsyn:
         # create abc script temp file
         fd_abc, abc_tmp_file = tempfile.mkstemp(suffix=".abc")
         os.close(fd_abc)
         with open(abc_tmp_file, "w") as f:
-            # f.write("strash; &get -n; &deepsyn -I 500 -J 200 -T 10; &put\n") # I: stop after I iterations without any improvement, J: number of random initializations, default: I: 20 j: 500 Timeout T [seconds]
+            # I: stop after I iterations without improvement, J: random initializations, T: timeout (seconds)
             f.write("strash; &get -n; &deepsyn J 5 -T 100; &put\n")
-    ys.run_pass(f"{prepend}design -reset")
-    ys.run_pass(f"{prepend}read_aiger {aag_tmp_file}")
-    ys.run_pass(f"{prepend}rename -top top")
-    # ys.run_pass("hierarchy -top top")
-    ys.run_pass(f"{prepend}hierarchy -check")
-    ys.run_pass(f"{prepend}proc; {prepend}opt; {prepend}fsm; {prepend}memory; {prepend}opt")
-    if deepsyn:
-        ys.run_pass(f"abc -script {abc_tmp_file}")
-    ys.run_pass(f"{prepend}techmap; {prepend}opt; {prepend}abc -fast; {prepend}opt")
-    ys.run_pass(f"{prepend}rename -wire -suffix _reg t:*DFF*")
-    # ys.run_pass(f"{prepend}autoname t:*DFF* %n;")
-    # ys.run_pass("stat  -tech cmos")
-    ys.run_pass(f"tee -q -o {stat_tmp_file} stat -top top -tech cmos -json")
 
-    # todo get aiger stat
+    try:
+        ys.run_pass(f"{prepend}design -reset")
+        ys.run_pass(f"{prepend}{read_cmd}")
+        if auto_top:
+            ys.run_pass(f"{prepend}hierarchy -check -auto-top")
+        ys.run_pass(f"{prepend}rename -top top")
+        ys.run_pass(f"{prepend}hierarchy -check")
+        ys.run_pass(f"{prepend}proc; {prepend}opt; {prepend}fsm; {prepend}memory; {prepend}opt")
+        if deepsyn:
+            ys.run_pass(f"abc -script {abc_tmp_file}")
+        ys.run_pass(f"{prepend}techmap; {prepend}opt; {prepend}abc -fast; {prepend}opt")
+        ys.run_pass(f"{prepend}rename -wire -suffix _reg t:*DFF*")
+        ys.run_pass(f"tee -q -o {stat_tmp_file} stat -top top -tech cmos -json")
 
-    # read stats from json file
-    import json
-    with open(stat_tmp_file, "r") as f:
-        stats = json.load(f)
+        # read stats from json file
+        import json
+        with open(stat_tmp_file, "r") as f:
+            stats = json.load(f)
+    finally:
+        os.remove(stat_tmp_file)
+        if abc_tmp_file and os.path.exists(abc_tmp_file):
+            os.remove(abc_tmp_file)
 
-    os.remove(stat_tmp_file)
-    os.remove(aag_tmp_file)
     stats = stats["modules"]["\\top"]
-    stats["estimated_num_transistors"] = int(stats["estimated_num_transistors"].replace("+", "")) # plus in case of registers, because they are not counted
+    # plus in case of registers, because they are not counted
+    stats["estimated_num_transistors"] = int(stats["estimated_num_transistors"].replace("+", ""))
     return stats
+
+
+def extract_yosys_metrics(aag_lines: list[str], deepsyn=False) -> dict:
+    fd, aag_tmp_file = tempfile.mkstemp(suffix=".aag")
+    os.close(fd)
+    with open(aag_tmp_file, "w") as f:
+        f.write("\n".join(aag_lines) + "\n")
+
+    try:
+        return _run_yosys_metric_flow(f"read_aiger {aag_tmp_file}", deepsyn=deepsyn, auto_top=False)
+    finally:
+        os.remove(aag_tmp_file)
+
+
+def extract_yosys_metrics_from_verilog(verilog_lines: list[str], deepsyn=False) -> dict:
+    fd, verilog_tmp_file = tempfile.mkstemp(suffix=".v")
+    os.close(fd)
+    with open(verilog_tmp_file, "w") as f:
+        f.write("\n".join(verilog_lines) + "\n")
+
+    try:
+        return _run_yosys_metric_flow(f"read_verilog -sv {verilog_tmp_file}", deepsyn=deepsyn, auto_top=True)
+    finally:
+        os.remove(verilog_tmp_file)
+
+
+def extract_yosys_metrics_from_verilog_file(filename: str, deepsyn=False) -> dict:
+    with open(filename, "r") as f:
+        verilog_lines = f.read().splitlines()
+    return extract_yosys_metrics_from_verilog(verilog_lines, deepsyn=deepsyn)
 
 
 def get_yosys_metrics(m: Module, n_iter_optimizations: Optional[int] = None, deepsyn=False) -> int:

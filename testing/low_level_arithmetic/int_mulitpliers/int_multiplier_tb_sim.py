@@ -1,8 +1,10 @@
+from enum import Enum
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import FSAOption, TwoInputAritEncodings, PPAOption, PPGOption
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, MultiplierTestVectors
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import MultiplierTestVectorsInt, StageBasedMultiplierBasic
 from sprouthdl.arithmetic.int_multipliers.multipliers.multipliers_ext_optimized import OptimizedMultiplier, OptimizedMultiplierFrom4BitBlocksStrong
-from sprouthdl.helpers import run_vectors, run_vectors_on_simulator
+from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StarMultiplier
+from sprouthdl.helpers import extract_yosys_metrics_from_verilog_file, get_yosys_metrics, run_vectors, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, write_vector_data_file
 from sprouthdl.various.vcd_writer import write_vcd
@@ -12,36 +14,58 @@ def int_tb_sim():
     n_bits = 4
     signed = False  
 
-    # mult = StageBasedMultiplierBasic(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     signed_a=signed,
-    #     signed_b=signed,
-    #     optim_type="area",
-    #     ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
-    #     ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
-    #     fsa_cls=FSAOption.PLUS_OPERATOR.value #FSAOption.PREFIX_ZCG.value,  # FSAOption.RIPPLE.value,
-    # )
-    # module = mult.to_module(f"Mul{n_bits}")
+    # enum selection for which multiplier to test
+    class MultiplierType(Enum):
+        STAR = 0
+        STAGE_BASED = 1
+        OPTIMIZED = 2
 
-    # mult = OptimizedMultiplierFrom4BitBlocksStrong(
-    mult = OptimizedMultiplier(
-        a_w=n_bits,
-        b_w=n_bits,
-        optim_type="area",
-        ppg_cls=PPGOption.NONE.value,
-    )
+    sel = MultiplierType.OPTIMIZED
+
+    if sel == MultiplierType.STAR:
+
+        mult = StarMultiplier(
+            a_w=n_bits,
+            b_w=n_bits,
+            a_encoding=Encoding.unsigned if not signed else Encoding.twos_complement,
+            b_encoding=Encoding.unsigned if not signed else Encoding.twos_complement,
+        )
+        
+    elif sel == MultiplierType.STAGE_BASED:
+
+        mult = StageBasedMultiplierBasic(
+            a_w=n_bits,
+            b_w=n_bits,
+            signed_a=signed,
+            signed_b=signed,
+            optim_type="area",
+            ppg_cls=PPGOption.BOOTH_OPTIMISED.value,  # PPGOption.AND.value,
+            ppa_cls=PPAOption.CARRY_SAVE_TREE.value, #PPAOption.WALLACE_TREE.value,
+            fsa_cls=FSAOption.PLUS_OPERATOR.value #FSAOption.PREFIX_ZCG.value,  # FSAOption.RIPPLE.value,
+        )
+
+    elif sel == MultiplierType.OPTIMIZED:
+
+        #mult = OptimizedMultiplierFrom4BitBlocksStrong(
+        mult = OptimizedMultiplier(
+            a_w=n_bits,
+            b_w=n_bits,
+            optim_type="area",
+            ppg_cls=PPGOption.NONE.value,
+        )
+
     with_clk = True
     module = mult.to_module(f"Mul{n_bits}", with_clock=with_clk)
 
-    # specs, vecs, decoder = MultiplierTestVectorsInt(
-    #     a_w=n_bits,
-    #     b_w=n_bits,
-    #     num_vectors=16,
-    #     tb_sigma=None,
-    #     signed_a=signed,
-    #     signed_b=signed,
-    # ).generate()
+
+    # get yosys transistor count
+    yosys_metrics = get_yosys_metrics(module)
+    print(f"Yosys metrics: {yosys_metrics}")
+
+    file_name = f"temp.v"
+    module.to_verilog_file(file_name)
+    yosys_metrics_verilog = extract_yosys_metrics_from_verilog_file(file_name)
+    print(f"Yosys metrics from verilog: {yosys_metrics_verilog}")
 
     decoder = None
 

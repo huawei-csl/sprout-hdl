@@ -18,7 +18,6 @@ class StageBasedMultiplierBase(Component):
         self,
         a_w: int,
         b_w: int,
-        *,
         a_encoding: Encoding = Encoding.unsigned,
         b_encoding: Encoding = Encoding.unsigned,
         optim_type: Literal["area", "speed"] = "area",
