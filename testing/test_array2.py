@@ -246,6 +246,7 @@ def test_matmul_accumulate_twice_with_reg():
 
     # Manually compute A*B once (as integers)
     C_ab = matmul(A, B)
+    sim.eval()
     AB_vals = [
         [sim.peek(C_ab[0, 0]), sim.peek(C_ab[0, 1])],
         [sim.peek(C_ab[1, 0]), sim.peek(C_ab[1, 1])],
