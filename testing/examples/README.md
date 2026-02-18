@@ -44,6 +44,22 @@ Run the example:
 python examples/module_with_component.py
 ```
 
+### direct_expression_basics.py
+
+Minimal arithmetic expression example for newcomers:
+- Uses direct expression building (`y = a + b`) with no intermediate wires
+- Uses `+`, `-`, unary `-`, and `Const(..., Int(...))`
+- Shows both `Const(False, Bool())` and plain `False`
+- Includes a recursive Horner-form polynomial expression example
+- No wires, no slicing, and no boolean operations
+- Starts with `y = a + b` and then extends with constants/unary minus
+- Prints expressions in Verilog form (`assign y = ...`)
+
+Run the example:
+```bash
+PYTHONPATH=src python testing/examples/direct_expression_basics.py
+```
+
 ## Key Concepts
 
 ### Defining IO Ports

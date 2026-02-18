@@ -238,6 +238,7 @@ Check out the `testing/examples/` directory for practical examples:
 - **`simple_component.py`** – A minimal example showing how to define a Component with IO ports and generate Verilog
 - **`component_example.py`** – Comprehensive examples including hierarchical design and simulation
 - **`module_with_component.py`** – Shows how to integrate Components within Module-based designs
+- **`direct_expression_basics.py`** – Minimal direct expression examples (`y = a + b`) plus `+`, `-`, unary `-`, `Const(..., Int(...))`, typed/plain `False`, and a recursive Horner polynomial builder
 - **`testing/riscv/rv32i.py`** – Minimal RV32I core example; see `testing/riscv/test_rv32i.py` for simulation-based checks.
 
 See the [examples README](testing/examples/README.md) for detailed documentation and key concepts.
@@ -283,31 +284,6 @@ The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers
 
 To point at your own artifacts, set `SPROUTHDL_OPT_MULT_DIR=/path/to/optimized` (keep the same subdirectory names/files) or pass a custom `f_aag_lines` callable when constructing the multiplier. Clear errors are raised if neither packaged nor user-supplied assets are found.
 
-You can produce and optimize these files with Flowy; for 4-bit unsigned, for example:
-```bash
-# 4 bit unsigned star starting point
-python flowy/flows/reinforce/run/statistical/run_flows_in_docker.py\
-  --experiment unsigned_optim_8bit_star_1\
-  --bitwidth 4\
-  --iterations 50\
-  --mockturtle_chains 5\
-  --mockturtle_chain_workers 5\
-  --mockturtle_chain_len 15\
-  --compression_scripts_per_step 3\
-  --scripts_per_step 2\
-  --nb_runs 100\
-  --nb_workers 50\
-  --recipe_selection PERFORMANCE_SAMPLING\
-  --selection_metric aig_count\
-  --output_encoding unsigned\
-  --input_encoding unsigned\
-  --strategy_name equal\
-  --verilog_file resources/sources/mydesign_comb_star_unsigned.v.template
-
-PYTHONPATH=$(pwd) python flowy/flows/sim/visualize_histograms.py --experiment unsigned_optim_4bit_star_1
-PYTHONPATH=$(pwd) python flowy/flows/sim/extract_best_design.py --experiment unsigned_optim_4bit_star_1
-PYTHONPATH=$(pwd) python flowy/flows/reinforce/analysis/visualize_runs.py  --experiment unsigned_optim_4bit_star_1
-```
 
 
 

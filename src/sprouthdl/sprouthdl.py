@@ -86,8 +86,8 @@ class HDLType:
     def __post_init__(self):
         if self.is_bool:
             self.width = 1
-        if self.width < 1:
-            raise ValueError("Type width must be >= 1")
+        if self.width < 0:
+            raise ValueError("Type width must be >= 0")
 
     def range_str(self) -> str:
         return "" if self.width == 1 else f"[{self.width-1}:0]"
@@ -266,12 +266,14 @@ class Const(Expr):
     def to_verilog(self) -> str:
         if self.typ.is_bool:
             return "1'b1" if self.value != 0 else "1'b0"
+        if self.typ.width == 0:
+            raise ValueError("Cannot emit zero-width constants directly; use them only as placeholders in Concat.")
 
         val = int(self.value)
 
         # For negatives, use unary minus + *signed* literal: -<width>'sd<abs>
         if val < 0:
-            return f"-{ self.typ.width}'sd{abs(val)}"
+            return f"-{self.typ.width}'sd{abs(val)}"
 
         # Non-negative: choose signedness from the declared type
         base = "sd" if self.typ.signed else "d"
@@ -374,7 +376,9 @@ class Ternary(Expr):
 
 class Concat(Expr):
     def __init__(self, parts: Sequence[Expr]):
-        self.parts = [as_expr(x) for x in list(parts)]
+        self.parts = [p for p in (as_expr(x) for x in list(parts)) if p.typ.width > 0]
+        if not self.parts:
+            raise ValueError("Concat must include at least one non-zero-width part.")
         w = sum(p.typ.width for p in self.parts)
         self.typ = HDLType(w, signed=False, is_bool=False)
 
