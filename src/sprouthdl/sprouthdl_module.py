@@ -211,9 +211,9 @@ class Module:
         Walk the design starting from outputs
         """
         self._collect_signals_from_outputs(self._ports_of("output"))
-    
+
     from typing import Dict, List
-    
+
     # fast version
     def _collect_signals_from_outputs(self, outputs: List["Signal"]) -> None:
         """
@@ -221,43 +221,43 @@ class Module:
         Internal signals must be wire/reg; encountering an input/output that is not a port raises.
         Name collisions are avoided by suffixing internal signal names.
         """
-    
+
         # Optional: comment these out on huge graphs (printing itself can be slow)
-        print("Collecting signals...")
-    
+        # print("Collecting signals...")
+
         # Start with ports, keep their names stable
         self._signals = list(self._ports)
         port_ids = {id(p) for p in self._ports}
-    
+
         # O(1) membership for "already appended to _signals"
         signals_in_list = set(port_ids)
-    
+
         # Name tracking (ports first)
         name_to_sig: Dict[str, "Signal"] = {p.name: p for p in self._ports}
-    
+
         visited_signal_ids: set[int] = set()
         visited_expr_ids: set[int] = set()
-    
+
         # Cache: expr type -> function that yields child expressions
         child_extractor_cache: Dict[type, callable] = {}
-    
+
         def uniquify_internal(sig: "Signal") -> None:
             # Ports keep their names
             if id(sig) in port_ids:
                 return
-    
+
             base = sig.name
             existing = name_to_sig.get(base)
-    
+
             # If mapping already points to this exact signal, nothing to do
             if existing is sig:
                 return
-    
+
             # If name is free, claim it
             if existing is None:
                 name_to_sig[base] = sig
                 return
-    
+
             # Otherwise, suffix until free
             idx = 1
             while True:
@@ -267,7 +267,7 @@ class Module:
                     name_to_sig[candidate] = sig
                     return
                 idx += 1
-    
+
         def get_children(e: "Expr"):
             """Yield child expressions of e, with per-type caching of which fields to traverse."""
             t = type(e)
@@ -280,20 +280,20 @@ class Module:
                     if hasattr(e, n):
                         names.append(n)
                 has_parts = hasattr(e, "parts")
-    
+
                 def fn(x, names=tuple(names), has_parts=has_parts):
                     for n in names:
                         yield getattr(x, n)
                     if has_parts:
                         for p in x.parts:
                             yield p
-    
+
                 child_extractor_cache[t] = fn
             return fn(e)
-    
+
         # Iterative DFS stack over Expr|Signal|None
         stack = list(outputs)
-    
+
         # Localize lookups for speed in tight loops
         v_sig = visited_signal_ids
         v_expr = visited_expr_ids
@@ -302,19 +302,19 @@ class Module:
         s_in = signals_in_list
         s_in_add = s_in.add
         append_sig = self._signals.append
-    
+
         while stack:
             node = stack.pop()
             if node is None:
                 continue
-    
+
             # Signals are Expr in your system, so check Signal first
             if isinstance(node, Signal):
                 sid = id(node)
                 if sid in v_sig:
                     continue
                 v_sig_add(sid)
-    
+
                 if sid not in port_ids:
                     if node.kind in ("input", "output"):
                         raise ValueError(
@@ -322,29 +322,28 @@ class Module:
                             "Use wire/reg for internals."
                         )
                     uniquify_internal(node)
-    
+
                     if sid not in s_in:
                         append_sig(node)
                         s_in_add(sid)
-    
+
                 drv = node._driver
                 if drv is not None:
                     stack.append(drv)
                 continue
-    
+
             # Otherwise it's an Expr (non-Signal)
             eid = id(node)
             if eid in v_expr:
                 continue
             v_expr_add(eid)
-    
+
             # Push children
             for ch in get_children(node):
                 if ch is not None:
                     stack.append(ch)
-    
-        print(f"Collected {len(self._signals)} signals.")
-    
+
+        # print(f"Collected {len(self._signals)} signals.")
 
     def to_component(self) -> Component:
         """
@@ -391,7 +390,11 @@ class Module:
         return comp
 
     # Verilog generation
-    def to_verilog_lines(self) -> list[str]:
+    def to_verilog_lines(self, collect_signals=True) -> list[str]:
+
+        if collect_signals:
+            self.collect_signals()
+
         # Basic checks
         for s in self._signals:
             if s.kind in ("wire", "output") and s._driver is None:

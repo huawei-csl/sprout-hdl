@@ -8,6 +8,7 @@ Implemented topologies:
 
 from __future__ import annotations
 
+import random
 from typing import Dict, List, Optional, Set, Tuple
 
 from sprouthdl.sprouthdl import Bool, Const, Expr, UInt, cat
@@ -324,3 +325,102 @@ def build_sklansky_adder(
     return build_prefix_adder_from_matrix(
         name, n, P_sklansky(n), with_cin=with_cin, with_cout=with_cout, depth_optimize=True
     )
+
+
+def _build_adder_vectors(
+    n: int,
+    *,
+    with_cin: bool,
+    with_cout: bool,
+    num_vectors: int,
+    seed: int,
+) -> List[Tuple[str, Dict[str, int], Dict[str, int]]]:
+    """Build random simulation vectors in helpers.run_vectors format."""
+    if num_vectors < 1:
+        raise ValueError(f"num_vectors must be >= 1, got {num_vectors}")
+
+    rng = random.Random(seed)
+    mask = (1 << n) - 1
+    vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
+
+    for idx in range(num_vectors):
+        a_val = rng.randrange(1 << n)
+        b_val = rng.randrange(1 << n)
+        cin_val = rng.randrange(2) if with_cin else 0
+
+        total = a_val + b_val + cin_val
+        y_exp = total & mask
+        cout_exp = (total >> n) & 1
+
+        ins: Dict[str, int] = {"a": a_val, "b": b_val}
+        if with_cin:
+            ins["cin"] = cin_val
+
+        outs: Dict[str, int] = {"y": y_exp}
+        if with_cout:
+            outs["cout"] = cout_exp
+
+        vectors.append((f"vec_{idx:04d}", ins, outs))
+
+    return vectors
+
+
+def smoke_test_prefix_adder_simulation(
+    *,
+    topology: str = "kogge_stone",
+    n: int = 8,
+    with_cin: bool = False,
+    with_cout: bool = True,
+    num_vectors: int = 128,
+    seed: int = 0xADDEF,
+    print_on_pass: bool = False,
+) -> None:
+    """Build and simulate a clean prefix adder using helpers.run_vectors."""
+    from sprouthdl.helpers import run_vectors
+
+    builders = {
+        "ripple_carry": build_ripple_carry_adder,
+        "kogge_stone": build_kogge_stone_adder,
+        "sklansky": build_sklansky_adder,
+        "slansky": build_sklansky_adder,
+    }
+    try:
+        builder = builders[topology]
+    except KeyError as exc:
+        raise ValueError(f"Unknown topology '{topology}'. Expected one of: {sorted(builders.keys())}") from exc
+
+    m = builder(
+        name=f"PrefixAdder_{topology}_{n}",
+        n=n,
+        with_cin=with_cin,
+        with_cout=with_cout,
+    )
+    vectors = _build_adder_vectors(
+        n=n,
+        with_cin=with_cin,
+        with_cout=with_cout,
+        num_vectors=num_vectors,
+        seed=seed,
+    )
+    run_vectors(m, vectors, raise_on_fail=True, print_on_pass=print_on_pass)
+
+
+__all__ = [
+    "Pair",
+    "PrefixNodes",
+    "P_ripple_carry",
+    "P_kogge_stone",
+    "P_sklansky",
+    "P_slansky",
+    "legalize_P",
+    "analyze_prefix_matrix",
+    "build_prefix_adder_from_matrix",
+    "build_ripple_carry_adder",
+    "build_kogge_stone_adder",
+    "build_sklansky_adder",
+    "smoke_test_prefix_adder_simulation",
+]
+
+
+if __name__ == "__main__":
+    smoke_test_prefix_adder_simulation(topology="kogge_stone", n=8, num_vectors=64, with_cin=False, with_cout=True)
