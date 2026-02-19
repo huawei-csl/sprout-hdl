@@ -1,0 +1,105 @@
+
+## Arithmetic generators
+
+The `sprouthdl/arithmetic` package collects reusable datapath blocks:
+
+- Integer multipliers include configurable stage-based designs and optimized AIG-backed implementations ([`int_multipliers/multipliers`](src/sprouthdl/arithmetic/int_multipliers/multipliers)).
+- Prefix adders cover several topologies for depth/area exploration ([`prefix_adders`](src/sprouthdl/arithmetic/prefix_adders)).
+- Floating-point helpers provide compact HiFloat-8 and related utilities ([`floating_point`](src/sprouthdl/arithmetic/floating_point)).
+
+Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
+
+### Unified adder/multiplier generator
+
+For integer adders and multipliers there is a unified generator with both Python API and CLI frontend:
+[`int_arithmetic_generator.py`](src/sprouthdl/arithmetic/int_arithmetic_generator.py).
+
+It can optionally:
+- write Verilog
+- write AAG
+- run vector simulation
+- collect Yosys metrics (including `estimated_num_transistors`)
+
+Multiplier/Adder Python API usage reference:
+[`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
+
+
+CLI examples:
+
+```bash
+python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
+  --n-bits 8 \
+  --multiplier-opt STAGE_BASED_MULTIPLIER \
+  --ppg-opt BAUGH_WOOLEY \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --encoding twos_complement \
+  --simulate --num-vectors 128 \
+  --verilog-out out/mul8.v \
+  --aag-out out/mul8.aag \
+  --yosys-stats
+
+python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
+  --n-bits 16 \
+  --fsa-opt PREFIX_BRENT_KUNG \
+  --encoding twos_complement \
+  --simulate --num-vectors 128 \
+  --verilog-out out/add16.v
+```
+
+## Arithmetic Evaluations
+### Integers
+Run the evaluation script 
+```bash
+python -m sprouthdl.arithmetic.int_multipliers.eval.run_multiplier_stage_options_eval_ext_stat
+```
+This will generate a parquet file in the folder `data`. Visualization can be done with the plotly app via 
+```bash
+python -m sprouthdl.arithmetic.int_multipliers.eval.plot.plotly_app --file data/data_file.parquet
+``` 
+or with the script 
+```bash
+python -m sprouthdl.arithmetic.int_multipliers.eval.plot.multiplier_stage_plot --file data/data_file.parquet
+```
+Replace `data_file.parquet` with the file produced by the evaluate script.
+
+If desired, new multiplier options can be added here: `sprouthdl/arithmetic/int_multipliers/eval/multiplier_stage_options_demo_lib.py`.
+
+#### Optimized Multipliers
+The multipliers in `sprouthdl/arithmetic/int_multipliers/multipliers/multipliers_ext_optimized.py` rely on precomputed AIGs (and map files). By default they load packaged assets from `sprouthdl/arithmetic/int_multipliers/data/optimized/` using the following filenames:
+
+- `unsigned_3b|4b|8b`
+- `signed_3b|4b|8b`
+- `unsigned_4b_strong`
+
+To point at your own artifacts, set `SPROUTHDL_OPT_MULT_DIR=/path/to/optimized` (keep the same subdirectory names/files) or pass a custom `f_aag_lines` callable when constructing the multiplier. Clear errors are raised if neither packaged nor user-supplied assets are found.
+
+# Running Scripts and Tests
+
+For some scripts you might need to add `PYTHONPATH=$(pwd)` before running the command, e.g. `PYTHONPATH=$(pwd) pytest` or `PYTHONPATH=$(pwd) python <scriptname>`.
+
+## Todo
+
+- remove _SHARED object (now used for verilog generation)
+- remove is_bool flag, probably not necessary, just use length of 1
+- add better hierarchy capablities / all in graph.
+- Uint(value), optional length bit?
+- simulation: get any signal in graph wich is there implicitly, run simulation just on function and after setting starting nodes to a value
+- unify get and peek (same thing but one is with sign conversion, the other is not)
+- unify log_expression_states and watches in the Simulator.
+- in module there is all_exprs and _collect_signals_from_outputs maybe this can be merged, especially by removing the _signal attribute (maybe still retain it as a cache)
+- add subnormal support for fp add
+- unify run_vectors_local and run_vectors
+- unify testvector_generation_fp.py and testing/floating_point/fp_testvectors_general.py and  testvector_generation.py
+- rename aggregate types, composite types / the others sprouthdl.py should be base type
+- probabliy not a nice pattern: type(elem).wire_like(elem), better do -> elem.get_wire_clone()
+- in testing/test_matmul_accumulate_core.py, etc use vec.to_list() to generate io dict -> to dataclass/named tuple in a wrapper componnet
+- new synthax of control strucutres is _if, _else. maybe change to when and otherwise or elsewhen, so we can drop the underscore.
+
+Contributions are welcome—feel free to open issues or submit pull requests with improvements or new hardware components.
+
+## References
+HiFloat8 implementation according to:
+[1] Luo, Y., Zhang, Z., Wu, R., Liu, H., Jin, Y., Zheng, K., ... & Huang, Z. (2024). Ascend hifloat8 format for deep learning. arXiv preprint arXiv:2409.16626.
+Winograd inner product:
+[2] S. Winograd. A new algorithm for inner product. IEEE Trans. Comput., C-18: 693–694, 1968.
