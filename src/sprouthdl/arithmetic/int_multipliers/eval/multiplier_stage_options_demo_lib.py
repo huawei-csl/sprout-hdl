@@ -12,7 +12,7 @@ from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import B
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplierBasic
-from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPrefixFinalStage, HanCarlsonPrefixFinalStage, MultiScanPrefixFinalStage, PlusOperatorAdderFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage, ZCGPrefixFinalStage
+from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPrefixFinalStage, HanCarlsonPrefixFinalStage, KoggeStonePrefixFinalStage, MultiScanPrefixFinalStage, PlusOperatorAdderFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage, ZCGPrefixFinalStage
 
 
 # Options for each stage
@@ -38,7 +38,7 @@ class PPAOption(Enum):
 # Final Stage Adder option values have type Type[FinalStageAdderBase]
 class FSAOption(Enum):
     RIPPLE_CARRY = RippleCarryFinalAdder
-    PREFIX_KOGGE_STONE = PrefixAdderFinalStage
+    PREFIX_KOGGE_STONE = KoggeStonePrefixFinalStage
     PREFIX_BRENT_KUNG = BrentKungPrefixFinalStage
     PREFIX_SKLANSKY = SklanskyPrefixFinalStage
     PREFIX_RCA = RipplePrefixFinalStage

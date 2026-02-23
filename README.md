@@ -1,6 +1,6 @@
 # Sprout-HDL
 
-Sprout-HDL is a Python embedded domain-specific language (EDSL) for building digital hardware in a concise, composable way.  It lets you describe logic with Python expressions, compile the result to synthesizable Verilog or AIG/AAG netlists, and iterate quickly with a built-in cycle-accurate simulator.
+Sprout-HDL is a Python embedded domain-specific language (DSL) for building digital hardware in a concise, composable way.  It lets you describe logic with Python expressions, compile the result to synthesizable Verilog or AIG/AAG netlists, and iterate quickly with a built-in cycle-accurate simulator.
 
 For cores, generators (e.g. arithmetic units), evaluation scripts, and extra tooling notes, see [`README_cores_extras.md`](README_cores_extras.md).
 

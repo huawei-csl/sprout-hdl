@@ -405,22 +405,5 @@ def smoke_test_prefix_adder_simulation(
     run_vectors(m, vectors, raise_on_fail=True, print_on_pass=print_on_pass)
 
 
-__all__ = [
-    "Pair",
-    "PrefixNodes",
-    "P_ripple_carry",
-    "P_kogge_stone",
-    "P_sklansky",
-    "P_slansky",
-    "legalize_P",
-    "analyze_prefix_matrix",
-    "build_prefix_adder_from_matrix",
-    "build_ripple_carry_adder",
-    "build_kogge_stone_adder",
-    "build_sklansky_adder",
-    "smoke_test_prefix_adder_simulation",
-]
-
-
 if __name__ == "__main__":
     smoke_test_prefix_adder_simulation(topology="kogge_stone", n=8, num_vectors=64, with_cin=False, with_cout=True)

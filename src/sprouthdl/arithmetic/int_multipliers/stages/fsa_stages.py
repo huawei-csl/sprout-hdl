@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase
-from sprouthdl.arithmetic.prefix_adders.prefix_adder import P_brent_kung, P_han_carlson, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, UInt, cast
 
 
@@ -54,7 +54,7 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
     """Final stage adder that realises a chosen prefix network."""
 
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(
-        P_kogge_stone
+        None # to be overridden by subclasses
     )
     depth_optimize: ClassVar[bool] = True
 
@@ -130,9 +130,11 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
         return result_bits
 
 
+class KoggeStonePrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_kogge_stone)
+
 class BrentKungPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_brent_kung)
-
 
 class SklanskyPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_sklansky)
@@ -140,6 +142,9 @@ class SklanskyPrefixFinalStage(PrefixAdderFinalStage):
 class RipplePrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_ripple_carry)
     depth_optimize: ClassVar[bool] = False
+    
+class HanCarlsonPrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_han_carlson)
 
 class MultiScanPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(multi_scan_n)
@@ -147,5 +152,4 @@ class MultiScanPrefixFinalStage(PrefixAdderFinalStage):
 class ZCGPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(ZCG_n)
 
-class HanCarlsonPrefixFinalStage(PrefixAdderFinalStage):
-    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_han_carlson)
+
