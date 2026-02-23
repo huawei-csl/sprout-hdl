@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Set, Tuple, Iterable, Optional, TypeAlias
 
 from aigverse import DepthAig, aig_cut_rewriting, aig_resubstitution, balancing, sop_refactoring
 from matplotlib import pyplot as plt
-from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ripple_carry, P_sklansky, ParallelScan_16_a, ParallelScan_16_b, ParallelScan_8_a, ParallelScan_8_b, _find_split, _normalize_P, analyze_prefix_matrix, legalize_P
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ladner_fischer, P_ripple_carry, P_sklansky, P_sparse_kogge_stone_2, P_sparse_kogge_stone_4, ParallelScan_16_a, ParallelScan_16_b, ParallelScan_8_a, ParallelScan_8_b, _find_split, _normalize_P, analyze_prefix_matrix, legalize_P
 from sprouthdl.arithmetic.prefix_adders.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
 from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl_analyzer import GraphReport
@@ -432,6 +432,9 @@ def main_test():
             (P_sklansky(n), "Sklansky"),
             (P_brent_kung(n), "Brent-Kung"),
             (P_han_carlson(n), "Han-Carlson"),
+            (P_ladner_fischer(n), "Ladner-Fischer"),
+            (P_sparse_kogge_stone_2(n), "Sparse Kogge-Stone (2)"),
+            (P_sparse_kogge_stone_4(n), "Sparse Kogge-Stone (4)"),
         ]
 
         if n == 8:

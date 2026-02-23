@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase
-from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ripple_carry, P_sklansky, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ladner_fischer, P_ripple_carry, P_sklansky, P_sparse_kogge_stone_2, P_sparse_kogge_stone_4, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, UInt, cast
 
 
@@ -146,10 +146,17 @@ class RipplePrefixFinalStage(PrefixAdderFinalStage):
 class HanCarlsonPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_han_carlson)
 
+class LadnerFischerPrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_ladner_fischer)
+
+class SparseKoggeStone2PrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_sparse_kogge_stone_2)
+
+class SparseKoggeStone4PrefixFinalStage(PrefixAdderFinalStage):
+    prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(P_sparse_kogge_stone_4)
+
 class MultiScanPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(multi_scan_n)
 
 class ZCGPrefixFinalStage(PrefixAdderFinalStage):
     prefix_matrix_builder: ClassVar[Callable[[int], Set[Pair]]] = staticmethod(ZCG_n)
-
-

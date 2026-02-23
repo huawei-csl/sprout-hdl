@@ -194,6 +194,96 @@ def P_han_carlson(n: int) -> PrefixNodes:
     return legalize_P(n, nodes)
 
 
+def P_ladner_fischer(n: int) -> PrefixNodes:
+    """
+    Ladner–Fischer prefix network using odd/even recursive decomposition.
+    This keeps depth near log2(n) while reducing fan-out versus Sklansky.
+    """
+    nodes: PrefixNodes = set()
+    if n <= 1:
+        return nodes
+
+    # j_at[i] is the lowest bit currently covered by the prefix available at i.
+    j_at = [i for i in range(n)]
+
+    def build(indices: List[int]) -> None:
+        if len(indices) <= 1:
+            return
+
+        odd_indices = indices[1::2]
+
+        # Pre-combine odd positions with their preceding even positions.
+        for pos, idx in enumerate(odd_indices):
+            prev_even = indices[2 * pos]
+            j = j_at[prev_even]
+            nodes.add((idx, j))
+            j_at[idx] = j
+
+        # Recurse over odd outputs to build the upper prefix spine.
+        build(odd_indices)
+
+        # Distribute computed odd prefixes to remaining even positions.
+        for local_pos in range(2, len(indices), 2):
+            idx = indices[local_pos]
+            prev_odd = indices[local_pos - 1]
+            j = j_at[prev_odd]
+            nodes.add((idx, j))
+            j_at[idx] = j
+
+    build(list(range(n)))
+    return legalize_P(n, nodes)
+
+
+def _P_sparse_kogge_stone(n: int, sparsity: int) -> PrefixNodes:
+    """
+    Sparse Kogge–Stone helper.
+    Builds a dense KS tree over block endpoints and relies on legalization to
+    complete intra-block carry coverage.
+    """
+    if sparsity < 2:
+        raise ValueError(f"sparsity must be >= 2, got {sparsity}")
+
+    nodes: PrefixNodes = set()
+    if n <= 1:
+        return nodes
+
+    # Block endpoints: sparsity-1, 2*sparsity-1, ...
+    endpoints = list(range(sparsity - 1, n, sparsity))
+    if not endpoints or endpoints[-1] != n - 1:
+        endpoints.append(n - 1)
+
+    j_at: Dict[int, int] = {}
+
+    # Local block prefix at each endpoint.
+    for endpoint in endpoints:
+        group_start = max(0, endpoint - (sparsity - 1))
+        nodes.add((endpoint, group_start))
+        j_at[endpoint] = group_start
+
+    # KS sweep over endpoints in endpoint index-space.
+    span = 1
+    while span < len(endpoints):
+        for endpoint_pos in range(span, len(endpoints)):
+            endpoint = endpoints[endpoint_pos]
+            prev_endpoint = endpoints[endpoint_pos - span]
+            j = j_at[prev_endpoint]
+            nodes.add((endpoint, j))
+            j_at[endpoint] = j
+        span <<= 1
+
+    return legalize_P(n, nodes)
+
+
+def P_sparse_kogge_stone_2(n: int) -> PrefixNodes:
+    """Sparse-2 Kogge–Stone (carry tree at every 2nd bit)."""
+    return _P_sparse_kogge_stone(n, sparsity=2)
+
+
+def P_sparse_kogge_stone_4(n: int) -> PrefixNodes:
+    """Sparse-4 Kogge–Stone (carry tree at every 4th bit)."""
+    return _P_sparse_kogge_stone(n, sparsity=4)
+
+
 # Other custom topologies
 
 def ParallelScan_8_a(n: int) -> PrefixNodes:
