@@ -515,6 +515,13 @@ def op_bit(a: Expr, b: Expr, sym: str) -> Expr:
     t = bitwise_result_type(a, b)
     return Op2(fit_width(a, t), fit_width(b, t), sym, t)
 
+# op bit with shared inputs
+# def op_bit(a: Expr, b: Expr, sym: str) -> Expr:
+#     t = bitwise_result_type(a, b)
+#     a_s = _maybe_share(a, force_share=True)
+#     b_s = _maybe_share(b, force_share=True)
+#     return Op2(fit_width(a_s, t), fit_width(b_s, t), sym, t)
+
 
 def op_not(a: Expr) -> Expr:
     return Op1(a, "~", HDLType(a.typ.width, signed=False, is_bool=a.typ.is_bool))

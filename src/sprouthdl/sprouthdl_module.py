@@ -317,9 +317,9 @@ class Module:
 
                 if sid not in port_ids:
                     if node.kind in ("input", "output"):
-                        raise ValueError(
+                        raise Warning(
                             f"Internal signal '{node.name}' has port kind '{node.kind}'. "
-                            "Use wire/reg for internals."
+                            "Use wire/reg for internals. For internal components use make_internal()"
                         )
                     uniquify_internal(node)
 
