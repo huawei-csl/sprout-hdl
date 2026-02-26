@@ -3,15 +3,9 @@
 
 from typing import List, Tuple, Dict
 
-# ---- imports that work with both of your Sprout variants ----
-
-    # package variant
 from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import UInt, Bool, Const, mux, cat, fit_width
-
-# Simulator import (support both names you used)
-
 from sprouthdl.sprouthdl_simulator import Simulator
 
 

@@ -21,6 +21,14 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import (
     MultiplierTestVectors,
     is_signed,
 )
+from sprouthdl.arithmetic.int_mac_fused import (
+    FusedMacComponent,
+    MacBuildConfig,
+    MacTestVectors,
+    MAC_SUPPORTED_INPUT_ENCODINGS,
+    resolve_mac_c_bits,
+    resolve_mac_output_encoding,
+)
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
@@ -52,6 +60,21 @@ class AdderGeneratorConfig:
     output_encoding: Encoding | None = None
     optim_type: Literal["area", "speed"] = "area"
     full_output_bit: bool = True
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class MacGeneratorConfig:
+    n_bits: int
+    c_bits: int | None = None
+    ppg_opt: PPGOption = PPGOption.AND
+    ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    input_encoding: Encoding = Encoding.unsigned
+    output_encoding: Encoding | None = None
+    optim_type: Literal["area", "speed"] = "area"
     module_name: str | None = None
     with_clock: bool = False
     with_reset: bool = False
@@ -313,6 +336,71 @@ def generate_adder(
     )
 
 
+def generate_mac(
+    cfg: MacGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    if cfg.n_bits <= 0:
+        raise ValueError("n_bits must be > 0")
+    if cfg.input_encoding not in MAC_SUPPORTED_INPUT_ENCODINGS:
+        raise ValueError(
+            f"MAC input encoding {cfg.input_encoding.name} is not supported. "
+            "Use Encoding.unsigned or Encoding.twos_complement."
+        )
+
+    resolved_c_bits = resolve_mac_c_bits(cfg.n_bits, cfg.c_bits)
+    mac_output_encoding = resolve_mac_output_encoding(cfg.input_encoding, cfg.output_encoding)
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    component = FusedMacComponent(
+        MacBuildConfig(
+            n_bits=cfg.n_bits,
+            c_bits=resolved_c_bits,
+            ppg_opt=cfg.ppg_opt,
+            ppa_opt=cfg.ppa_opt,
+            fsa_opt=cfg.fsa_opt,
+            encoding=cfg.input_encoding,
+            optim_type=cfg.optim_type,
+        )
+    )
+
+    module_name = cfg.module_name or f"mac_{cfg.n_bits}_{resolved_c_bits}_{cfg.ppg_opt.name.lower()}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = MacTestVectors(
+        a_w=cfg.n_bits,
+        b_w=cfg.n_bits,
+        c_w=resolved_c_bits,
+        y_w=component.io.y.typ.width,
+        num_vectors=actions.num_vectors,
+        tb_sigma=actions.tb_sigma,
+        input_encoding=cfg.input_encoding,
+        output_encoding=mac_output_encoding,
+    ).generate()
+
+    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+        module,
+        vectors,
+        actions=actions,
+        with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=cfg.input_encoding,
+        output_encoding=mac_output_encoding,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        yosys_stats=yosys_stats,
+    )
+
+
 def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--verilog-out", type=str, default=None, help="Optional path for generated Verilog")
     parser.add_argument("--aag-out", type=str, default=None, help="Optional path for generated .aag")
@@ -330,7 +418,7 @@ def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate integer adders/multipliers with optional exports/stats")
+    parser = argparse.ArgumentParser(description="Generate integer adders/multipliers/MACs with optional exports/stats")
     sub = parser.add_subparsers(dest="kind", required=True)
 
     multiplier_parser = sub.add_parser("multiplier", help="Generate multiplier module")
@@ -367,6 +455,20 @@ def _build_parser() -> argparse.ArgumentParser:
     adder_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
     adder_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
     _add_common_action_args(adder_parser)
+
+    mac_parser = sub.add_parser("mac", help="Generate fused multiply-accumulate module (y = a*b + c)")
+    mac_parser.add_argument("--n-bits", type=int, required=True)
+    mac_parser.add_argument("--c-bits", type=int, default=None)
+    mac_parser.add_argument("--module-name", type=str, default=None)
+    mac_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    mac_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    mac_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    mac_parser.add_argument("--encoding", type=_enum_type(Encoding), default=Encoding.unsigned)
+    mac_parser.add_argument("--output-encoding", type=_enum_type(Encoding), default=None)
+    mac_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    mac_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
+    mac_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
+    _add_common_action_args(mac_parser)
 
     return parser
 
@@ -420,7 +522,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_multiplier(cfg, actions=actions)
-    else:
+    elif args.kind == "adder":
         cfg = AdderGeneratorConfig(
             n_bits=args.n_bits,
             fsa_opt=args.fsa_opt,
@@ -433,6 +535,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_adder(cfg, actions=actions)
+    else:
+        cfg = MacGeneratorConfig(
+            n_bits=args.n_bits,
+            c_bits=args.c_bits,
+            ppg_opt=args.ppg_opt,
+            ppa_opt=args.ppa_opt,
+            fsa_opt=args.fsa_opt,
+            input_encoding=args.encoding,
+            output_encoding=args.output_encoding,
+            optim_type=args.optim_type,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_mac(cfg, actions=actions)
 
     print(json.dumps(_result_to_dict(result), indent=2, sort_keys=True))
     return 0
