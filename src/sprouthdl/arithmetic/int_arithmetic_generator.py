@@ -32,6 +32,7 @@ from sprouthdl.arithmetic.int_mac_fused import (
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
+from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.sprouthdl_aiger import AigerExporter
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -84,6 +85,7 @@ class MacGeneratorConfig:
 class GenerationActions:
     verilog_out: str | Path | None = None
     aag_out: str | Path | None = None
+    testbench_out: str | Path | None = None
     simulate: bool = False
     num_vectors: int = 64
     tb_sigma: float | None = None
@@ -102,6 +104,7 @@ class GenerationResult:
     simulation_failures: int | None = None
     verilog_out: Path | None = None
     aag_out: Path | None = None
+    testbench_out: Path | None = None
     yosys_stats: dict[str, Any] | None = None
 
     @property
@@ -174,16 +177,17 @@ def _apply_actions(
     *,
     actions: GenerationActions,
     with_clock: bool,
-) -> tuple[int | None, Path | None, Path | None, dict[str, Any] | None]:
+) -> tuple[int | None, Path | None, Path | None, Path | None, dict[str, Any] | None]:
     sim_failures = None
     verilog_out = None
     aag_out = None
+    testbench_out = None
     yosys_stats = None
 
-    if actions.simulate:
+    if actions.simulate or actions.testbench_out is not None:
         if vectors is None:
-            raise ValueError("Simulation was requested but no vectors were generated")
-        sim = Simulator(module)
+            raise ValueError("Simulation/testbench generation was requested but no vectors were generated")
+        sim = TestbenchGenSimulator(module) if actions.testbench_out is not None else Simulator(module)
         sim_failures = run_vectors_on_simulator(
             sim,
             vectors,
@@ -192,6 +196,10 @@ def _apply_actions(
             print_on_pass=False,
             with_clk=with_clock,
         )
+        if actions.testbench_out is not None:
+            testbench_out = _resolve_path(actions.testbench_out)
+            _ensure_parent(testbench_out)
+            sim.to_testbench_file(str(testbench_out), dump_vcd=False)
 
     if actions.verilog_out is not None:
         verilog_out = _resolve_path(actions.verilog_out)
@@ -210,7 +218,7 @@ def _apply_actions(
             deepsyn=actions.yosys_deepsyn,
         )
 
-    return sim_failures, verilog_out, aag_out, yosys_stats
+    return sim_failures, verilog_out, aag_out, testbench_out, yosys_stats
 
 
 def generate_multiplier(
@@ -253,7 +261,7 @@ def generate_multiplier(
         y_encoding=encodings.y,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
         module,
         vectors,
         actions=actions,
@@ -269,6 +277,7 @@ def generate_multiplier(
         simulation_failures=sim_failures,
         verilog_out=verilog_out,
         aag_out=aag_out,
+        testbench_out=testbench_out,
         yosys_stats=yosys_stats,
     )
 
@@ -316,7 +325,7 @@ def generate_adder(
         y_encoding=adder_output_encoding,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
         module,
         vectors,
         actions=actions,
@@ -332,6 +341,7 @@ def generate_adder(
         simulation_failures=sim_failures,
         verilog_out=verilog_out,
         aag_out=aag_out,
+        testbench_out=testbench_out,
         yosys_stats=yosys_stats,
     )
 
@@ -381,7 +391,7 @@ def generate_mac(
         output_encoding=mac_output_encoding,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, yosys_stats = _apply_actions(
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
         module,
         vectors,
         actions=actions,
@@ -397,6 +407,7 @@ def generate_mac(
         simulation_failures=sim_failures,
         verilog_out=verilog_out,
         aag_out=aag_out,
+        testbench_out=testbench_out,
         yosys_stats=yosys_stats,
     )
 
@@ -404,6 +415,7 @@ def generate_mac(
 def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--verilog-out", type=str, default=None, help="Optional path for generated Verilog")
     parser.add_argument("--aag-out", type=str, default=None, help="Optional path for generated .aag")
+    parser.add_argument("--testbench-out", type=str, default=None, help="Optional path for generated Verilog testbench")
     parser.add_argument("--simulate", action="store_true", help="Run vector simulation after generation")
     parser.add_argument("--num-vectors", type=int, default=64, help="Number of vectors for simulation")
     parser.add_argument("--tb-sigma", type=float, default=None, help="Optional sigma for normal-distributed vectors")
@@ -477,6 +489,7 @@ def _actions_from_args(args: argparse.Namespace) -> GenerationActions:
     return GenerationActions(
         verilog_out=args.verilog_out,
         aag_out=args.aag_out,
+        testbench_out=args.testbench_out,
         simulate=args.simulate,
         num_vectors=args.num_vectors,
         tb_sigma=args.tb_sigma,
@@ -495,6 +508,7 @@ def _result_to_dict(result: GenerationResult) -> dict[str, Any]:
         "simulation_failures": result.simulation_failures,
         "verilog_out": str(result.verilog_out) if result.verilog_out is not None else None,
         "aag_out": str(result.aag_out) if result.aag_out is not None else None,
+        "testbench_out": str(result.testbench_out) if result.testbench_out is not None else None,
         "transistor_count": result.transistor_count,
     }
     if result.yosys_stats is not None:

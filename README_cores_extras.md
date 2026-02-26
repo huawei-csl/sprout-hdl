@@ -9,20 +9,23 @@ The `sprouthdl/arithmetic` package collects reusable datapath blocks:
 
 Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
 
-### Unified adder/multiplier generator
+### Unified adder/multiplier/mac generator
 
-For integer adders and multipliers there is a unified generator with both Python API and CLI frontend:
+For integer adders, multipliers, and MACs (`y = a*b + c`) there is a unified generator with both Python API and CLI frontend:
 [`int_arithmetic_generator.py`](src/sprouthdl/arithmetic/int_arithmetic_generator.py).
 
 It can optionally:
 - write Verilog
 - write AAG
+- write a Verilog testbench (`--testbench-out`) generated from vectors via `TestbenchGenSimulator`
 - run vector simulation
 - collect Yosys metrics (including `estimated_num_transistors`)
 
 Multiplier/Adder Python API usage reference:
 [`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
 
+MAC Python API usage reference:
+[`testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py`](testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py).
 
 CLI examples:
 
@@ -37,6 +40,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
   --simulate --num-vectors 128 \
   --verilog-out out/mul8.v \
   --aag-out out/mul8.aag \
+  --testbench-out out/mul8_tb.v \
   --yosys-stats
 
 python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
@@ -45,6 +49,18 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
   --encoding twos_complement \
   --simulate --num-vectors 128 \
   --verilog-out out/add16.v
+
+python -m sprouthdl.arithmetic.int_arithmetic_generator mac \
+  --n-bits 8 \
+  --c-bits 16 \
+  --ppg-opt BAUGH_WOOLEY \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --encoding twos_complement \
+  --simulate --num-vectors 128 \
+  --verilog-out out/mac8.v \
+  --aag-out out/mac8.aag \
+  --testbench-out out/mac8_tb.v
 ```
 
 ## Arithmetic Evaluations

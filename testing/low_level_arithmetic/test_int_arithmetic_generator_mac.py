@@ -20,6 +20,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Enco
 
 
 def test_generate_mac_api_with_artifacts_and_sim(tmp_path: Path):
+    tb_path = tmp_path / "mac_tb.v"
     cfg = MacGeneratorConfig(
         n_bits=4,
         c_bits=8,
@@ -31,6 +32,7 @@ def test_generate_mac_api_with_artifacts_and_sim(tmp_path: Path):
     actions = GenerationActions(
         verilog_out=tmp_path / "mac.v",
         aag_out=tmp_path / "mac.aag",
+        testbench_out=tb_path,
         simulate=True,
         num_vectors=24,
     )
@@ -42,9 +44,15 @@ def test_generate_mac_api_with_artifacts_and_sim(tmp_path: Path):
     assert result.aag_out == tmp_path / "mac.aag"
     assert result.verilog_out.exists()
     assert result.aag_out.exists()
+    assert result.testbench_out == tb_path
+    assert tb_path.exists()
     assert result.simulation_failures == 0
     assert result.input_encoding == Encoding.unsigned
     assert result.output_encoding == Encoding.unsigned
+
+    tb_text = tb_path.read_text()
+    assert "$dumpvars" not in tb_text
+    assert "$dumpfile" not in tb_text
 
 
 def test_generate_mac_signed_twos_complement_sim():
