@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
 
 from sprouthdl.sprouthdl import Expr, Signal
 from sprouthdl.sprouthdl_module import Module
+from sprouthdl.sprouthdl_simulator_base import SimulatorBase
 from sprouthdl.sprouthdl_simulator import Simulator as PythonSimulator
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ def write_vector_data_file(
                     " ".join([str(outputs[k]) for k, _ in outputs.items()]) + "\n")
 
 
-class TestbenchGenSimulator:
+class TestbenchGenSimulator(SimulatorBase):
     """Record Simulator-like interactions and emit a Verilog testbench.
 
     The public API mirrors :class:`~sprouthdl.sprouthdl_simulator.Simulator`.  The methods
@@ -156,8 +157,8 @@ class TestbenchGenSimulator:
             self.reset(False)
         return self
 
-    def peek_outputs(self, *, signed: bool = False) -> Dict[str, int]:
-        return self._sim.peek_outputs(signed=signed)
+    def peek_outputs(self) -> Dict[str, int]:
+        return self._sim.peek_outputs()
 
     # Watch support mirrors the Python simulator by direct delegation.
     def watch(self, what, alias: Optional[str] = None):
@@ -180,7 +181,7 @@ class TestbenchGenSimulator:
         return self._sim.peek_next(reg_name)
 
     def log_expression_states(self, expr_list: Iterable[Expr]):
-        return self._sim._get_expr_snapshot(expr_list)
+        return self._sim.log_expression_states(expr_list)
 
     # ------------------------------------------------------------------
     # Testbench emission

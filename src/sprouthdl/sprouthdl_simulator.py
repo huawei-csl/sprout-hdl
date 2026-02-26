@@ -1,9 +1,10 @@
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl import Signal, Expr, Const, Op1, Op2, Ternary, Concat, Slice, Resize
+from sprouthdl.sprouthdl_simulator_base import SimulatorBase
 
 
-class Simulator:
+class Simulator(SimulatorBase):
     """
     Cycle-accurate simulator for a single Module.
     - step(): one rising edge of clk (if module has clock)
@@ -450,6 +451,9 @@ class Simulator:
         self._watch_values = out
 
     # logging
+    def log_expression_states(self, expr_list):
+        return self._get_expr_snapshot(expr_list)
+
     def _get_expr_snapshot(self, expr_list):
         values = []
         for e in expr_list:
