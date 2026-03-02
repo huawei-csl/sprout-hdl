@@ -205,5 +205,5 @@ See the [examples README](testing/examples/README.md) for detailed documentation
 
 - Explore the `testing/examples/` directory to see working examples of components and modules
 - Explore the `sprouthdl/arithmetic` and `sprouthdl/arithmetic/floating_point` packages for more generators.
-- Use `module_analyze()` to gauge combinational depth before synthesis.
+- Use `<module>.module_analyze()` to gauge combinational depth before synthesis.
 - Integrate the simulator into your verification harness to shorten debug cycles.

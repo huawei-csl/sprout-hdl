@@ -421,7 +421,8 @@ class Module:
         # wires = self._internals_of("wire") + _SHARED.wires
         # instead of the above merge to avoid duplication if called multiple times
         wires = self._internals_of("wire")
-        wires += [s for s in _SHARED.wires if not any(s is w for w in wires)]
+        if not collect_signals:
+            wires += [s for s in _SHARED.wires if not any(s is w for w in wires)]
 
         regs = self._internals_of("reg")
         lines.append('// Wires')
