@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Set, Tuple
 
-from sprouthdl.arithmetic.prefix_adders.prefix_adder_transform import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_specials import get_multiscan_nodes_24, get_multiscan_nodes_32, prefix_nodes_to_ranges, zcg_24, zcg_32
 
 
 Pair = Tuple[int, int]
@@ -284,131 +284,6 @@ def P_sparse_kogge_stone_4(n: int) -> PrefixNodes:
     return _P_sparse_kogge_stone(n, sparsity=4)
 
 
-# Other custom topologies
-
-def ParallelScan_8_a(n: int) -> PrefixNodes:
-
-    assert n == 8
-
-    nodes: PrefixNodes = set()
-
-    for i in range(1, n):
-        nodes.add((i, 0))
-
-    for i in range(0, n):
-        nodes.add((i, i))
-
-    # nodes.add((1,0))
-    nodes.add((3, 2))
-    nodes.add((5, 4))
-    nodes.add((7, 6))
-    # nodes.add((3, 0))
-    # nodes.add((5,0))
-
-    return nodes
-
-
-def ParallelScan_8_b(n: int) -> PrefixNodes:
-
-    assert n == 8
-
-    nodes: PrefixNodes = set()
-
-    for i in range(1, n):
-        nodes.add((i, 0))
-
-    for i in range(0, n):
-        nodes.add((i, i))
-
-    nodes.add((1, 0))
-    # nodes.add((3,0))
-    nodes.add((4, 3))
-    nodes.add((5, 3))
-    nodes.add((7, 6))
-    # nodes.add((5,0))
-
-    return nodes
-
-
-def ParallelScan_16_a(n: int) -> PrefixNodes:
-
-    assert n == 16
-
-    nodes: PrefixNodes = set()
-
-    for i in range(1, n):
-        nodes.add((i, 0))
-
-    for i in range(0, n):
-        nodes.add((i, i))
-
-    # nodes.add((1,0))
-    nodes.add((3, 2))
-    nodes.add((5, 4))
-    nodes.add((7, 6))
-    nodes.add((9, 8))
-    nodes.add((11, 10))
-    nodes.add((13, 12))
-    nodes.add((15, 14))
-
-    nodes.add((7, 4))
-    nodes.add((11, 8))
-
-    return nodes
-
-
-def ParallelScan_16_b(n: int) -> PrefixNodes:
-
-    assert n == 16
-
-    nodes: PrefixNodes = set()
-
-    for i in range(1, n):
-        nodes.add((i, 0))
-
-    for i in range(0, n):
-        nodes.add((i, i))
-
-    nodes.add((1, 0))
-    nodes.add((3, 0))
-    nodes.add((4, 3))
-    nodes.add((5, 3))
-    nodes.add((7, 6))
-    nodes.add((8, 6))
-    nodes.add((10, 9))
-    nodes.add((11, 9))
-    nodes.add((13, 12))
-    nodes.add((14, 12))
-    # nodes.add((5,0))
-    nodes.add((11, 6))
-    # nodes.add((11,0))
-
-    return nodes
-
-
-def multi_scan_n(n: int) -> PrefixNodes:
-
-    if n == 8:
-        return ParallelScan_8_b(n)
-    elif n == 16:
-        return ParallelScan_16_b(n)
-    elif n == 24:
-        return get_multiscan_nodes_24()
-    elif n == 32:
-        return get_multiscan_nodes_32()
-    else:
-        raise ValueError(f"ParallelScan_n not defined for n={n}")
-
-
-def ZCG_n(n: int) -> PrefixNodes:
-
-    if n == 24:
-        return prefix_nodes_to_ranges(zcg_24)
-    elif n == 32:
-        return prefix_nodes_to_ranges(zcg_32)
-    else:
-        raise ValueError(f"ZCG not defined for n={n}")
-
 # Analysis ---------------------------------------------------------------------------------------------------------
 
 
@@ -423,7 +298,7 @@ def _find_split(nodes: PrefixNodes, i: int, j: int) -> Optional[int]:
     (either as combine nodes in 'nodes' or as leaves when left has k+1==i or right has k==j).
     Greedy from the top (largest k) to encourage shallow cones (typical for KS/BK/Sklansky).
     """
-    for k in reversed(range(i - 1, j - 1, -1)): # actually needs  to be reversed
+    for k in reversed(range(i - 1, j - 1, -1)): # actually needs to be reversed
         left_ok  = _exists(nodes, i, k + 1)
         right_ok = _exists(nodes, k, j)
         if left_ok and right_ok:

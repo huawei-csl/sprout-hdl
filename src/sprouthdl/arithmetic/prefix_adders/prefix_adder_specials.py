@@ -1,5 +1,133 @@
 from typing import Iterable, List, Tuple, Set, Dict
 
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import PrefixNodes
+
+# Other custom topologies
+
+
+def ParallelScan_8_a(n: int) -> PrefixNodes:
+
+    assert n == 8
+
+    nodes: PrefixNodes = set()
+
+    for i in range(1, n):
+        nodes.add((i, 0))
+
+    for i in range(0, n):
+        nodes.add((i, i))
+
+    # nodes.add((1,0))
+    nodes.add((3, 2))
+    nodes.add((5, 4))
+    nodes.add((7, 6))
+    # nodes.add((3, 0))
+    # nodes.add((5,0))
+
+    return nodes
+
+
+def ParallelScan_8_b(n: int) -> PrefixNodes:
+
+    assert n == 8
+
+    nodes: PrefixNodes = set()
+
+    for i in range(1, n):
+        nodes.add((i, 0))
+
+    for i in range(0, n):
+        nodes.add((i, i))
+
+    nodes.add((1, 0))
+    # nodes.add((3,0))
+    nodes.add((4, 3))
+    nodes.add((5, 3))
+    nodes.add((7, 6))
+    # nodes.add((5,0))
+
+    return nodes
+
+
+def ParallelScan_16_a(n: int) -> PrefixNodes:
+
+    assert n == 16
+
+    nodes: PrefixNodes = set()
+
+    for i in range(1, n):
+        nodes.add((i, 0))
+
+    for i in range(0, n):
+        nodes.add((i, i))
+
+    # nodes.add((1,0))
+    nodes.add((3, 2))
+    nodes.add((5, 4))
+    nodes.add((7, 6))
+    nodes.add((9, 8))
+    nodes.add((11, 10))
+    nodes.add((13, 12))
+    nodes.add((15, 14))
+
+    nodes.add((7, 4))
+    nodes.add((11, 8))
+
+    return nodes
+
+
+def ParallelScan_16_b(n: int) -> PrefixNodes:
+
+    assert n == 16
+
+    nodes: PrefixNodes = set()
+
+    for i in range(1, n):
+        nodes.add((i, 0))
+
+    for i in range(0, n):
+        nodes.add((i, i))
+
+    nodes.add((1, 0))
+    nodes.add((3, 0))
+    nodes.add((4, 3))
+    nodes.add((5, 3))
+    nodes.add((7, 6))
+    nodes.add((8, 6))
+    nodes.add((10, 9))
+    nodes.add((11, 9))
+    nodes.add((13, 12))
+    nodes.add((14, 12))
+    # nodes.add((5,0))
+    nodes.add((11, 6))
+    # nodes.add((11,0))
+
+    return nodes
+
+
+def multi_scan_n(n: int) -> PrefixNodes:
+
+    if n == 8:
+        return ParallelScan_8_b(n)
+    elif n == 16:
+        return ParallelScan_16_b(n)
+    elif n == 24:
+        return get_multiscan_nodes_24()
+    elif n == 32:
+        return get_multiscan_nodes_32()
+    else:
+        raise ValueError(f"ParallelScan_n not defined for n={n}")
+
+
+def ZCG_n(n: int) -> PrefixNodes:
+
+    if n == 24:
+        return prefix_nodes_to_ranges(zcg_24)
+    elif n == 32:
+        return prefix_nodes_to_ranges(zcg_32)
+    else:
+        raise ValueError(f"ZCG not defined for n={n}")
+
 
 def prefix_nodes_to_ranges(nodes: Iterable[Tuple[int, int, int]]) -> Set[Tuple[int, int]]:
     """
@@ -237,7 +365,6 @@ zcg_32 = [[0, 1, 1],
 [26, 29, 6],
 [26, 30, 6],
 [26, 31, 6]]
-
 
 
 # data_list = [[0, 1, 1], [2, 3, 1], [4, 5, 1], [6, 7, 1], [1, 3, 2], [3, 5, 3], [1, 2, 4], [3, 4, 4], [5, 6, 4], [5, 7, 4]]

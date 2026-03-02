@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Callable, ClassVar, Dict, List, Set, Tuple
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase
-from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ladner_fischer, P_ripple_carry, P_sklansky, P_sparse_kogge_stone_2, P_sparse_kogge_stone_4, Pair, ZCG_n, analyze_prefix_matrix, legalize_P, multi_scan_n
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import P_brent_kung, P_han_carlson, P_kogge_stone, P_ladner_fischer, P_ripple_carry, P_sklansky, P_sparse_kogge_stone_2, P_sparse_kogge_stone_4, Pair, analyze_prefix_matrix, legalize_P
+from sprouthdl.arithmetic.prefix_adders.prefix_adder_specials import ZCG_n, multi_scan_n
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, UInt, cast
 
 
@@ -59,6 +60,16 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
     depth_optimize: ClassVar[bool] = True
 
     def resolve(self, columns: Dict[int, List[Expr]]) -> List[Expr]:
+        """Collapse <=2 bits/column into a final sum using a prefix carry network.
+
+        `columns` is expected to come from the compressor tree, so each column
+        must contain at most two bits (carry-save form). The method:
+        1) normalizes sparse columns into two dense operand rows,
+        2) computes bitwise propagate/generate signals,
+        3) evaluates group (G, P) terms defined by the selected prefix topology,
+        4) derives carries and returns sum bits plus the final carry-out bit.
+        """
+        # Include any populated spill column beyond the configured output width.
         width = self.config.out_width
         max_col = max(columns.keys(), default=width - 1)
         working_width = max(width, max_col + 1)
@@ -67,6 +78,7 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
         row_a: List[Expr] = []
         row_b: List[Expr] = []
 
+        # Convert sparse per-column bit lists into two aligned addend rows.
         for idx in range(working_width):
             bits = list(columns.get(idx, []))
             if len(bits) > 2:
@@ -83,16 +95,20 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
                 row_a.append(bits[0])
                 row_b.append(bits[1])
 
+        # Per-bit propagate/generate for the two-row representation.
         propagates = [a ^ b for a, b in zip(row_a, row_b)]
         generates = [a & b for a, b in zip(row_a, row_b)]
 
+        # Build and sanitize the chosen prefix topology for this width.
         raw_nodes = set(self.prefix_matrix_builder(working_width))
         nodes = legalize_P(working_width, raw_nodes)
 
         best_k: Dict[Pair, int] = {}
         if self.depth_optimize and nodes:
+            # Precompute split points that minimize recursion depth.
             _, best_k, _, _ = analyze_prefix_matrix(working_width, nodes)
 
+        # Cache group (G, P) results for node intervals (i, j).
         gp_cache: Dict[Pair, Tuple[Expr, Expr]] = {}
 
         def gp(i: int, j: int) -> Tuple[Expr, Expr]:
@@ -115,15 +131,18 @@ class PrefixAdderFinalStage(FinalStageAdderBase):
                     raise ValueError(f"No legal split for prefix node {(i, j)}")
             g_left, p_left = gp(i, k + 1)
             g_right, p_right = gp(k, j)
+            # Prefix combine: (G,P) = (G_hi | (P_hi & G_lo), P_hi & P_lo).
             result = (g_left | (p_left & g_right), p_left & p_right)
             gp_cache[key] = result
             return result
 
+        # c[0] is Cin=0; c[i+1] is carry into bit i+1.
         carries: List[Expr] = [zero] * (working_width + 1)
         for idx in range(working_width):
             g_prefix, p_prefix = gp(idx, 0)
             carries[idx + 1] = g_prefix | (p_prefix & carries[0])
 
+        # Sum bits and append final carry-out.
         sums = [propagates[idx] ^ carries[idx] for idx in range(working_width)]
         result_bits: List[Expr] = list(sums)
         result_bits.append(carries[working_width])
