@@ -1,8 +1,10 @@
 from typing import Iterable, List, Tuple, Set, Dict
 
-from sprouthdl.arithmetic.prefix_adders.prefix_adder_topologies import PrefixNodes
 
 # Other custom topologies
+
+Pair = Tuple[int, int]
+PrefixNodes = Set[Pair]
 
 
 def ParallelScan_8_a(n: int) -> PrefixNodes:
