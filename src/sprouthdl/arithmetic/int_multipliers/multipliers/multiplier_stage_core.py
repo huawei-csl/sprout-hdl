@@ -18,12 +18,12 @@ def half_adder(x: Expr, y: Expr) -> Tuple[Expr, Expr]:
     return x ^ y, x & y  # sum, carry
 
 
-def full_adder_low_area(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
+def full_adder_fast(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
     s1 = x ^ y
     return s1 ^ z, (s1 & z) | (x & y)
 
 
-def full_adder_fast(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
+def full_adder_low_area(x: Expr, y: Expr, z: Expr) -> Tuple[Expr, Expr]:
     s = x ^ y ^ z
     return s, (x & y) | (y & z) | (z & x)
 
