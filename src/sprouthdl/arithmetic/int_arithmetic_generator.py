@@ -427,6 +427,7 @@ def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="AIG optimization iterations before stats (default uses internal project default)",
     )
+    parser.add_argument("--json-out", type=str, default=None, help="Optional path to save result JSON")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -565,7 +566,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         result = generate_mac(cfg, actions=actions)
 
-    print(json.dumps(_result_to_dict(result), indent=2, sort_keys=True))
+    result_json = json.dumps(_result_to_dict(result), indent=2, sort_keys=True)
+    print(result_json)
+    if args.json_out is not None:
+        with open(args.json_out, "w") as f:
+            f.write(result_json)
     return 0
 
 

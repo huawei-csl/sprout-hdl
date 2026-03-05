@@ -20,6 +20,7 @@ It can optionally:
 - write a Verilog testbench (`--testbench-out`) generated from vectors via `TestbenchGenSimulator`
 - run vector simulation
 - collect Yosys metrics (including `estimated_num_transistors`)
+- save the result summary JSON to a file (`--json-out`)
 
 Multiplier/Adder Python API usage reference:
 [`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
@@ -41,7 +42,8 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
   --verilog-out out/mul8.v \
   --aag-out out/mul8.aag \
   --testbench-out out/mul8_tb.v \
-  --yosys-stats
+  --yosys-stats \
+  --json-out out/mul8_result.json
 
 python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
   --n-bits 16 \
