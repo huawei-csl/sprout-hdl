@@ -7,10 +7,14 @@ of NaN/Inf/zero plus subnormal inputs by treating their implicit leading bit as
 """
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import Expr, Signal, UInt, cat, mux, Const
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+    AdderConfig,
+    build_adder,
+)
 
 
 @dataclass
@@ -21,12 +25,13 @@ class FpAddIO:
 
 class FpAdd(Component):
 
-    def __init__(self, EW: int, FW: int) -> None:
+    def __init__(self, EW: int, FW: int, adder_cfg: Optional[AdderConfig] = None) -> None:
         self.EW = EW
         self.FW = FW
         self.W = 1 + EW + FW
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
+        self.adder_cfg = adder_cfg
 
         self.io: FpAddIO = FpAddIO(
             a=Signal(name="a", typ=UInt(self.W), kind="input"),
@@ -98,7 +103,7 @@ class FpAdd(Component):
 
     def _combine_mantissas(self, m_big_ext: Expr, m_small_shift: Expr, s_big: Expr, s_small: Expr) -> Tuple[Expr, Expr]:
         same_sign = s_big == s_small
-        mant_add = m_big_ext + m_small_shift
+        mant_add = build_adder(m_big_ext, m_small_shift, self.adder_cfg) if self.adder_cfg is not None else m_big_ext + m_small_shift
         mant_sub = m_big_ext - m_small_shift
         mant_mag = mux(same_sign, mant_add, mant_sub)
         zero_mag = mant_mag == 0

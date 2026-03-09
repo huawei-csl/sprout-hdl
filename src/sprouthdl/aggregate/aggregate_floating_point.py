@@ -6,6 +6,7 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float import FpMul
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import FpMulSN
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
 from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, UInt, Wire, as_expr, fit_width
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MultiplierConfig
 
 
 @dataclass(frozen=True)
@@ -41,10 +42,14 @@ class FloatingPoint(HDLAggregate):
         self,
         ftype: FloatingPointType,
         name: Optional[str] = None,
-        bits: Optional[ExprLike] = None
+        bits: Optional[ExprLike] = None,
+        adder_cfg: Optional[AdderConfig] = None,
+        mult_cfg: Optional[MultiplierConfig] = None,
     ):
         self.ftype = ftype
         self._typ = ftype.to_hdl_type()
+        self.adder_cfg = adder_cfg
+        self.mult_cfg = mult_cfg
 
         if bits is None:
             sig = Wire(self._typ, name=name)
@@ -107,7 +112,7 @@ class FloatingPoint(HDLAggregate):
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint add requires matching types")
 
-        core = FpAdd(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width).make_internal()
+        core = FpAdd(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width, adder_cfg=self.adder_cfg).make_internal()
 
         core.io.a <<= self.bits
         core.io.b <<= other.bits
@@ -126,9 +131,12 @@ class FloatingPoint(HDLAggregate):
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint multiply requires matching types")
         
-        fp_cls = FpMulSN if self.ftype.subnormal_support or other.ftype.subnormal_support else FpMul
-
-        core = fp_cls(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width).make_internal()
+        EW = self.ftype.exponent_width
+        FW = self.ftype.fraction_width
+        if self.ftype.subnormal_support or other.ftype.subnormal_support:
+            core = FpMulSN(EW=EW, FW=FW, mult_cfg=self.mult_cfg).make_internal()
+        else:
+            core = FpMul(EW=EW, FW=FW, mult_cfg=self.mult_cfg).make_internal()
 
         core.io.a <<= self.bits
         core.io.b <<= other.bits

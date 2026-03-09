@@ -11,6 +11,10 @@ from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+    MultiplierConfig,
+    build_multiplier,
+)
 
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
 
@@ -165,10 +169,11 @@ class FpMul(Component):
         b: Signal  # input
         y: Signal  # output
 
-    def __init__(self, EW: int, FW: int) -> None:
+    def __init__(self, EW: int, FW: int, mult_cfg: Optional[MultiplierConfig] = None) -> None:
         self.EW = EW
         self.FW = FW
         self.W = 1 + EW + FW
+        self.mult_cfg = mult_cfg
 
         self.io = self.IO(
             a=Signal(name="a", typ=UInt(self.W), kind="input"),
@@ -221,7 +226,7 @@ class FpMul(Component):
         # ------------------
         # Multiply mantissas (unsigned product)
         # ------------------
-        prod = mA_eff * mB_eff  # width 2 + 2*FW
+        prod = build_multiplier(mA_eff, mB_eff, self.mult_cfg) if self.mult_cfg is not None else mA_eff * mB_eff  # width 2 + 2*FW
         PROD_W = 2 + 2 * FW
 
         # Multiply two (1+FW)‑bit unsigned integers:

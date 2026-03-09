@@ -27,6 +27,10 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float import (
     run_vectors_aby,
 )
 from sprouthdl.sprouthdl_simulator import Simulator
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+    MultiplierConfig,
+    build_multiplier,
+)
 
 
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
@@ -63,7 +67,7 @@ class FpMulSN(Component):
         b: Signal  # input
         y: Signal  # output
 
-    def __init__(self, EW: int, FW: int, *, subnormals: bool = True) -> None:
+    def __init__(self, EW: int, FW: int, *, subnormals: bool = True, mult_cfg: Optional[MultiplierConfig] = None) -> None:
         self.EW = EW
         self.FW = FW
         self.W = 1 + EW + FW
@@ -71,6 +75,7 @@ class FpMulSN(Component):
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
         self.MAX_FINITE_E = self.MAX_E - 1
+        self.mult_cfg = mult_cfg
 
         self.io = self.IO(
             a=Signal(name="a", typ=UInt(self.W), kind="input"),
@@ -287,7 +292,7 @@ class FpMulSN(Component):
             eA, eB, fA, fB, cls["is_eA_zero"], cls["is_eB_zero"]
         )
 
-        prod = mA_eff * mB_eff
+        prod = build_multiplier(mA_eff, mB_eff, self.mult_cfg) if self.mult_cfg is not None else mA_eff * mB_eff
         lz = self._leading_zero_count(prod)
 
         mant_post, frac_norm, carry = self._normalize_and_round(prod, lz)

@@ -18,6 +18,15 @@ from testing.floating_point.fp_testvectors_general import (
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPoint, FloatingPointType
 from sprouthdl.aggregate.aggregate_register import AggregateRegister
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+    FSAOption,
+    MultiplierOption,
+    PPAOption,
+    PPGOption,
+    TwoInputAritEncodings,
+)
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MultiplierConfig
 from sprouthdl.sprouthdl import Const, Expr, UInt, as_expr, reset_shared_cache
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
@@ -248,3 +257,75 @@ def test_aggregate_floating_point_mul():
             raise AssertionError(
                 f"mul failed for a={a_f}, b={b_f}: got 0x{got_bits:04x}, expected 0x{expected_bits:04x}"
             ) from exc
+
+
+# ---- Tests with adder / multiplier configs ----
+
+_FP16_ADD_VECTORS = [(1.0, 2.0), (0.5, 0.5), (1.5, -1.25), (-2.0, 3.0)]
+_FP16_MUL_VECTORS = [(1.5, 2.0), (1.25, -0.5), (-2.0, -2.0), (0.5, 0.5)]
+
+
+def _build_fp_binop_module_with_cfg(op_name: str, adder_cfg=None, mult_cfg=None) -> Module:
+    ft = FloatingPointType(exponent_width=5, fraction_width=10)
+    m = Module(f"FpAgg{op_name.title()}Cfg", with_clock=False, with_reset=False)
+
+    a_bits = m.input(UInt(ft.width_total), "a")
+    b_bits = m.input(UInt(ft.width_total), "b")
+
+    a_fp = FloatingPoint(ft, bits=as_expr(a_bits), adder_cfg=adder_cfg, mult_cfg=mult_cfg)
+    b_fp = FloatingPoint(ft, bits=as_expr(b_bits))
+
+    res_fp = a_fp + b_fp if op_name == "add" else a_fp * b_fp
+
+    y_bits = m.output(UInt(ft.width_total), "y")
+    y_bits <<= res_fp.bits
+    return m
+
+
+def test_fp_add_with_adder_cfg_use_operator():
+    """FpAdd with AdderConfig(use_operator=True) gives identical results to the default path."""
+    reset_shared_cache()
+    mod = _build_fp_binop_module_with_cfg("add", adder_cfg=AdderConfig(use_operator=True))
+    sim = Simulator(mod)
+    for a_f, b_f in _FP16_ADD_VECTORS:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        _assert_fp_match(sim.get("y"), _encode_half(np.float16(a_f) + np.float16(b_f)))
+
+
+def test_fp_add_with_explicit_adder_cfg():
+    """FpAdd with an explicit stage-based (ripple-carry) adder gives correct results."""
+    reset_shared_cache()
+    adder_cfg = AdderConfig(use_operator=False, fsa_opt=FSAOption.RIPPLE_CARRY, encoding=Encoding.unsigned)
+    mod = _build_fp_binop_module_with_cfg("add", adder_cfg=adder_cfg)
+    sim = Simulator(mod)
+    for a_f, b_f in _FP16_ADD_VECTORS:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        _assert_fp_match(sim.get("y"), _encode_half(np.float16(a_f) + np.float16(b_f)))
+
+
+def test_fp_mul_with_mult_cfg_use_operator():
+    """FpMul with MultiplierConfig(use_operator=True) gives identical results to the default path."""
+    reset_shared_cache()
+    mod = _build_fp_binop_module_with_cfg("mul", mult_cfg=MultiplierConfig(use_operator=True))
+    sim = Simulator(mod)
+    for a_f, b_f in _FP16_MUL_VECTORS:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        _assert_fp_match(sim.get("y"), _encode_half(np.float16(a_f) * np.float16(b_f)))
+
+
+def test_fp_mul_with_explicit_mult_cfg():
+    """FpMul with a stage-based (Wallace tree + ripple carry) multiplier gives correct results."""
+    reset_shared_cache()
+    mult_cfg = MultiplierConfig(
+        use_operator=False,
+        multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
+        encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
+        ppg_opt=PPGOption.AND,
+        ppa_opt=PPAOption.WALLACE_TREE,
+        fsa_opt=FSAOption.RIPPLE_CARRY,
+    )
+    mod = _build_fp_binop_module_with_cfg("mul", mult_cfg=mult_cfg)
+    sim = Simulator(mod)
+    for a_f, b_f in _FP16_MUL_VECTORS:
+        sim.set("a", _encode_half(a_f)).set("b", _encode_half(b_f)).eval()
+        _assert_fp_match(sim.get("y"), _encode_half(np.float16(a_f) * np.float16(b_f)))
