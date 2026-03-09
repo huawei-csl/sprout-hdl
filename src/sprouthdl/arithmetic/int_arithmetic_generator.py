@@ -106,6 +106,7 @@ class MatmulAccumulateGeneratorConfig:
     dim_k: int
     a_width: int
     c_width: int | None = None
+    use_operator: bool = False
     multiplier_opt: MultiplierOption = MultiplierOption.STAGE_BASED_MULTIPLIER
     ppg_opt: PPGOption = PPGOption.AND
     ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
@@ -492,25 +493,29 @@ def generate_matmul_accumulate(
         else max_y_width_unsigned(cfg.a_width, cfg.a_width, cfg.dim_k, include_carry_from_add=False)
     )
     output_encoding = resolve_mac_output_encoding(cfg.input_encoding, cfg.output_encoding)
-    encodings = TwoInputAritEncodings.with_enc(cfg.input_encoding)
-    ppg_opt = cfg.ppg_opt if not (cfg.ppg_opt == PPGOption.AND and is_signed(cfg.input_encoding)) else PPGOption.BAUGH_WOOLEY
 
-    mult_cfg = MatmulMultiplierConfig(
-        use_operator=False,
-        multiplier_opt=cfg.multiplier_opt,
-        encodings=encodings,
-        ppg_opt=ppg_opt,
-        ppa_opt=cfg.ppa_opt,
-        fsa_opt=cfg.fsa_opt,
-        optim_type=cfg.optim_type,
-    )
-    add_cfg = MatmulAdderConfig(
-        use_operator=False,
-        encoding=cfg.input_encoding,
-        optim_type=cfg.optim_type,
-        fsa_opt=cfg.fsa_opt,
-        full_output_bit=True,
-    )
+    if cfg.use_operator:
+        mult_cfg = MatmulMultiplierConfig(use_operator=True)
+        add_cfg = MatmulAdderConfig(use_operator=True, encoding=cfg.input_encoding)
+    else:
+        encodings = TwoInputAritEncodings.with_enc(cfg.input_encoding)
+        ppg_opt = cfg.ppg_opt if not (cfg.ppg_opt == PPGOption.AND and is_signed(cfg.input_encoding)) else PPGOption.BAUGH_WOOLEY
+        mult_cfg = MatmulMultiplierConfig(
+            use_operator=False,
+            multiplier_opt=cfg.multiplier_opt,
+            encodings=encodings,
+            ppg_opt=ppg_opt,
+            ppa_opt=cfg.ppa_opt,
+            fsa_opt=cfg.fsa_opt,
+            optim_type=cfg.optim_type,
+        )
+        add_cfg = MatmulAdderConfig(
+            use_operator=False,
+            encoding=cfg.input_encoding,
+            optim_type=cfg.optim_type,
+            fsa_opt=cfg.fsa_opt,
+            full_output_bit=True,
+        )
 
     core_cfg = MMAcCfg(
         dims=MMAcDims(dim_m=cfg.dim_m, dim_n=cfg.dim_n, dim_k=cfg.dim_k),
@@ -519,7 +524,8 @@ def generate_matmul_accumulate(
         add_cfg=add_cfg,
     )
 
-    component = MatmulAccumulateComponent(core_cfg)
+    signed_io_type = True if cfg.use_operator else False
+    component = MatmulAccumulateComponent(core_cfg, signed_io_type=signed_io_type)
     module_name = cfg.module_name or f"matmul_{cfg.dim_m}x{cfg.dim_n}x{cfg.dim_k}_{cfg.a_width}b"
     module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
 
@@ -689,6 +695,11 @@ def _build_parser() -> argparse.ArgumentParser:
     matmul_parser.add_argument("--c-width", type=int, default=None, help="Bit width of C elements (auto if omitted)")
     matmul_parser.add_argument("--module-name", type=str, default=None)
     matmul_parser.add_argument(
+        "--use-operator",
+        action="store_true",
+        help="Use * and + operators directly instead of explicit stage-based multiplier/adder",
+    )
+    matmul_parser.add_argument(
         "--multiplier-opt",
         type=_enum_type(MultiplierOption),
         default=MultiplierOption.STAGE_BASED_MULTIPLIER,
@@ -810,6 +821,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             dim_k=args.dim_k,
             a_width=args.a_width,
             c_width=args.c_width,
+            use_operator=args.use_operator,
             multiplier_opt=args.multiplier_opt,
             ppg_opt=args.ppg_opt,
             ppa_opt=args.ppa_opt,
