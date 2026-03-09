@@ -49,7 +49,12 @@ class FpMatmulAccumulateComponent(FpMatmulAccumulateCore):
         def _build_matrix(prefix: str, rows: int, cols: int, kind: str) -> Array:
             return Array([
                 Array([
-                    FloatingPoint(ft, bits=Signal(name=f"{prefix}_{i}_{j}", typ=UInt(W), kind=kind))
+                    FloatingPoint(
+                        ft,
+                        bits=Signal(name=f"{prefix}_{i}_{j}", typ=UInt(W), kind=kind),
+                        adder_cfg=cfg.adder_cfg,
+                        mult_cfg=cfg.mult_cfg,
+                    )
                     for j in range(cols)
                 ])
                 for i in range(rows)
@@ -67,18 +72,15 @@ class FpMatmulAccumulateComponent(FpMatmulAccumulateCore):
         W = ft.width_total
         dims = self.cfg.dims
 
-        def _fp(bits) -> FloatingPoint:
-            return FloatingPoint(ft, bits=bits, adder_cfg=self.cfg.adder_cfg, mult_cfg=self.cfg.mult_cfg)
-
         rows = []
         for i in range(dims.dim_m):
             row = []
             for j in range(dims.dim_n):
                 dot = None
                 for k in range(dims.dim_k):
-                    prod = _fp(self.A[i, k].bits) * _fp(self.B[k, j].bits)
+                    prod = self.A[i, k] * self.B[k, j]
                     dot = prod if dot is None else dot + prod
-                acc = dot + _fp(self.C[i, j].bits)
+                acc = dot + self.C[i, j]
                 y_sig = Signal(name=f"y_{i}_{j}", typ=UInt(W), kind="output")
                 y_sig <<= acc.bits
                 row.append(FloatingPoint(ft, bits=y_sig))
