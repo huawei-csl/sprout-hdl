@@ -11,7 +11,7 @@ from typing import Callable, ClassVar, DefaultDict, Dict, Iterable, List, Litera
 from aigverse import read_aiger_into_aig, write_aiger
 import numpy as np
 
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, FinalStageAdderBase, StageMultiplierConfig, PartialProductAccumulatorBase, PartialProductGeneratorBase, RippleCarryFinalAdder, StageBasedMultiplierBasic, StageBasedMultiplierIO
 
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.int_multipliers.stages.ppa_fsa_util import OutputConfig, compressor_sum
@@ -374,7 +374,7 @@ class OptimizedMultiplierFrom4BitBlocks(StageBasedMultiplierBase):
                 for i in range(p3.typ.width):
                     cols[i + self.aw].append(p3[i])
 
-                config = MultiplierConfig(
+                config = StageMultiplierConfig(
                     a_width=self.aw,
                     b_width=self.bw,
                     signed_a=Encoding.unsigned,

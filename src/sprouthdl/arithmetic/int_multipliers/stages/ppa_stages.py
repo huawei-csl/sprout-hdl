@@ -4,14 +4,14 @@ from collections import defaultdict
 from math import floor
 from typing import DefaultDict, Dict, List, Tuple
 
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import MultiplierConfig, PartialProductAccumulatorBase, half_adder, full_adder_fast, full_adder_low_area
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import StageMultiplierConfig, PartialProductAccumulatorBase, half_adder, full_adder_fast, full_adder_low_area
 from sprouthdl.sprouthdl import Bool, Const, Expr
 
 
 class WallaceTreeAccumulator(PartialProductAccumulatorBase):
     """Classic Wallace tree reduction of partial-product columns."""
 
-    def __init__(self, config: MultiplierConfig) -> None:
+    def __init__(self, config: StageMultiplierConfig) -> None:
         super().__init__(config)
         self._full_adder = (
             full_adder_low_area
@@ -56,7 +56,7 @@ class WallaceTreeAccumulator(PartialProductAccumulatorBase):
 class DaddaTreeAccumulator(PartialProductAccumulatorBase):
     """Dadda tree reduction using progressively tighter column height thresholds."""
 
-    def __init__(self, config: MultiplierConfig) -> None:
+    def __init__(self, config: StageMultiplierConfig) -> None:
         super().__init__(config)
         self._full_adder = (
             full_adder_low_area
@@ -121,7 +121,7 @@ class DaddaTreeAccumulator(PartialProductAccumulatorBase):
 class CarrySaveAccumulator(PartialProductAccumulatorBase):
     """Iterative carry-save reduction using only full adders."""
 
-    def __init__(self, config: MultiplierConfig) -> None:
+    def __init__(self, config: StageMultiplierConfig) -> None:
         super().__init__(config)
         self._full_adder = (
             full_adder_low_area
@@ -158,7 +158,7 @@ class CarrySaveAccumulator(PartialProductAccumulatorBase):
 class FourTwoCompressorAccumulator(PartialProductAccumulatorBase):
     """Reduction based on 4:2 compressors backed by chained full adders."""
 
-    def __init__(self, config: MultiplierConfig) -> None:
+    def __init__(self, config: StageMultiplierConfig) -> None:
         super().__init__(config)
         self._full_adder = (
             full_adder_low_area

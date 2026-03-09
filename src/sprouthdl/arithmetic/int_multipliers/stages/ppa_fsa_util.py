@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import DefaultDict, List, Literal, Tuple, Type
 
-from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase, MultiplierConfig, PartialProductAccumulatorBase
+from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import FinalStageAdderBase, StageMultiplierConfig, PartialProductAccumulatorBase
 from sprouthdl.sprouthdl import Concat, Const, Expr
 
 
@@ -11,7 +11,7 @@ class OutputConfig:
     optim_type: Literal["area", "speed"]
 
 def compressor_sum(
-    config: MultiplierConfig | OutputConfig,
+    config: StageMultiplierConfig | OutputConfig,
     partials: List[Tuple[Expr, int] | Expr],
     ppa_cls: Type[PartialProductAccumulatorBase],
     fsa_cls: Type[FinalStageAdderBase],

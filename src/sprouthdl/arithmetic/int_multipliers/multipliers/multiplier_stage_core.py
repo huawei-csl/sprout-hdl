@@ -43,7 +43,7 @@ class TwoInputAritConfig:
 
 
 @dataclass(frozen=True)
-class MultiplierConfig(TwoInputAritConfig):  # might be renamed to StageMultiplierConfig
+class StageMultiplierConfig(TwoInputAritConfig):  # might be renamed to StageMultiplierConfig
     a_width: int
     b_width: int
     signed_a: bool
@@ -82,7 +82,7 @@ class FinalStageAdderBase(StageBase, abc.ABC):
 
 
 class CompressorTreeAccumulator(PartialProductAccumulatorBase):
-    def __init__(self, config: MultiplierConfig) -> None:
+    def __init__(self, config: StageMultiplierConfig) -> None:
         super().__init__(config)
         self._full_adder = (
             full_adder_low_area
@@ -187,7 +187,7 @@ class StageBasedMultiplierBasic(Component):
         ppa_cls: Type[PartialProductAccumulatorBase] = CompressorTreeAccumulator,
         fsa_cls: Type[FinalStageAdderBase] = RippleCarryFinalAdder,
     ) -> None:
-        self.config = MultiplierConfig(a_w, b_w, signed_a, signed_b, optim_type)
+        self.config = StageMultiplierConfig(a_w, b_w, signed_a, signed_b, optim_type)
 
         supported = ppg_cls.supported_signatures
         if supported is not None and (signed_a, signed_b) not in supported:
