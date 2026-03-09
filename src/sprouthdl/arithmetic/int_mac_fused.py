@@ -65,6 +65,7 @@ class MacBuildConfig:
     fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
     encoding: Encoding = Encoding.unsigned
     optim_type: Literal["area", "speed"] = "area"
+    use_operator: bool = False
 
 
 @dataclass
@@ -95,13 +96,16 @@ class FusedMacComponent(Component):
         self.io = MacIO(a=self.a, b=self.b, c=self.c, y=self.y)
 
     def elaborate(self) -> None:
-        mult_cfg = MultiplierConfig(
-            ppg_opt=self.cfg.ppg_opt,
-            ppa_opt=self.cfg.ppa_opt,
-            fsa_opt=self.cfg.fsa_opt,
-            optim_type=self.cfg.optim_type,
-        )
-        y_expr = fused_inner_product([self.a], [self.b], self.c, mult_cfg, self.cfg.encoding)
+        if self.cfg.use_operator:
+            y_expr = self.a * self.b + self.c
+        else:
+            mult_cfg = MultiplierConfig(
+                ppg_opt=self.cfg.ppg_opt,
+                ppa_opt=self.cfg.ppa_opt,
+                fsa_opt=self.cfg.fsa_opt,
+                optim_type=self.cfg.optim_type,
+            )
+            y_expr = fused_inner_product([self.a], [self.b], self.c, mult_cfg, self.cfg.encoding)
 
         io_type = SInt if is_signed(self.cfg.encoding) else UInt
         self.y = Signal(name="y", typ=io_type(y_expr.typ.width), kind="output")

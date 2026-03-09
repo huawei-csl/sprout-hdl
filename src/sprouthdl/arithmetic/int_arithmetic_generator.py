@@ -88,6 +88,7 @@ class AdderGeneratorConfig:
 class MacGeneratorConfig:
     n_bits: int
     c_bits: int | None = None
+    use_operator: bool = False
     ppg_opt: PPGOption = PPGOption.AND
     ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
     fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
@@ -430,6 +431,7 @@ def generate_mac(
         MacBuildConfig(
             n_bits=cfg.n_bits,
             c_bits=resolved_c_bits,
+            use_operator=cfg.use_operator,
             ppg_opt=cfg.ppg_opt,
             ppa_opt=cfg.ppa_opt,
             fsa_opt=cfg.fsa_opt,
@@ -677,6 +679,11 @@ def _build_parser() -> argparse.ArgumentParser:
     mac_parser.add_argument("--n-bits", type=int, required=True)
     mac_parser.add_argument("--c-bits", type=int, default=None)
     mac_parser.add_argument("--module-name", type=str, default=None)
+    mac_parser.add_argument(
+        "--use-operator",
+        action="store_true",
+        help="Use * and + operators directly instead of explicit fused stage decomposition",
+    )
     mac_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
     mac_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
     mac_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
@@ -803,6 +810,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cfg = MacGeneratorConfig(
             n_bits=args.n_bits,
             c_bits=args.c_bits,
+            use_operator=args.use_operator,
             ppg_opt=args.ppg_opt,
             ppa_opt=args.ppa_opt,
             fsa_opt=args.fsa_opt,
