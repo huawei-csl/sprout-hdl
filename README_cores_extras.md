@@ -63,6 +63,41 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator mac \
   --verilog-out out/mac8.v \
   --aag-out out/mac8.aag \
   --testbench-out out/mac8_tb.v
+
+# Matrix multiply-accumulate (Y = A @ B + C), explicit multiplier and adder stages
+python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
+  --dim-m 4 --dim-n 4 --dim-k 4 \
+  --a-width 8 \
+  --ppg-opt BAUGH_WOOLEY \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --encoding twos_complement \
+  --simulate --num-vectors 16 \
+  --verilog-out out/matmulacc_4x4x4_8b.v \
+  --json-out out/matmulacc_4x4x4_8b.json
+
+# Matrix multiply-accumulate using * and + operators directly (no explicit stage decomposition)
+python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
+  --dim-m 4 --dim-n 4 --dim-k 4 \
+  --a-width 8 \
+  --multiplier-opt STAR_MULTIPLIER \
+  --fsa-opt PLUS_OPERATOR \
+  --encoding twos_complement \
+  --simulate --num-vectors 16 \
+  --verilog-out out/matmulacc_4x4x4_8b.v \
+  --json-out out/matmulacc_4x4x4_8b.json
+
+# Fused matrix multiply-accumulate: partial products from all cells merged before final addition
+python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc-fused \
+  --dim-m 4 --dim-n 4 --dim-k 4 \
+  --a-width 8 \
+  --ppg-opt BAUGH_WOOLEY \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --encoding twos_complement \
+  --simulate --num-vectors 16 \
+  --verilog-out out/matmulacc_fused_4x4x4_8b.v \
+  --json-out out/matmulacc_fused_4x4x4_8b.json
 ```
 
 ## Arithmetic Evaluations

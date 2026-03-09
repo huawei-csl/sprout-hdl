@@ -29,6 +29,21 @@ from sprouthdl.arithmetic.int_mac_fused import (
     resolve_mac_c_bits,
     resolve_mac_output_encoding,
 )
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+    AdderConfig as MatmulAdderConfig,
+    MMAcCfg,
+    MMAcDims,
+    MMAcWidths,
+    MatmulAccumulateComponent,
+    MultiplierConfig as MatmulMultiplierConfig,
+    max_y_width_unsigned,
+)
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (
+    MMAcFusedCfg,
+    MatmulAccumulateComponent as MatmulAccumulateFusedComponent,
+    MultiplierConfig as MatmulFusedMultiplierConfig,
+)
+from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import generate_matmul_vectors
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
@@ -36,6 +51,9 @@ from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator
 from sprouthdl.sprouthdl_aiger import AigerExporter
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
+
+
+# Configs: Generator configuration dataclasses ######################################################################
 
 
 @dataclass(frozen=True)
@@ -82,6 +100,42 @@ class MacGeneratorConfig:
 
 
 @dataclass(frozen=True)
+class MatmulAccumulateGeneratorConfig:
+    dim_m: int
+    dim_n: int
+    dim_k: int
+    a_width: int
+    c_width: int | None = None
+    multiplier_opt: MultiplierOption = MultiplierOption.STAGE_BASED_MULTIPLIER
+    ppg_opt: PPGOption = PPGOption.AND
+    ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    input_encoding: Encoding = Encoding.unsigned
+    output_encoding: Encoding | None = None
+    optim_type: Literal["area", "speed"] = "area"
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class MatmulAccumulateFusedGeneratorConfig:
+    dim_m: int
+    dim_n: int
+    dim_k: int
+    a_width: int
+    c_width: int | None = None
+    ppg_opt: PPGOption = PPGOption.AND
+    ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    input_encoding: Encoding = Encoding.unsigned
+    optim_type: Literal["area", "speed"] = "area"
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
 class GenerationActions:
     verilog_out: str | Path | None = None
     aag_out: str | Path | None = None
@@ -112,6 +166,9 @@ class GenerationResult:
         if self.yosys_stats is None:
             return None
         return int(self.yosys_stats["estimated_num_transistors"])
+
+
+# Helpers: Internal utilities and shared logic #######################################################################
 
 
 def _enum_type(enum_cls):
@@ -219,6 +276,9 @@ def _apply_actions(
         )
 
     return sim_failures, verilog_out, aag_out, testbench_out, yosys_stats
+
+
+# Generators: Public API for building and exporting arithmetic modules ################################################
 
 
 def generate_multiplier(
@@ -412,6 +472,144 @@ def generate_mac(
     )
 
 
+def generate_matmul_accumulate(
+    cfg: MatmulAccumulateGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    if cfg.input_encoding not in MAC_SUPPORTED_INPUT_ENCODINGS:
+        raise ValueError(
+            f"matmul input encoding {cfg.input_encoding.name} is not supported. "
+            "Use Encoding.unsigned or Encoding.twos_complement."
+        )
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    resolved_c_width = (
+        cfg.c_width
+        if cfg.c_width is not None
+        else max_y_width_unsigned(cfg.a_width, cfg.a_width, cfg.dim_k, include_carry_from_add=False)
+    )
+    output_encoding = resolve_mac_output_encoding(cfg.input_encoding, cfg.output_encoding)
+    encodings = TwoInputAritEncodings.with_enc(cfg.input_encoding)
+    ppg_opt = cfg.ppg_opt if not (cfg.ppg_opt == PPGOption.AND and is_signed(cfg.input_encoding)) else PPGOption.BAUGH_WOOLEY
+
+    mult_cfg = MatmulMultiplierConfig(
+        use_operator=False,
+        multiplier_opt=cfg.multiplier_opt,
+        encodings=encodings,
+        ppg_opt=ppg_opt,
+        ppa_opt=cfg.ppa_opt,
+        fsa_opt=cfg.fsa_opt,
+        optim_type=cfg.optim_type,
+    )
+    add_cfg = MatmulAdderConfig(
+        use_operator=False,
+        encoding=cfg.input_encoding,
+        optim_type=cfg.optim_type,
+        fsa_opt=cfg.fsa_opt,
+        full_output_bit=True,
+    )
+
+    core_cfg = MMAcCfg(
+        dims=MMAcDims(dim_m=cfg.dim_m, dim_n=cfg.dim_n, dim_k=cfg.dim_k),
+        widths=MMAcWidths(a_width=cfg.a_width, b_width=cfg.a_width, c_width=resolved_c_width),
+        mult_cfg=mult_cfg,
+        add_cfg=add_cfg,
+    )
+
+    component = MatmulAccumulateComponent(core_cfg)
+    module_name = cfg.module_name or f"matmul_{cfg.dim_m}x{cfg.dim_n}x{cfg.dim_k}_{cfg.a_width}b"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = generate_matmul_vectors(
+        component, encoding=cfg.input_encoding, num_vectors=actions.num_vectors, sigma=actions.tb_sigma,
+    )
+
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
+        module, vectors, actions=actions, with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=cfg.input_encoding,
+        output_encoding=output_encoding,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        testbench_out=testbench_out,
+        yosys_stats=yosys_stats,
+    )
+
+
+def generate_matmul_accumulate_fused(
+    cfg: MatmulAccumulateFusedGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    if cfg.input_encoding not in MAC_SUPPORTED_INPUT_ENCODINGS:
+        raise ValueError(
+            f"matmul-fused input encoding {cfg.input_encoding.name} is not supported. "
+            "Use Encoding.unsigned or Encoding.twos_complement."
+        )
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    resolved_c_width = (
+        cfg.c_width
+        if cfg.c_width is not None
+        else max_y_width_unsigned(cfg.a_width, cfg.a_width, cfg.dim_k, include_carry_from_add=False)
+    )
+    output_encoding = resolve_mac_output_encoding(cfg.input_encoding, None)
+    ppg_opt = cfg.ppg_opt if not (cfg.ppg_opt == PPGOption.AND and is_signed(cfg.input_encoding)) else PPGOption.BAUGH_WOOLEY
+
+    mult_cfg = MatmulFusedMultiplierConfig(
+        ppg_opt=ppg_opt,
+        ppa_opt=cfg.ppa_opt,
+        fsa_opt=cfg.fsa_opt,
+        optim_type=cfg.optim_type,
+    )
+
+    core_cfg = MMAcFusedCfg(
+        dims=MMAcDims(dim_m=cfg.dim_m, dim_n=cfg.dim_n, dim_k=cfg.dim_k),
+        widths=MMAcWidths(a_width=cfg.a_width, b_width=cfg.a_width, c_width=resolved_c_width),
+        mult_cfg=mult_cfg,
+        encoding=cfg.input_encoding,
+    )
+
+    component = MatmulAccumulateFusedComponent(core_cfg)
+    module_name = cfg.module_name or f"matmul_fused_{cfg.dim_m}x{cfg.dim_n}x{cfg.dim_k}_{cfg.a_width}b"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = generate_matmul_vectors(
+        component, encoding=cfg.input_encoding, num_vectors=actions.num_vectors, sigma=actions.tb_sigma,
+    )
+
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
+        module, vectors, actions=actions, with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=cfg.input_encoding,
+        output_encoding=output_encoding,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        testbench_out=testbench_out,
+        yosys_stats=yosys_stats,
+    )
+
+
+# CLI: Argument parsing and entry point ##############################################################################
+
+
 def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--verilog-out", type=str, default=None, help="Optional path for generated Verilog")
     parser.add_argument("--aag-out", type=str, default=None, help="Optional path for generated .aag")
@@ -483,6 +681,46 @@ def _build_parser() -> argparse.ArgumentParser:
     mac_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
     _add_common_action_args(mac_parser)
 
+    matmul_parser = sub.add_parser("matmulacc", help="Generate matrix multiply-accumulate module (Y = A @ B + C)")
+    matmul_parser.add_argument("--dim-m", type=int, required=True, help="Rows of A, C, Y")
+    matmul_parser.add_argument("--dim-n", type=int, required=True, help="Columns of B, C, Y")
+    matmul_parser.add_argument("--dim-k", type=int, required=True, help="Shared dimension of A and B")
+    matmul_parser.add_argument("--a-width", type=int, required=True, help="Bit width of A and B elements")
+    matmul_parser.add_argument("--c-width", type=int, default=None, help="Bit width of C elements (auto if omitted)")
+    matmul_parser.add_argument("--module-name", type=str, default=None)
+    matmul_parser.add_argument(
+        "--multiplier-opt",
+        type=_enum_type(MultiplierOption),
+        default=MultiplierOption.STAGE_BASED_MULTIPLIER,
+    )
+    matmul_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    matmul_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    matmul_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    matmul_parser.add_argument("--encoding", type=_enum_type(Encoding), default=Encoding.unsigned)
+    matmul_parser.add_argument("--output-encoding", type=_enum_type(Encoding), default=None)
+    matmul_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    matmul_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
+    matmul_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
+    _add_common_action_args(matmul_parser)
+
+    matmul_fused_parser = sub.add_parser(
+        "matmulacc-fused", help="Generate fused matrix multiply-accumulate module (Y = A @ B + C)"
+    )
+    matmul_fused_parser.add_argument("--dim-m", type=int, required=True, help="Rows of A, C, Y")
+    matmul_fused_parser.add_argument("--dim-n", type=int, required=True, help="Columns of B, C, Y")
+    matmul_fused_parser.add_argument("--dim-k", type=int, required=True, help="Shared dimension of A and B")
+    matmul_fused_parser.add_argument("--a-width", type=int, required=True, help="Bit width of A and B elements")
+    matmul_fused_parser.add_argument("--c-width", type=int, default=None, help="Bit width of C elements (auto if omitted)")
+    matmul_fused_parser.add_argument("--module-name", type=str, default=None)
+    matmul_fused_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    matmul_fused_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    matmul_fused_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    matmul_fused_parser.add_argument("--encoding", type=_enum_type(Encoding), default=Encoding.unsigned)
+    matmul_fused_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    matmul_fused_parser.add_argument("--with-clock", action="store_true", help="Generate module with clock input")
+    matmul_fused_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
+    _add_common_action_args(matmul_fused_parser)
+
     return parser
 
 
@@ -550,7 +788,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_adder(cfg, actions=actions)
-    else:
+    elif args.kind == "mac":
         cfg = MacGeneratorConfig(
             n_bits=args.n_bits,
             c_bits=args.c_bits,
@@ -565,6 +803,42 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_mac(cfg, actions=actions)
+    elif args.kind == "matmulacc":
+        cfg = MatmulAccumulateGeneratorConfig(
+            dim_m=args.dim_m,
+            dim_n=args.dim_n,
+            dim_k=args.dim_k,
+            a_width=args.a_width,
+            c_width=args.c_width,
+            multiplier_opt=args.multiplier_opt,
+            ppg_opt=args.ppg_opt,
+            ppa_opt=args.ppa_opt,
+            fsa_opt=args.fsa_opt,
+            input_encoding=args.encoding,
+            output_encoding=args.output_encoding,
+            optim_type=args.optim_type,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_matmul_accumulate(cfg, actions=actions)
+    else:
+        cfg = MatmulAccumulateFusedGeneratorConfig(
+            dim_m=args.dim_m,
+            dim_n=args.dim_n,
+            dim_k=args.dim_k,
+            a_width=args.a_width,
+            c_width=args.c_width,
+            ppg_opt=args.ppg_opt,
+            ppa_opt=args.ppa_opt,
+            fsa_opt=args.fsa_opt,
+            input_encoding=args.encoding,
+            optim_type=args.optim_type,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_matmul_accumulate_fused(cfg, actions=actions)
 
     result_json = json.dumps(_result_to_dict(result), indent=2, sort_keys=True)
     print(result_json)
