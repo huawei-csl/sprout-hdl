@@ -20,7 +20,6 @@ from sprouthdl.helpers import get_yosys_metrics
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.matmul_accumulate_core.test_matmul_accumulate_core import set_matrix
 
 
 def test_mmac_core_basic_simulation():
@@ -104,6 +103,12 @@ def test_mmac_core_basic_simulation():
     # get yosys transistor count
     yosys_metrics = get_yosys_metrics(module, n_iter_optimizations=n_iter_optimizations)
     print(f"Yosys metrics: {yosys_metrics}")
+
+
+def set_matrix(sim: Simulator, port2d, vals):
+    for i, row in enumerate(vals):
+        for j, v in enumerate(row):
+            sim.set(port2d[i, j], int(v))
 
 
 if __name__ == "__main__":

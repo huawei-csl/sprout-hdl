@@ -29,13 +29,15 @@ from sprouthdl.arithmetic.int_mac_fused import (
     resolve_mac_c_bits,
     resolve_mac_output_encoding,
 )
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     AdderConfig as MatmulAdderConfig,
+    MultiplierConfig as MatmulMultiplierConfig,
+)
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     MMAcCfg,
     MMAcDims,
     MMAcWidths,
     MatmulAccumulateComponent,
-    MultiplierConfig as MatmulMultiplierConfig,
     max_y_width_unsigned,
 )
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (

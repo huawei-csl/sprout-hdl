@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import Expr, Signal, UInt, cat, mux, Const
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     AdderConfig,
     build_adder,
 )

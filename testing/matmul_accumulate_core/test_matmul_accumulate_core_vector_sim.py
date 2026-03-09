@@ -17,12 +17,11 @@ from sprouthdl.sprouthdl import Op2
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_verilog_testbench import TestbenchGenSimulator, write_vector_data_file
+from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
-    AdderConfig,
     MMAcCfg,
     MMAcDims,
     MMAcWidths,
-    MultiplierConfig,
     build_matmul_accumulate,
     max_y_width_unsigned,
 )

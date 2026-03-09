@@ -27,7 +27,7 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float import (
     run_vectors_aby,
 )
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     MultiplierConfig,
     build_multiplier,
 )

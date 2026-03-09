@@ -13,15 +13,17 @@ from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core impo
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import SignMagnitudeEncoderConfig
 from sprouthdl.sprouthdl import Bool, Concat, Const, Expr, HDLType, SInt, Signal, UInt, cast, fit_width, s_ext
 from sprouthdl.sprouthdl_module import Component, Module
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     AdderConfig,
+    MultiplierConfig as BaseMultiplierConfig,
+    adder_tree,
+    build_adder,
+)
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     MatmulAccumulateCore,
     MatmulAccumulateIO,
     MMAcDims,
     MMAcWidths,
-    MultiplierConfig as BaseMultiplierConfig,
-    adder_tree,
-    build_adder,
 )
 
 

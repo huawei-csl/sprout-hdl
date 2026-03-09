@@ -6,7 +6,7 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float import FpMul
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import FpMulSN
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
 from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, UInt, Wire, as_expr, fit_width
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MultiplierConfig
+from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
 
 
 @dataclass(frozen=True)

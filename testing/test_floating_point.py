@@ -26,7 +26,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     TwoInputAritEncodings,
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MultiplierConfig
+from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
 from sprouthdl.sprouthdl import Const, Expr, UInt, as_expr, reset_shared_cache
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator

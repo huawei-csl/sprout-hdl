@@ -11,7 +11,7 @@ from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl import *
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl_simulator import Simulator
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     MultiplierConfig,
     build_multiplier,
 )

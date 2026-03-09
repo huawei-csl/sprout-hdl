@@ -48,24 +48,21 @@ def run_single_evaluation(config: EvalConfig) -> Optional[dict[str, Any]]:
     """
     try:
         # Import the appropriate module based on architecture
+        from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
         if config.architecture == Architecture.WINOGRAD:
             from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_winograd import (
-                AdderConfig,
                 MMAcCfg,
                 MMAcDims,
                 MMAcWidths,
                 MatmulAccumulateComponent,
-                MultiplierConfig,
                 max_y_width_unsigned,
             )
         else:
             from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
-                AdderConfig,
                 MMAcCfg,
                 MMAcDims,
                 MMAcWidths,
                 MatmulAccumulateComponent,
-                MultiplierConfig,
                 max_y_width_unsigned,
             )
 

@@ -17,15 +17,17 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     TwoInputAritEncodings,
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, is_signed
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
+from sprouthdl.arithmetic.int_arithmetic_config import (
     AdderConfig,
+    MultiplierConfig as BaseMultiplierConfig,
+    adder_tree,
+    build_adder,
+)
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import (
     MatmulAccumulateCore,
     MatmulAccumulateIO,
     MMAcDims,
     MMAcWidths,
-    MultiplierConfig as BaseMultiplierConfig,
-    adder_tree,
-    build_adder,
 )
 from sprouthdl.sprouthdl import Expr, SInt, Signal, UInt
 from sprouthdl.sprouthdl_module import Component, Module

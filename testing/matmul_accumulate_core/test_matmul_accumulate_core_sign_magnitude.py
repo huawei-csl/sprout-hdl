@@ -10,7 +10,8 @@ from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib
     TwoInputAritEncodings,
 )
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel, is_signed
-from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import AdderConfig, MMAcDims, MMAcWidths, max_y_width_unsigned
+from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MMAcDims, MMAcWidths, max_y_width_unsigned
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_sign_magnitude import (
     MMAcEncodedCfg,
     MatmulAccumulateComponent,
