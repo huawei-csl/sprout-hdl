@@ -30,11 +30,13 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
         a_ext = mag1
         a2_ext = [Const(False, Bool())] + a_ext
 
+        # Helper function to get bits with sign extension
         def get_with_se(bits: List[Expr], idx: int) -> Expr:
             if idx < len(bits):
                 return bits[idx]
             return bits[-1]
 
+        # Helper function to get bits of b with sign extension with proper out-of-range behavior
         def bbit(k: int) -> Expr:
             if 0 <= k < wb:
                 return b[k]
@@ -77,9 +79,9 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
                     emit_bit = mag ^ neg
                     extend_bit = ~emit_bit
                 elif t == len(a_ext):
-                    emit_bit = extend_bit if a_signed else ~neg
+                    emit_bit = extend_bit if a_signed else ~neg # signed: extend, unsigned: 1 if neg, 0 if pos 
                 elif t == len(a_ext) + 1:
-                    emit_bit = Const(True, Bool())
+                    emit_bit = Const(True, Bool())  # fixed 1 correction at the block’s MSB together with ref 1
                 else:
                     emit_bit = None
 
@@ -91,7 +93,8 @@ class BoothOptimizedPartialProductGenerator(PartialProductGeneratorBase):
                     cols[weight].append(emit_bit)
 
             if base_w < out_bits:
-                cols[base_w].append(neg)
+                # two's-complement +1 correction at the block’s LSB when negative (ref 1)
+                cols[base_w].append(neg) 
 
             if i == 0:
                 correction_col = len(mag1)

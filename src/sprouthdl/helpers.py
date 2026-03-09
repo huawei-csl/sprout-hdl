@@ -1,6 +1,9 @@
+import contextlib
+import ctypes
 import hashlib
 import os
 import random
+import sys
 import tempfile
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -18,6 +21,46 @@ from sprouthdl.sprouthdl_simulator import Simulator
 
 
 DEFAULT_N_ITER_OPTIMIZATIONS = 3
+
+
+@contextlib.contextmanager
+def _suppress_output(stderr: bool = True):
+    """Suppress all writes to stdout (and optionally stderr) at both Python and C/extension level."""
+    sys.stdout.flush()
+    if stderr:
+        sys.stderr.flush()
+    try:
+        ctypes.CDLL(None).fflush(None)  # flush all C stdio buffers
+    except Exception:
+        pass
+    saved_out = os.dup(1)
+    saved_err = os.dup(2) if stderr else None
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)
+    if stderr:
+        os.dup2(devnull, 2)
+    os.close(devnull)
+    old_pyout = sys.stdout
+    old_pyerr = sys.stderr
+    sys.stdout = open(os.devnull, 'w')
+    if stderr:
+        sys.stderr = sys.stdout
+    try:
+        yield
+    finally:
+        sys.stdout.flush()
+        sys.stdout.close()
+        sys.stdout = old_pyout
+        sys.stderr = old_pyerr
+        try:
+            ctypes.CDLL(None).fflush(None)
+        except Exception:
+            pass
+        os.dup2(saved_out, 1)
+        os.close(saved_out)
+        if saved_err is not None:
+            os.dup2(saved_err, 2)
+            os.close(saved_err)
 
 
 def _resolve_n_iter_optimizations(n_iter_optimizations: Optional[int]) -> int:
@@ -241,12 +284,9 @@ def sim_and_switch_count(module: Module, vectors: TestVectors) -> Module:
     return switches
 
 
-def _run_yosys_metric_flow(read_cmd: str, deepsyn: bool = False, auto_top: bool = False) -> dict:
+def _run_yosys_metric_flow(read_cmd: str, deepsyn: bool = False, auto_top: bool = False, suppress_stderr: bool = True) -> dict:
     fd, stat_tmp_file = tempfile.mkstemp(suffix=".json")
     os.close(fd)
-
-    silence_output = True
-    prepend = "tee -q " if silence_output else ""
 
     abc_tmp_file = None
     if deepsyn:
@@ -258,18 +298,19 @@ def _run_yosys_metric_flow(read_cmd: str, deepsyn: bool = False, auto_top: bool 
             f.write("strash; &get -n; &deepsyn J 5 -T 100; &put\n")
 
     try:
-        ys.run_pass(f"{prepend}design -reset")
-        ys.run_pass(f"{prepend}{read_cmd}")
-        if auto_top:
-            ys.run_pass(f"{prepend}hierarchy -check -auto-top")
-        ys.run_pass(f"{prepend}rename -top top")
-        ys.run_pass(f"{prepend}hierarchy -check")
-        ys.run_pass(f"{prepend}proc; {prepend}opt; {prepend}fsm; {prepend}memory; {prepend}opt")
-        if deepsyn:
-            ys.run_pass(f"abc -script {abc_tmp_file}")
-        ys.run_pass(f"{prepend}techmap; {prepend}opt; {prepend}abc -fast; {prepend}opt")
-        ys.run_pass(f"{prepend}rename -wire -suffix _reg t:*DFF*")
-        ys.run_pass(f"tee -q -o {stat_tmp_file} stat -top top -tech cmos -json")
+        with _suppress_output(stderr=suppress_stderr):
+            ys.run_pass("design -reset")
+            ys.run_pass(read_cmd)
+            if auto_top:
+                ys.run_pass("hierarchy -check -auto-top")
+            ys.run_pass("rename -top top")
+            ys.run_pass("hierarchy -check")
+            ys.run_pass("proc; opt; fsm; memory; opt")
+            if deepsyn:
+                ys.run_pass(f"abc -script {abc_tmp_file}")
+            ys.run_pass("techmap; opt; abc -fast; opt")
+            ys.run_pass("rename -wire -suffix _reg t:*DFF*")
+            ys.run_pass(f"tee -q -o {stat_tmp_file} stat -top top -tech cmos -json")
 
         # read stats from json file
         import json
@@ -316,15 +357,16 @@ def extract_yosys_metrics_from_verilog_file(filename: str, deepsyn=False) -> dic
     return extract_yosys_metrics_from_verilog(verilog_lines, deepsyn=deepsyn)
 
 
-def get_yosys_metrics(m: Module, n_iter_optimizations: Optional[int] = None, deepsyn=False) -> int:
-    print("Exporting AAG...")
-    aag_lines = AigerExporter(m).get_aag()
-    print("Exporting AAG done")
+def get_yosys_metrics(m: Module, n_iter_optimizations: Optional[int] = None, deepsyn=False, suppress_stderr: bool = True) -> int:
+    with _suppress_output(stderr=suppress_stderr):
+        print("Exporting AAG...")
+        aag_lines = AigerExporter(m).get_aag()
+        print("Exporting AAG done")
 
-    if n_iter_optimizations is None or n_iter_optimizations > 0:
-        aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
+        if n_iter_optimizations is None or n_iter_optimizations > 0:
+            aag_lines = optimize_aag(aag_lines, n_iter_optimizations=n_iter_optimizations)
 
-    print("Optimizing AAG done")
+        print("Optimizing AAG done")
     stat = extract_yosys_metrics(aag_lines, deepsyn=deepsyn)
     return stat
 

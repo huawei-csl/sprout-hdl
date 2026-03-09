@@ -9,7 +9,7 @@ from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Enco
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_baugh_wooley_stages import BaughWooleyPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_and_stages import AndPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
-from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_optim_stages import BoothOptimizedPartialProductGenerator
+from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_precomputed_b_stages import BoothPrecomputedBPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.stages.ppg_booth_unoptim_stages import BoothUnoptimizedPartialProductGenerator
 from sprouthdl.arithmetic.int_multipliers.multipliers.multiplier_stage_core import CompressorTreeAccumulator, RippleCarryFinalAdder, StageBasedMultiplierBasic
 from sprouthdl.arithmetic.int_multipliers.stages.fsa_stages import BrentKungPrefixFinalStage, HanCarlsonPrefixFinalStage, KoggeStonePrefixFinalStage, LadnerFischerPrefixFinalStage, MultiScanPrefixFinalStage, PlusOperatorAdderFinalStage, PrefixAdderFinalStage, RipplePrefixFinalStage, SklanskyPrefixFinalStage, SparseKoggeStone2PrefixFinalStage, SparseKoggeStone4PrefixFinalStage, ZCGPrefixFinalStage
@@ -23,6 +23,7 @@ class PPGOption(Enum):
     BAUGH_WOOLEY = BaughWooleyPartialProductGenerator
     BOOTH_UNOPTIMISED = BoothUnoptimizedPartialProductGenerator
     BOOTH_OPTIMISED = BoothOptimizedPartialProductGenerator
+    BOOTH_OPTIMISED_PRECOMPUTED_B = BoothPrecomputedBPartialProductGenerator # doesnt really help compared to BOOTH_OPTIMISED, but included for completeness
     NONE = None
 
 
