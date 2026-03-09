@@ -1,57 +1,86 @@
 from __future__ import annotations
 
-import os
-import sys
-
-import numpy as np
-
-from sprouthdl.helpers import get_yosys_metrics
-
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(os.path.join(ROOT, "src"))
-sys.path.append(ROOT)
+from dataclasses import dataclass
+from typing import Optional
 
 from sprouthdl.aggregate.aggregate_array import Array
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPoint, FloatingPointType
-from sprouthdl.sprouthdl import UInt, as_expr
-from sprouthdl.sprouthdl_module import Module
-from sprouthdl.sprouthdl_simulator import Simulator
-from testing.floating_point.fp_testvectors_general import fp_decode, fp_encode
+from sprouthdl.aggregate.aggregate_record_dynamic import AggregateRecordDynamic
+from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig
+from sprouthdl.sprouthdl import Signal, UInt
+from sprouthdl.sprouthdl_module import Component
 
 
-def build_fp_matmul_accumulate(dim: int, ft: FloatingPointType) -> tuple[Module, Array, Array, Array, Array]:
-    m = Module("fp_matmul_accumulate", with_clock=False, with_reset=False)
+@dataclass
+class FpMMAcIO(AggregateRecordDynamic):
+    A: Array  # dim_m x dim_k, FloatingPoint elements
+    B: Array  # dim_k x dim_n, FloatingPoint elements
+    C: Array  # dim_m x dim_n, FloatingPoint elements
+    Y: Array  # dim_m x dim_n, FloatingPoint elements
 
-    def build_io_matrix(prefix: str) -> Array:
+
+@dataclass
+class FpMMAcDims:
+    dim_m: int
+    dim_n: int
+    dim_k: int
+
+
+@dataclass
+class FpMMAcCfg:
+    dims: FpMMAcDims
+    ftype: FloatingPointType
+    adder_cfg: Optional[AdderConfig] = None
+    mult_cfg: Optional[MultiplierConfig] = None
+
+
+class FpMatmulAccumulateCore(Component):
+    io: FpMMAcIO
+
+
+class FpMatmulAccumulateComponent(FpMatmulAccumulateCore):
+
+    def __init__(self, cfg: FpMMAcCfg) -> None:
+        self.cfg = cfg
+        ft = cfg.ftype
+        W = ft.width_total
+        dims = cfg.dims
+
+        def _build_matrix(prefix: str, rows: int, cols: int, kind: str) -> Array:
+            return Array([
+                Array([
+                    FloatingPoint(ft, bits=Signal(name=f"{prefix}_{i}_{j}", typ=UInt(W), kind=kind))
+                    for j in range(cols)
+                ])
+                for i in range(rows)
+            ])
+
+        self.A = _build_matrix("a", dims.dim_m, dims.dim_k, "input")
+        self.B = _build_matrix("b", dims.dim_k, dims.dim_n, "input")
+        self.C = _build_matrix("c", dims.dim_m, dims.dim_n, "input")
+
+        self.elaborate()
+        self.io = FpMMAcIO(A=self.A, B=self.B, C=self.C, Y=self.Y)
+
+    def elaborate(self) -> None:
+        ft = self.cfg.ftype
+        W = ft.width_total
+        dims = self.cfg.dims
+
+        def _fp(bits) -> FloatingPoint:
+            return FloatingPoint(ft, bits=bits, adder_cfg=self.cfg.adder_cfg, mult_cfg=self.cfg.mult_cfg)
+
         rows = []
-        for i in range(dim):
-            cols = []
-            for j in range(dim):
-                bits = m.input(UInt(ft.width_total), f"{prefix}_{i}_{j}")
-                cols.append(FloatingPoint(ft, bits=as_expr(bits)))
-            rows.append(Array(cols))
-        return Array(rows)
-
-    A = build_io_matrix("a")
-    B = build_io_matrix("b")
-    C = build_io_matrix("c")
-
-    y_rows = []
-    for i in range(dim):
-        y_cols = []
-        for j in range(dim):
-            dot = None
-            for k in range(dim):
-                prod = A[i, k] * B[k, j]
-                dot = prod if dot is None else dot + prod
-            acc = dot + C[i, j]
-
-            y_bits = m.output(UInt(ft.width_total), f"y_{i}_{j}")
-            y_bits <<= acc.bits
-            y_cols.append(FloatingPoint(ft, bits=as_expr(y_bits)))
-        y_rows.append(Array(y_cols))
-    Y = Array(y_rows)
-
-    return m, A, B, C, Y
-
-
+        for i in range(dims.dim_m):
+            row = []
+            for j in range(dims.dim_n):
+                dot = None
+                for k in range(dims.dim_k):
+                    prod = _fp(self.A[i, k].bits) * _fp(self.B[k, j].bits)
+                    dot = prod if dot is None else dot + prod
+                acc = dot + _fp(self.C[i, j].bits)
+                y_sig = Signal(name=f"y_{i}_{j}", typ=UInt(W), kind="output")
+                y_sig <<= acc.bits
+                row.append(FloatingPoint(ft, bits=y_sig))
+            rows.append(Array(row))
+        self.Y = Array(rows)

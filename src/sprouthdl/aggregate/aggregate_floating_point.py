@@ -117,7 +117,7 @@ class FloatingPoint(HDLAggregate):
         core.io.a <<= self.bits
         core.io.b <<= other.bits
 
-        return FloatingPoint(self.ftype, bits=core.io.y)
+        return FloatingPoint(self.ftype, bits=core.io.y, adder_cfg=self.adder_cfg, mult_cfg=self.mult_cfg)
 
     def __add__(self, other: "FloatingPoint") -> "FloatingPoint":
         return self.add(other)
@@ -130,7 +130,7 @@ class FloatingPoint(HDLAggregate):
             raise TypeError(f"Expected FloatingPoint, got {type(other)}")
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint multiply requires matching types")
-        
+
         EW = self.ftype.exponent_width
         FW = self.ftype.fraction_width
         if self.ftype.subnormal_support or other.ftype.subnormal_support:
@@ -141,7 +141,7 @@ class FloatingPoint(HDLAggregate):
         core.io.a <<= self.bits
         core.io.b <<= other.bits
 
-        return FloatingPoint(self.ftype, bits=core.io.y)
+        return FloatingPoint(self.ftype, bits=core.io.y, adder_cfg=self.adder_cfg, mult_cfg=self.mult_cfg)
 
     def __mul__(self, other: "FloatingPoint") -> "FloatingPoint":
         return self.mul(other)
