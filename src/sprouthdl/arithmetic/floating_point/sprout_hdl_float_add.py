@@ -122,7 +122,7 @@ class FpAdd(Component):
         mant_mag = mux(same_sign, mant_add, mant_sub)
         zero_mag = mant_mag == 0
         sign_out = mux(zero_mag, s_big & s_small, s_big)
-        return mant_mag, sign_out
+        return mant_mag, sign_out, same_sign
 
     def _normalize(self, mant_mag: Expr, e_big: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         # mant_mag width is FW+4: [FW+3] is possible carry-out, [FW+2] is the expected hidden bit.
@@ -136,9 +136,7 @@ class FpAdd(Component):
         exp_pre = e_big + mux(overflow, 1, 0) - mux(overflow, 0, shift_norm)
         return mant_norm, exp_pre, overflow, shift_norm
 
-    def _apply_rounding(
-        self, mant_norm: Expr, exp_pre: Expr, overflow_flag: Expr, mant_mag: Expr, sticky_align: Expr
-    ) -> Tuple[Expr, Expr]:
+    def _apply_rounding(self, mant_norm: Expr, exp_pre: Expr, overflow_flag: Expr, mant_mag: Expr, sticky_align: Expr, same_sign: Expr) -> Tuple[Expr, Expr]:
         """Apply IEEE round-to-nearest-even using guard (G), round (R), sticky (S) bits.
 
         After normalization mant_norm layout:
@@ -150,17 +148,25 @@ class FpAdd(Component):
         sticky_align: OR of bits shifted out of the small operand during alignment.
         In the overflow-normalization case (right shift by 1), mant_mag[0] is also
         shifted out and must be folded into S.
+
+        For subtraction (same_sign=0), sticky bits mean the true result is BELOW
+        mant_mag (the borrow propagation reduces the magnitude).  Using S to trigger
+        round-up would over-round; instead sticky suppresses the tie-break round-up.
         """
         G = mant_norm[1]
         R = mant_norm[0]
         S = sticky_align | (overflow_flag & mant_mag[0])
         LSB = mant_norm[2]
-        do_round = G & (R | S | LSB)
+        # Addition: round up when G & (R | S | LSB)  — standard RNE
+        do_round_add = G & (R | S | LSB)
+        # Subtraction: sticky means result < midpoint → only round up on exact tie (S==0)
+        do_round_sub = G & (R | (S == 0) & LSB)
+        do_round = mux(same_sign, do_round_add, do_round_sub)
 
         frac_raw = mant_norm[2 : self.FW + 2]
         round_carry = do_round & (frac_raw == (1 << self.FW) - 1)
-        frac_final = mux(do_round, frac_raw + 1, frac_raw)
-        exp_final = exp_pre + round_carry
+        frac_final = mux(do_round, (frac_raw + 1)[0 : self.FW], frac_raw)
+        exp_final = exp_pre + mux(round_carry, 1, 0)
         return frac_final, exp_final
 
     def _select_special_result(
@@ -222,11 +228,11 @@ class FpAdd(Component):
         e_big, m_big_ext, m_small_shift, s_big, s_small, sticky = self._align_operands(
             mA, mB, eA_eff, eB_eff, sA, sB
         )
-        mant_mag, sign_out = self._combine_mantissas(m_big_ext, m_small_shift, s_big, s_small)
+        mant_mag, sign_out, same_sign = self._combine_mantissas(m_big_ext, m_small_shift, s_big, s_small)
 
         mant_norm, exp_pre, overflow_flag, shift_norm = self._normalize(mant_mag, e_big)
 
-        frac_final, exp_final = self._apply_rounding(mant_norm, exp_pre, overflow_flag, mant_mag, sticky)
+        frac_final, exp_final = self._apply_rounding(mant_norm, exp_pre, overflow_flag, mant_mag, sticky, same_sign)
 
         # Overflow: exponent reached MAX_E (includes rounding-induced overflow to Inf)
         overflow_exp = exp_final >= self.MAX_E
