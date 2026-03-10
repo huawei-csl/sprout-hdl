@@ -18,6 +18,7 @@ It can optionally:
 - write Verilog
 - write AAG
 - write a Verilog testbench (`--testbench-out`) generated from vectors via `TestbenchGenSimulator`
+- write a data-driven Verilog testbench (`--testbench-out --data-driven-testbench`) that reads stimulus from a separate `.dat` file instead of inlining vectors; the `.dat` path is reported in the result JSON as `testbench_data_out`
 - run vector simulation
 - collect Yosys metrics (including `estimated_num_transistors`)
 - save the result summary JSON to a file (`--json-out`)
@@ -97,6 +98,15 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc-fused \
   --simulate --num-vectors 16 \
   --verilog-out out/matmulacc_fused_4x4x4_8b.v \
   --json-out out/matmulacc_fused_4x4x4_8b.json
+
+# Data-driven testbench: vectors stored in a separate .dat file
+python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
+  --n-bits 8 \
+  --simulate --num-vectors 128 \
+  --verilog-out out/mul8.v \
+  --testbench-out out/mul8_tb.v \
+  --data-driven-testbench \
+  --json-out out/mul8_result.json
 
 # Floating-point matrix multiply-accumulate (Y = A @ B + C), operator-based mantissa arithmetic
 python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
