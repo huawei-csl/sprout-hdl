@@ -115,7 +115,7 @@ class FpAdd(Component):
 
         return e_big, m_big_ext, m_small_shift, s_big, s_small, sticky
 
-    def _combine_mantissas(self, m_big_ext: Expr, m_small_shift: Expr, s_big: Expr, s_small: Expr) -> Tuple[Expr, Expr]:
+    def _combine_mantissas(self, m_big_ext: Expr, m_small_shift: Expr, s_big: Expr, s_small: Expr) -> Tuple[Expr, Expr, Expr]:
         same_sign = s_big == s_small
         mant_add = build_adder(m_big_ext, m_small_shift, self.adder_cfg) if self.adder_cfg is not None else m_big_ext + m_small_shift
         mant_sub = m_big_ext - m_small_shift
@@ -123,6 +123,33 @@ class FpAdd(Component):
         zero_mag = mant_mag == 0
         sign_out = mux(zero_mag, s_big & s_small, s_big)
         return mant_mag, sign_out, same_sign
+
+    def _subnormal_frac(self, mant_mag: Expr, e_big: Expr) -> Expr:
+        """Compute the FW-bit subnormal fraction for a result with effective exponent e_big.
+
+        subnormal_frac = (mant_mag * 2^(e_big - 3))[FW-1:0]
+
+        For e_big <= 3: right-shift mant_mag by (3 - e_big), take lower FW bits.
+        For e_big >  3: left-shift mant_mag by (e_big - 3), take lower FW bits.
+
+        Subnormal results are only possible when e_big <= FW+2 (beyond that, shift_norm
+        would exceed the mantissa width, which cannot occur).
+        """
+        mag_width = mant_mag.typ.width  # FW+4
+        result = Const(0, UInt(self.FW))
+        for e_val in range(1, min(self.MAX_E, self.FW + 3)):
+            if e_val <= 3:
+                ra = 3 - e_val  # right-shift amount
+                hi = ra + self.FW
+                if hi <= mag_width:
+                    candidate = mant_mag[ra:hi]
+                else:
+                    candidate = Const(0, UInt(self.FW))
+            else:
+                la = e_val - 3  # left-shift amount
+                candidate = (mant_mag << la)[0 : self.FW]
+            result = mux(e_big == e_val, candidate, result)
+        return result
 
     def _normalize(self, mant_mag: Expr, e_big: Expr) -> Tuple[Expr, Expr, Expr, Expr]:
         # mant_mag width is FW+4: [FW+3] is possible carry-out, [FW+2] is the expected hidden bit.
@@ -136,7 +163,9 @@ class FpAdd(Component):
         exp_pre = e_big + mux(overflow, 1, 0) - mux(overflow, 0, shift_norm)
         return mant_norm, exp_pre, overflow, shift_norm
 
-    def _apply_rounding(self, mant_norm: Expr, exp_pre: Expr, overflow_flag: Expr, mant_mag: Expr, sticky_align: Expr, same_sign: Expr) -> Tuple[Expr, Expr]:
+    def _apply_rounding(
+        self, mant_norm: Expr, exp_pre: Expr, overflow_flag: Expr, mant_mag: Expr, sticky_align: Expr, same_sign: Expr
+    ) -> Tuple[Expr, Expr]:
         """Apply IEEE round-to-nearest-even using guard (G), round (R), sticky (S) bits.
 
         After normalization mant_norm layout:
@@ -184,8 +213,11 @@ class FpAdd(Component):
         nan_in = is_nanA | is_nanB
         inf_in = is_infA | is_infB
 
-        use_nan = nan_in | (inf_in & (sA != sB))
-        use_inf = inf_in & ~(sA != sB)
+        # +Inf + (-Inf) = NaN; all other Inf cases = Inf
+        both_inf_opposite = is_infA & is_infB & (sA != sB)
+        use_nan = nan_in | both_inf_opposite
+        use_inf = inf_in & ~use_nan
+        # Inf sign: propagate from the one Inf operand; when both are same-sign Inf, use sign_out
         sign_special = mux(is_infA & ~is_infB, sA, mux(is_infB & ~is_infA, sB, sign_out))
 
         exp_field = mux(use_nan, self.MAX_E, mux(use_inf, self.MAX_E, exp_out))
@@ -195,7 +227,8 @@ class FpAdd(Component):
             else Const(1, UInt(1))
         )
         frac_field = mux(use_nan, nan_payload, mux(use_inf, 0, frac_out))
-        sign_field = mux(use_nan | use_inf, sign_special, sign_out)
+        # NaN output always uses sign=0 (canonical quiet NaN)
+        sign_field = mux(use_nan, 0, mux(use_inf, sign_special, sign_out))
 
         return sign_field, exp_field, frac_field
 
@@ -234,19 +267,33 @@ class FpAdd(Component):
 
         frac_final, exp_final = self._apply_rounding(mant_norm, exp_pre, overflow_flag, mant_mag, sticky, same_sign)
 
+        # Subnormal output: when e_big <= shift_norm the normalized exponent exp_pre <= 0.
+        # Instead of flushing to zero, emit a subnormal result by computing the fraction
+        # directly from mant_mag (before normalization) using the effective exponent e_big.
+        is_subnormal_out = (~overflow_flag) & (e_big <= shift_norm)
+        sub_frac = self._subnormal_frac(mant_mag, e_big)
+
         # Overflow: exponent reached MAX_E (includes rounding-induced overflow to Inf)
         overflow_exp = exp_final >= self.MAX_E
-        underflow_exp = (~overflow_flag) & (e_big <= shift_norm)
 
-        is_zero_res = underflow_exp | (mant_mag == 0)
-        exp_out = mux(is_zero_res, 0, mux(overflow_exp, self.MAX_E, exp_final))
-        frac_out = mux(is_zero_res, 0, mux(overflow_exp, 0, frac_final))
+        is_zero_res = mant_mag == 0
+        # Priority: zero > subnormal > overflow > normal.
+        # is_subnormal_out must be checked before overflow_exp because negative exp_pre
+        # wraps to a large unsigned value that incorrectly triggers overflow_exp.
+        exp_out = mux(is_zero_res, 0,
+                  mux(is_subnormal_out, 0,
+                  mux(overflow_exp, self.MAX_E,
+                  exp_final)))
+        frac_out = mux(is_zero_res, 0,
+                   mux(is_subnormal_out, sub_frac,
+                   mux(overflow_exp, 0,
+                   frac_final)))
 
         sign_field, exp_field, frac_field = self._select_special_result(
             sign_out, exp_out, frac_out, sA, sB, is_infA, is_infB, is_nanA, is_nanB
         )
 
-        y <<= cat(frac_field, exp_field, sign_field)
+        y <<= cat(frac_field, exp_field[0 : self.EW], sign_field)
 
 
 def build_fp_add(name: str, EW: int, FW: int) -> Module:
