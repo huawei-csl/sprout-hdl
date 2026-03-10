@@ -64,7 +64,7 @@ class FpMulSN(Component):
         self.FW = FW
         self.W = 1 + EW + FW
         self.subnormals = subnormals
-        self.always_subnormal_rounding = always_subnormal_rounding
+        self.always_subnormal_rounding = always_subnormal_rounding # may be required for some configuration parameters for full compatimity when subnormal is false (no rounding errors, see tests)  
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
         self.MAX_FINITE_E = self.MAX_E - 1
