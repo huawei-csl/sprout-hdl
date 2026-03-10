@@ -101,6 +101,7 @@ def generate_fp_matmul_vectors(
     """
     ft = core.cfg.ftype
     ew, fw = ft.exponent_width, ft.fraction_width
+    sn = ft.subnormal_support
     dims = core.cfg.dims
     m, n, k = dims.dim_m, dims.dim_n, dims.dim_k
     rng = np.random.default_rng(seed=seed)
@@ -112,9 +113,9 @@ def generate_fp_matmul_vectors(
         b_f = rng.uniform(0.1, 2.0, size=(k, n))
         c_f = rng.uniform(0.1, 2.0, size=(m, n))
 
-        a_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(a_f)
-        b_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(b_f)
-        c_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(c_f)
+        a_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw, subnormals=sn))(a_f)
+        b_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw, subnormals=sn))(b_f)
+        c_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw, subnormals=sn))(c_f)
 
         a_q = np.vectorize(lambda b: fp_decode(int(b), ew, fw))(a_bits)
         b_q = np.vectorize(lambda b: fp_decode(int(b), ew, fw))(b_bits)
@@ -122,11 +123,11 @@ def generate_fp_matmul_vectors(
         y_bits = np.zeros((m, n), dtype=int)
         for i in range(m):
             for j in range(n):
-                dot = fp_decode(fp_encode(a_q[i, 0] * b_q[0, j], ew, fw), ew, fw)
+                dot = fp_decode(fp_encode(a_q[i, 0] * b_q[0, j], ew, fw, subnormals=sn), ew, fw)
                 for kk in range(1, k):
-                    prod = fp_decode(fp_encode(a_q[i, kk] * b_q[kk, j], ew, fw), ew, fw)
-                    dot = fp_decode(fp_encode(dot + prod, ew, fw), ew, fw)
-                y_bits[i, j] = fp_encode(dot + fp_decode(int(c_bits[i, j]), ew, fw), ew, fw)
+                    prod = fp_decode(fp_encode(a_q[i, kk] * b_q[kk, j], ew, fw, subnormals=sn), ew, fw)
+                    dot = fp_decode(fp_encode(dot + prod, ew, fw, subnormals=sn), ew, fw)
+                y_bits[i, j] = fp_encode(dot + fp_decode(int(c_bits[i, j]), ew, fw), ew, fw, subnormals=sn)
 
         ins: Dict[str, int] = {}
         outs: Dict[str, int] = {}

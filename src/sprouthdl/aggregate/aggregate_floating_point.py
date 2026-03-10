@@ -20,6 +20,7 @@ class FloatingPointType:
     exponent_width: int
     fraction_width: int
     subnormal_support: bool = False
+    always_subnormal_rounding: bool = False
 
     def __post_init__(self) -> None:
         if self.exponent_width < 1:
@@ -133,8 +134,12 @@ class FloatingPoint(HDLAggregate):
 
         EW = self.ftype.exponent_width
         FW = self.ftype.fraction_width
-        if self.ftype.subnormal_support or other.ftype.subnormal_support:
-            core = FpMulSN(EW=EW, FW=FW, mult_cfg=self.mult_cfg).make_internal()
+        if self.ftype.subnormal_support or self.ftype.always_subnormal_rounding:
+            core = FpMulSN(
+                EW=EW, FW=FW, mult_cfg=self.mult_cfg,
+                subnormals=self.ftype.subnormal_support,
+                always_subnormal_rounding=self.ftype.always_subnormal_rounding,
+            ).make_internal()
         else:
             core = FpMul(EW=EW, FW=FW, mult_cfg=self.mult_cfg).make_internal()
 

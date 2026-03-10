@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Sequence
@@ -139,6 +140,7 @@ class FpMatmulAccumulateGeneratorConfig:
     exponent_width: int
     fraction_width: int
     subnormal_support: bool = False
+    always_subnormal_rounding: bool = False
     use_operator: bool = False
     multiplier_opt: MultiplierOption = MultiplierOption.STAGE_BASED_MULTIPLIER
     ppg_opt: PPGOption = PPGOption.AND
@@ -654,10 +656,19 @@ def generate_fp_matmul_accumulate(
     if actions.num_vectors <= 0:
         raise ValueError("num_vectors must be > 0")
 
+    if not cfg.subnormal_support and not cfg.always_subnormal_rounding:
+        warnings.warn(
+            "subnormal_support is disabled without always_subnormal_rounding: "
+            "products that round up to min_normal will be incorrectly flushed to zero. "
+            "Consider enabling always_subnormal_rounding for correct FTZ boundary behaviour.",
+            stacklevel=2,
+        )
+
     ft = FloatingPointType(
         exponent_width=cfg.exponent_width,
         fraction_width=cfg.fraction_width,
         subnormal_support=cfg.subnormal_support,
+        always_subnormal_rounding=cfg.always_subnormal_rounding,
     )
 
     if cfg.use_operator:
@@ -825,6 +836,7 @@ def _build_parser() -> argparse.ArgumentParser:
     fp_matmul_parser.add_argument("--exponent-width", type=int, required=True, help="Exponent bit width (e.g. 5 for float16)")
     fp_matmul_parser.add_argument("--fraction-width", type=int, required=True, help="Fraction bit width (e.g. 10 for float16)")
     fp_matmul_parser.add_argument("--subnormal-support", action="store_true", help="Enable subnormal support in FP multiplier")
+    fp_matmul_parser.add_argument("--always-subnormal-rounding", action="store_true", help="Enable correct FTZ boundary rounding (requires subnormal rounding logic without full subnormal output support)")
     fp_matmul_parser.add_argument("--module-name", type=str, default=None)
     fp_matmul_parser.add_argument(
         "--use-operator",
@@ -969,6 +981,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             exponent_width=args.exponent_width,
             fraction_width=args.fraction_width,
             subnormal_support=args.subnormal_support,
+            always_subnormal_rounding=args.always_subnormal_rounding,
             use_operator=args.use_operator,
             multiplier_opt=args.multiplier_opt,
             ppg_opt=args.ppg_opt,
