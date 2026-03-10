@@ -25,13 +25,14 @@ class FpAddIO:
 
 class FpAdd(Component):
 
-    def __init__(self, EW: int, FW: int, adder_cfg: Optional[AdderConfig] = None) -> None:
+    def __init__(self, EW: int, FW: int, adder_cfg: Optional[AdderConfig] = None, subnormals: bool = True) -> None:
         self.EW = EW
         self.FW = FW
         self.W = 1 + EW + FW
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
         self.adder_cfg = adder_cfg
+        self.subnormals = subnormals
 
         self.io: FpAddIO = FpAddIO(
             a=Signal(name="a", typ=UInt(self.W), kind="input"),
@@ -268,10 +269,8 @@ class FpAdd(Component):
         frac_final, exp_final = self._apply_rounding(mant_norm, exp_pre, overflow_flag, mant_mag, sticky, same_sign)
 
         # Subnormal output: when e_big <= shift_norm the normalized exponent exp_pre <= 0.
-        # Instead of flushing to zero, emit a subnormal result by computing the fraction
-        # directly from mant_mag (before normalization) using the effective exponent e_big.
+        # When subnormals=True, emit a subnormal result; otherwise flush to zero.
         is_subnormal_out = (~overflow_flag) & (e_big <= shift_norm)
-        sub_frac = self._subnormal_frac(mant_mag, e_big)
 
         # Overflow: exponent reached MAX_E (includes rounding-induced overflow to Inf)
         overflow_exp = exp_final >= self.MAX_E
@@ -280,14 +279,24 @@ class FpAdd(Component):
         # Priority: zero > subnormal > overflow > normal.
         # is_subnormal_out must be checked before overflow_exp because negative exp_pre
         # wraps to a large unsigned value that incorrectly triggers overflow_exp.
-        exp_out = mux(is_zero_res, 0,
-                  mux(is_subnormal_out, 0,
-                  mux(overflow_exp, self.MAX_E,
-                  exp_final)))
-        frac_out = mux(is_zero_res, 0,
-                   mux(is_subnormal_out, sub_frac,
-                   mux(overflow_exp, 0,
-                   frac_final)))
+        if self.subnormals:
+            sub_frac = self._subnormal_frac(mant_mag, e_big)
+            exp_out = mux(is_zero_res, 0,
+                      mux(is_subnormal_out, 0,
+                      mux(overflow_exp, self.MAX_E,
+                      exp_final)))
+            frac_out = mux(is_zero_res, 0,
+                       mux(is_subnormal_out, sub_frac,
+                       mux(overflow_exp, 0,
+                       frac_final)))
+        else:
+            # Flush-to-zero: subnormal results become +0
+            exp_out = mux(is_zero_res | is_subnormal_out, 0,
+                      mux(overflow_exp, self.MAX_E,
+                      exp_final))
+            frac_out = mux(is_zero_res | is_subnormal_out, 0,
+                       mux(overflow_exp, 0,
+                       frac_final))
 
         sign_field, exp_field, frac_field = self._select_special_result(
             sign_out, exp_out, frac_out, sA, sB, is_infA, is_infB, is_nanA, is_nanB
@@ -296,8 +305,8 @@ class FpAdd(Component):
         y <<= cat(frac_field, exp_field[0 : self.EW], sign_field)
 
 
-def build_fp_add(name: str, EW: int, FW: int) -> Module:
-    comp = FpAdd(EW, FW)
+def build_fp_add(name: str, EW: int, FW: int, subnormals: bool = True) -> Module:
+    comp = FpAdd(EW, FW, subnormals=subnormals)
     return comp.to_module(name, with_clock=False, with_reset=False)
 
 
