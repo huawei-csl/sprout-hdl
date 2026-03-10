@@ -82,7 +82,19 @@ class FpAdd(Component):
         eff_exp = mux(is_exp_zero, 1, exp)
         return mant, eff_exp
 
-    def _align_operands(self, mA: Expr, mB: Expr, eA_eff: Expr, eB_eff: Expr, sA: Expr, sB: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr]:
+    def _compute_sticky(self, m_small_ext: Expr, exp_delta: Expr) -> Expr:
+        """OR of all bits of m_small_ext that are shifted out during alignment.
+
+        Bit i of m_small_ext is shifted out when exp_delta > i.
+        m_small_ext has width FW+3 (mantissa FW+1 bits + 2 zero guard bits at LSB),
+        so the two LSBs are always 0 and never contribute.
+        """
+        sticky = Const(0, UInt(1))
+        for i in range(self.FW + 3):
+            sticky = sticky | (m_small_ext[i] & (exp_delta > i))
+        return sticky
+
+    def _align_operands(self, mA: Expr, mB: Expr, eA_eff: Expr, eB_eff: Expr, sA: Expr, sB: Expr) -> Tuple[Expr, Expr, Expr, Expr, Expr, Expr]:
         eA_gt = eA_eff > eB_eff
         e_eq = eA_eff == eB_eff
         mA_ge = mA >= mB
@@ -99,7 +111,9 @@ class FpAdd(Component):
         m_small_ext = cat(Const(0, UInt(2)), m_small)
         m_small_shift = self._shift_right(m_small_ext, exp_delta)
 
-        return e_big, m_big_ext, m_small_shift, s_big, s_small
+        sticky = self._compute_sticky(m_small_ext, exp_delta)
+
+        return e_big, m_big_ext, m_small_shift, s_big, s_small, sticky
 
     def _combine_mantissas(self, m_big_ext: Expr, m_small_shift: Expr, s_big: Expr, s_small: Expr) -> Tuple[Expr, Expr]:
         same_sign = s_big == s_small
@@ -121,6 +135,33 @@ class FpAdd(Component):
         mant_norm = mux(overflow, mant_post_over, mant_mag << shift_norm)
         exp_pre = e_big + mux(overflow, 1, 0) - mux(overflow, 0, shift_norm)
         return mant_norm, exp_pre, overflow, shift_norm
+
+    def _apply_rounding(
+        self, mant_norm: Expr, exp_pre: Expr, overflow_flag: Expr, mant_mag: Expr, sticky_align: Expr
+    ) -> Tuple[Expr, Expr]:
+        """Apply IEEE round-to-nearest-even using guard (G), round (R), sticky (S) bits.
+
+        After normalization mant_norm layout:
+          [FW+2]      hidden bit (implicit 1)
+          [2:FW+2]    fraction (FW bits)
+          [1]         guard G
+          [0]         round R
+
+        sticky_align: OR of bits shifted out of the small operand during alignment.
+        In the overflow-normalization case (right shift by 1), mant_mag[0] is also
+        shifted out and must be folded into S.
+        """
+        G = mant_norm[1]
+        R = mant_norm[0]
+        S = sticky_align | (overflow_flag & mant_mag[0])
+        LSB = mant_norm[2]
+        do_round = G & (R | S | LSB)
+
+        frac_raw = mant_norm[2 : self.FW + 2]
+        round_carry = do_round & (frac_raw == (1 << self.FW) - 1)
+        frac_final = mux(do_round, frac_raw + 1, frac_raw)
+        exp_final = exp_pre + round_carry
+        return frac_final, exp_final
 
     def _select_special_result(
         self,
@@ -178,17 +219,17 @@ class FpAdd(Component):
         mA, eA_eff = self._effective_fields(eA, fA, is_eA_zero)
         mB, eB_eff = self._effective_fields(eB, fB, is_eB_zero)
 
-        e_big, m_big_ext, m_small_shift, s_big, s_small = self._align_operands(
+        e_big, m_big_ext, m_small_shift, s_big, s_small, sticky = self._align_operands(
             mA, mB, eA_eff, eB_eff, sA, sB
         )
         mant_mag, sign_out = self._combine_mantissas(m_big_ext, m_small_shift, s_big, s_small)
 
         mant_norm, exp_pre, overflow_flag, shift_norm = self._normalize(mant_mag, e_big)
 
-        frac_final = mant_norm[2 : self.FW + 2]
-        exp_final = exp_pre
+        frac_final, exp_final = self._apply_rounding(mant_norm, exp_pre, overflow_flag, mant_mag, sticky)
 
-        overflow_exp = overflow_flag & (exp_final >= self.MAX_E)
+        # Overflow: exponent reached MAX_E (includes rounding-induced overflow to Inf)
+        overflow_exp = exp_final >= self.MAX_E
         underflow_exp = (~overflow_flag) & (e_big <= shift_norm)
 
         is_zero_res = underflow_exp | (mant_mag == 0)

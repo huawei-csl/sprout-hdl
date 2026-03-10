@@ -51,7 +51,6 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
     FpMatmulAccumulateComponent,
 )
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPointType
-from sprouthdl.arithmetic.floating_point.fp_encoding import fp_add_hw_ref, fp_decode, fp_encode
 from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import (
     generate_fp_matmul_vectors,
     generate_matmul_vectors,

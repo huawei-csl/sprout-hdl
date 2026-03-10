@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from sprouthdl.aggregate.aggregate_array import Array
-from sprouthdl.arithmetic.floating_point.fp_encoding import fp_add_hw_ref, fp_decode, fp_encode
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MatmulAccumulateCore
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import FpMatmulAccumulateComponent
@@ -96,8 +96,8 @@ def generate_fp_matmul_vectors(
         dot = A[i,0]*B[0,j]
         dot = dot + A[i,1]*B[1,j]  ...
         acc = dot + C[i,j]
-    Multiplications use round-to-nearest-even (fp_encode); additions use
-    fp_add_hw_ref which mirrors the hardware truncation of 2 guard bits.
+    Both multiplications and additions use fp_encode (round-to-nearest-even),
+    matching the IEEE-compliant hardware.
     """
     ft = core.cfg.ftype
     ew, fw = ft.exponent_width, ft.fraction_width
@@ -122,11 +122,11 @@ def generate_fp_matmul_vectors(
         y_bits = np.zeros((m, n), dtype=int)
         for i in range(m):
             for j in range(n):
-                dot_bits = fp_encode(a_q[i, 0] * b_q[0, j], ew, fw)
+                dot = fp_decode(fp_encode(a_q[i, 0] * b_q[0, j], ew, fw), ew, fw)
                 for kk in range(1, k):
-                    prod_bits = fp_encode(a_q[i, kk] * b_q[kk, j], ew, fw)
-                    dot_bits = fp_add_hw_ref(dot_bits, prod_bits, ew, fw)
-                y_bits[i, j] = fp_add_hw_ref(dot_bits, int(c_bits[i, j]), ew, fw)
+                    prod = fp_decode(fp_encode(a_q[i, kk] * b_q[kk, j], ew, fw), ew, fw)
+                    dot = fp_decode(fp_encode(dot + prod, ew, fw), ew, fw)
+                y_bits[i, j] = fp_encode(dot + fp_decode(int(c_bits[i, j]), ew, fw), ew, fw)
 
         ins: Dict[str, int] = {}
         outs: Dict[str, int] = {}
