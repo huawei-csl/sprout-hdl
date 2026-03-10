@@ -17,10 +17,10 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
     FpMMAcDims,
     FpMatmulAccumulateComponent,
 )
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
 from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import generate_fp_matmul_vectors
 from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.floating_point.fp_testvectors_general import fp_decode, fp_encode
 
 
 def _float16_matmul_accumulate(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
