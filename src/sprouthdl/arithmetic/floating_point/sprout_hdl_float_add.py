@@ -138,7 +138,7 @@ class FpAdd(Component):
         """
         mag_width = mant_mag.typ.width  # FW+4
         result = Const(0, UInt(self.FW))
-        for e_val in range(1, min(self.MAX_E, self.FW + 3)):
+        for e_val in range(1, min(self.MAX_E + 1, self.FW + 3)):
             if e_val <= 3:
                 ra = 3 - e_val  # right-shift amount
                 hi = ra + self.FW

@@ -9,9 +9,9 @@ The `sprouthdl/arithmetic` package collects reusable datapath blocks:
 
 Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
 
-### Unified adder/multiplier/mac generator
+### Unified adder/multiplier/mac/matmul generator
 
-For integer adders, multipliers, and MACs (`y = a*b + c`) there is a unified generator with both Python API and CLI frontend:
+For integer adders, multipliers, and MACs (`y = a*b + c`), as well as matmul-accumulate there is a unified generator with both Python API and CLI frontend:
 [`int_arithmetic_generator.py`](src/sprouthdl/arithmetic/int_arithmetic_generator.py).
 
 It can optionally:

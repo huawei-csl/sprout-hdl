@@ -188,6 +188,59 @@ def test_f16_adder_flush_to_zero():
     assert passed
 
 
+def _run_exhaustive_add(EW: int, FW: int, name: str, *, subnormals: bool = True):
+    """Exhaustive test for small formats (all input pairs)."""
+    W = 1 + EW + FW
+    adder = FpAdd(EW, FW, subnormals=subnormals)
+    sim = Simulator(adder.to_module(name, with_clock=False, with_reset=False))
+    failures = []
+    for a in range(1 << W):
+        for b in range(1 << W):
+            exp = fp_encode(
+                fp_decode(a, EW, FW) + fp_decode(b, EW, FW), EW, FW, subnormals=subnormals
+            )
+            sim.set(adder.io.a, a)
+            sim.set(adder.io.b, b)
+            sim.eval()
+            got = sim.get(adder.io.y)
+            if got != exp:
+                failures.append((a, b, exp, got))
+    assert not failures, (
+        f"{len(failures)} failures; first 5:\n"
+        + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
+                    for a, b, e, g in failures[:5])
+    )
+
+
+def test_e1f2_add_sn_exhaustive():
+    """Exhaustive test for degenerate EW=1 format (no normal values)."""
+    _run_exhaustive_add(1, 2, "E1F2AddSN", subnormals=True)
+
+
+def test_e1f2_add_ftz_exhaustive():
+    _run_exhaustive_add(1, 2, "E1F2AddFTZ", subnormals=False)
+
+
+def test_e1f3_add_sn_exhaustive():
+    _run_exhaustive_add(1, 3, "E1F3AddSN", subnormals=True)
+
+
+def test_e2f2_add_sn_exhaustive():
+    _run_exhaustive_add(2, 2, "E2F2AddSN", subnormals=True)
+
+
+def test_e2f2_add_ftz_exhaustive():
+    _run_exhaustive_add(2, 2, "E2F2AddFTZ", subnormals=False)
+
+
+def test_e2f3_add_sn_exhaustive():
+    _run_exhaustive_add(2, 3, "E2F3AddSN", subnormals=True)
+
+
+def test_e2f3_add_ftz_exhaustive():
+    _run_exhaustive_add(2, 3, "E2F3AddFTZ", subnormals=False)
+
+
 if __name__ == "__main__":
     test_f16_adder_vectors()
     test_f16_adder_subnormal_vectors()

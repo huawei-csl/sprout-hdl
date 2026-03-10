@@ -150,6 +150,7 @@ class FpMulSN(Component):
             i = (PROD_W - 1) - idx
             lz_const = (PROD_W - 1) - i
             lz = mux(flag, lz_const, lz)
+
         return lz
 
     def _normalize_and_round(self, prod: Expr, lz: Expr) -> Tuple[Expr, Expr, Expr]:
@@ -251,7 +252,9 @@ class FpMulSN(Component):
         qnan_payload = (1 << (FW - 1)) if FW > 0 else 1
 
         is_nan = is_nan_in
-        is_inf = (~is_nan) & (is_inf_in | overflow)
+        # Overflow must not trigger inf when the product is trivially zero;
+        # lz is undefined for prod=0, so overflow can fire spuriously.
+        is_inf = (~is_nan) & (is_inf_in | (overflow & ~is_zero_in))
 
         if self.subnormals:
             is_sub_out = (~is_nan) & (~is_inf) & underflow

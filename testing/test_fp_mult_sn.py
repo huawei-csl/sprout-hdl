@@ -226,6 +226,66 @@ def test_e3f4_mul_sn_ftz_asr_boundary():
     assert passed
 
 
+def _run_exhaustive_mul_sn(EW: int, FW: int, name: str, *, subnormals: bool,
+                           always_subnormal_rounding: bool = False):
+    """Exhaustive test for small formats (all input pairs)."""
+    W = 1 + EW + FW
+    mul = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
+    sim = Simulator(mul.to_module(name, with_clock=False, with_reset=False))
+    failures = []
+    tested = 0
+    for a in range(1 << W):
+        for b in range(1 << W):
+            if not subnormals and (_is_subnormal(a, EW, FW) or _is_subnormal(b, EW, FW)):
+                continue
+            product_val = fp_decode(a, EW, FW) * fp_decode(b, EW, FW)
+            exp = fp_encode(product_val, EW, FW, subnormals=subnormals)
+            if not subnormals and not always_subnormal_rounding:
+                min_normal_val = 2.0 ** (2 - (1 << (EW - 1)))
+                if 0 < abs(product_val) < min_normal_val and exp != 0:
+                    continue
+            tested += 1
+            sim.set(mul.io.a, a)
+            sim.set(mul.io.b, b)
+            sim.eval()
+            got = sim.get(mul.io.y)
+            if got != exp:
+                failures.append((a, b, exp, got))
+    assert not failures, (
+        f"{len(failures)}/{tested} failures; first 5:\n"
+        + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
+                    for a, b, e, g in failures[:5])
+    )
+
+
+def test_e1f2_mul_sn_exhaustive():
+    """Exhaustive test for the degenerate EW=1 format (no normal values)."""
+    _run_exhaustive_mul_sn(1, 2, "E1F2MulSN", subnormals=True)
+
+
+def test_e1f2_mul_ftz_exhaustive():
+    """FTZ exhaustive test for EW=1 (skips subnormal inputs)."""
+    _run_exhaustive_mul_sn(1, 2, "E1F2MulFTZ", subnormals=False)
+
+
+def test_e1f2_mul_ftz_asr_exhaustive():
+    """FTZ+ASR exhaustive test for EW=1 (skips subnormal inputs)."""
+    _run_exhaustive_mul_sn(1, 2, "E1F2MulFTZASR", subnormals=False, always_subnormal_rounding=True)
+
+
+def test_e2f3_mul_sn_exhaustive():
+    """Exhaustive test for EW=2, FW=3 (small format with normals)."""
+    _run_exhaustive_mul_sn(2, 3, "E2F3MulSN", subnormals=True)
+
+
+def test_e2f3_mul_ftz_exhaustive():
+    _run_exhaustive_mul_sn(2, 3, "E2F3MulFTZ", subnormals=False)
+
+
+def test_e2f3_mul_ftz_asr_exhaustive():
+    _run_exhaustive_mul_sn(2, 3, "E2F3MulFTZASR", subnormals=False, always_subnormal_rounding=True)
+
+
 if __name__ == "__main__":
     test_f16_mul_sn_normal_vectors()
     test_bf16_mul_sn_normal_vectors()
