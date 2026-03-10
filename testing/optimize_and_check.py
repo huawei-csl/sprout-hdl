@@ -1,7 +1,7 @@
 from aigverse import Aig, DepthAig
 from sprouthdl.sprouthdl import UInt
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul, run_vectors_aby
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import build_f16_mul, build_fp_mul, run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import build_fp_mul_sn
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter, export_module_to_aiger
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, read_aag_into_aig
 

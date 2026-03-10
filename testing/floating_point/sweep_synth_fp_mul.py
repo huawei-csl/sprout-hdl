@@ -1,8 +1,8 @@
 from sprouthdl.sprouthdl import reset_shared_cache
 from testing.floating_point.synthesise_fp2 import flowy_optimize
 from aigverse import Aig, DepthAig
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import build_f16_mul, build_fp_mul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import build_fp_mul_sn
 from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import build_hif8_mul_logic
 from sprouthdl.helpers import get_yosys_transistor_count
 from sprouthdl.sprouthdl_aiger import AigerExporter, export_module_to_aiger

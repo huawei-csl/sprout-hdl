@@ -17,7 +17,7 @@ from testing.floating_point.fp_testvectors_general import (
 
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPoint, FloatingPointType
 from sprouthdl.aggregate.aggregate_register import AggregateRegister
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import build_f16_mul
 from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
     FSAOption,
     MultiplierOption,

@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import List, Optional, Union
 
 from sprouthdl.aggregate.hdl_aggregate import HDLAggregate
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import FpMul
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import FpMulSN
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import FpMul
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
 from sprouthdl.sprouthdl import Expr, ExprLike, HDLType, UInt, Wire, as_expr, fit_width
 from sprouthdl.arithmetic.int_arithmetic_config import AdderConfig, MultiplierConfig

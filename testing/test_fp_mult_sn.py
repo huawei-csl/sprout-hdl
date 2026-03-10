@@ -16,8 +16,8 @@ sys.path.append(os.path.join(ROOT, "src"))
 sys.path.append(ROOT)
 
 from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_aby
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import FpMulSN, build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN, build_fp_mul_sn
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.floating_point.fp_testvectors_general import (
     build_bf16_subnormal_ext_vectors,

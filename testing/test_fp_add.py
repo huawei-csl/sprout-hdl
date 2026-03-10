@@ -10,7 +10,7 @@ sys.path.append(ROOT)
 
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd, build_fp_add
 from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode, fp_unpack
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.floating_point.fp_testvectors_general import (
     bits_inf,

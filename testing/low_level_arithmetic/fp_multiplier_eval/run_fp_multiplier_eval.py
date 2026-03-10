@@ -46,7 +46,7 @@ matplotlib.use("Agg")  # headless plotting
 import matplotlib.pyplot as plt
 
 # FP module builders
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import build_fp_mul_sn
 
 # FP testvector generator
 from testing.low_level_arithmetic.fp_multiplier_eval.testvector_generation_fp import FPMultiplierTestVectors, IEEEFormat, HiF8Format, FPDist

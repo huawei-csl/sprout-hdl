@@ -17,8 +17,8 @@ from sprouthdl.arithmetic.floating_point.fp_encoding import (
     fp_pack,
     fp_unpack,
 )
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_aby
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import build_fp_mul_sn
 
 
 def floatx_to_float(bits: int, EW: int, FW: int) -> float:
