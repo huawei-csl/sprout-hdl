@@ -59,11 +59,12 @@ class FpMulSN(Component):
         b: Signal  # input
         y: Signal  # output
 
-    def __init__(self, EW: int, FW: int, *, subnormals: bool = True, mult_cfg: Optional[MultiplierConfig] = None) -> None:
+    def __init__(self, EW: int, FW: int, *, subnormals: bool = True, always_subnormal_rounding: bool = False, mult_cfg: Optional[MultiplierConfig] = None) -> None:
         self.EW = EW
         self.FW = FW
         self.W = 1 + EW + FW
         self.subnormals = subnormals
+        self.always_subnormal_rounding = always_subnormal_rounding
         self.BIAS = (1 << (EW - 1)) - 1
         self.MAX_E = (1 << EW) - 1
         self.MAX_FINITE_E = self.MAX_E - 1
@@ -205,34 +206,39 @@ class FpMulSN(Component):
         exp_field_norm = e_norm[0:EW]
         return exp_field_norm, underflow, overflow, exp_sum
 
-    def _subnormal_rounding(self, mant_post: Expr, shift_amt: Expr) -> Tuple[Expr, Expr]:
+    def _subnormal_rounding_direct(self, prod: Expr, total_shift: Expr) -> Tuple[Expr, Expr]:
+        """Single-step RNE rounding from raw prod to subnormal output.
+
+        total_shift = BIAS + FW + 1 - exp_sum  (independent of lz and carry).
+        Avoids the double-rounding that occurs when working from mant_post.
+        """
         FW = self.FW
-        sig_pre = mant_post
-        sig_shiftN = sig_pre >> shift_amt
-        frac_trunc = sig_shiftN[0:FW]
+        PROD_W = 2 + 2 * FW
 
-        pref_sig = _prefix_or_bits(sig_pre, FW + 1)
+        frac_trunc = (prod >> total_shift)[0:FW]
 
-        def _bit_at_sig(idx_expr: Expr) -> Expr:
+        pref = _prefix_or_bits(prod, PROD_W)
+
+        def _bit_at(idx_expr: Expr) -> Expr:
             acc = 0
-            for k in range(FW + 1):
-                acc = mux(idx_expr == k, sig_pre[k], acc)
+            for k in range(PROD_W):
+                acc = mux(idx_expr == k, prod[k], acc)
             return acc
 
-        def _pref_sig_at(idx_expr: Expr) -> Expr:
+        def _pref_at(idx_expr: Expr) -> Expr:
             acc = 0
-            for k in range(FW + 1):
-                acc = mux(idx_expr == k, pref_sig[k], acc)
+            for k in range(PROD_W):
+                acc = mux(idx_expr == k, pref[k], acc)
             return acc
 
-        guard_s = _bit_at_sig(shift_amt - 1)
-        sticky_s = _pref_sig_at(shift_amt - 2)
+        guard = _bit_at(total_shift - 1)
+        sticky = _pref_at(total_shift - 2)
 
-        lsb_s = frac_trunc[0]
-        round_up_s = guard_s & (sticky_s | lsb_s)
+        lsb = frac_trunc[0]
+        round_up = guard & (sticky | lsb)
 
         frac_trunc_zext = cat(frac_trunc, 0)
-        frac_sum = frac_trunc_zext + mux(round_up_s, 1, 0)
+        frac_sum = frac_trunc_zext + mux(round_up, 1, 0)
         carry_s = frac_sum[FW]
         frac_field_sub = frac_sum[0:FW]
         exp_field_sub = mux(carry_s, 1, 0)
@@ -250,6 +256,23 @@ class FpMulSN(Component):
         if self.subnormals:
             is_sub_out = (~is_nan) & (~is_inf) & underflow
             sub_is_zero = is_sub_out & ((exp_field_sub == 0) & (frac_field_sub == 0))
+            is_zero = (~is_nan) & (~is_inf) & (is_zero_in | sub_is_zero)
+
+            exp_field = mux(
+                is_nan | is_inf,
+                all1_E,
+                mux(is_zero, 0, mux(is_sub_out, exp_field_sub, exp_field_norm)),
+            )
+            frac_field = mux(
+                is_nan,
+                qnan_payload,
+                mux(is_inf | is_zero, 0, mux(is_sub_out, frac_field_sub, frac_norm)),
+            )
+        elif self.always_subnormal_rounding:
+            # FTZ with correct subnormal/normal boundary: flush truly-subnormal outputs
+            # to zero, but preserve the result when subnormal rounding reaches min_normal.
+            is_sub_out = (~is_nan) & (~is_inf) & underflow
+            sub_is_zero = is_sub_out & (exp_field_sub == 0)
             is_zero = (~is_nan) & (~is_inf) & (is_zero_in | sub_is_zero)
 
             exp_field = mux(
@@ -295,9 +318,9 @@ class FpMulSN(Component):
 
         exp_field_sub = None
         frac_field_sub = None
-        if self.subnormals:
-            shift_amt = (self.BIAS + lz) - (exp_sum + mux(carry, 1, 0))
-            exp_field_sub, frac_field_sub = self._subnormal_rounding(mant_post, shift_amt)
+        if self.subnormals or self.always_subnormal_rounding:
+            total_shift = (self.BIAS + self.FW + 1) - exp_sum
+            exp_field_sub, frac_field_sub = self._subnormal_rounding_direct(prod, total_shift)
 
         sign_field, exp_field, frac_field = self._pack_result(
             sY,
@@ -315,8 +338,8 @@ class FpMulSN(Component):
         y <<= cat(frac_field, exp_field, sign_field)
 
 
-def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> "Module":
-    comp = FpMulSN(EW, FW, subnormals=subnormals)
+def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True, always_subnormal_rounding: bool = False) -> "Module":
+    comp = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
     return comp.to_module(name, with_clock=False, with_reset=False)
 
 

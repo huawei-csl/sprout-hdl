@@ -5,7 +5,7 @@ The `sprouthdl/arithmetic` package collects reusable datapath blocks:
 
 - Integer multipliers include configurable stage-based designs and optimized AIG-backed implementations ([`int_multipliers/multipliers`](src/sprouthdl/arithmetic/int_multipliers/multipliers)).
 - Prefix adders cover several topologies for depth/area exploration ([`prefix_adders`](src/sprouthdl/arithmetic/prefix_adders)).
-- Floating-point helpers provide compact HiFloat-8 and related utilities ([`floating_point`](src/sprouthdl/arithmetic/floating_point)).
+- Floating-point implementations related utilities ([`floating_point`](src/sprouthdl/arithmetic/floating_point)). *Note: floating point arithmetic might have some rounding errors for some settings of exponent and mantissa*
 
 Each module ships with small vector generators or evaluators so you can integrate them into regression tests quickly.
 
