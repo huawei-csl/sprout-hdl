@@ -5,8 +5,10 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from sprouthdl.aggregate.aggregate_array import Array
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_add_hw_ref, fp_decode, fp_encode
 from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding, EncodingModel
 from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core import MatmulAccumulateCore
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import FpMatmulAccumulateComponent
 
 
 def _shape2d(arr: Array) -> Tuple[int, int]:
@@ -75,6 +77,69 @@ def generate_matmul_vectors(
             for j in range(c_cols):
                 ins[core.io.C[i, j].name] = int(c_vals[i, j])
                 outs[core.io.Y[i, j].name] = int(y_vals[i, j])
+
+        vectors.append((f"vec_{idx}", ins, outs))
+
+    return vectors
+
+
+def generate_fp_matmul_vectors(
+    core: FpMatmulAccumulateComponent,
+    num_vectors: int,
+    *,
+    seed: int = 42,
+) -> List[Tuple[str, Dict[str, int], Dict[str, int]]]:
+    """Generate bit-exact test vectors for an FpMatmulAccumulateComponent.
+
+    The reference computation follows the same sequential left-to-right
+    accumulation order as elaborate():
+        dot = A[i,0]*B[0,j]
+        dot = dot + A[i,1]*B[1,j]  ...
+        acc = dot + C[i,j]
+    Multiplications use round-to-nearest-even (fp_encode); additions use
+    fp_add_hw_ref which mirrors the hardware truncation of 2 guard bits.
+    """
+    ft = core.cfg.ftype
+    ew, fw = ft.exponent_width, ft.fraction_width
+    dims = core.cfg.dims
+    m, n, k = dims.dim_m, dims.dim_n, dims.dim_k
+    rng = np.random.default_rng(seed=seed)
+
+    vectors: List[Tuple[str, Dict[str, int], Dict[str, int]]] = []
+
+    for idx in range(num_vectors):
+        a_f = rng.uniform(0.1, 2.0, size=(m, k))
+        b_f = rng.uniform(0.1, 2.0, size=(k, n))
+        c_f = rng.uniform(0.1, 2.0, size=(m, n))
+
+        a_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(a_f)
+        b_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(b_f)
+        c_bits = np.vectorize(lambda x: fp_encode(float(x), ew, fw))(c_f)
+
+        a_q = np.vectorize(lambda b: fp_decode(int(b), ew, fw))(a_bits)
+        b_q = np.vectorize(lambda b: fp_decode(int(b), ew, fw))(b_bits)
+
+        y_bits = np.zeros((m, n), dtype=int)
+        for i in range(m):
+            for j in range(n):
+                dot_bits = fp_encode(a_q[i, 0] * b_q[0, j], ew, fw)
+                for kk in range(1, k):
+                    prod_bits = fp_encode(a_q[i, kk] * b_q[kk, j], ew, fw)
+                    dot_bits = fp_add_hw_ref(dot_bits, prod_bits, ew, fw)
+                y_bits[i, j] = fp_add_hw_ref(dot_bits, int(c_bits[i, j]), ew, fw)
+
+        ins: Dict[str, int] = {}
+        outs: Dict[str, int] = {}
+        for i in range(m):
+            for kk in range(k):
+                ins[core.io.A[i, kk].bits.name] = int(a_bits[i, kk])
+        for kk in range(k):
+            for j in range(n):
+                ins[core.io.B[kk, j].bits.name] = int(b_bits[kk, j])
+        for i in range(m):
+            for j in range(n):
+                ins[core.io.C[i, j].bits.name] = int(c_bits[i, j])
+                outs[core.io.Y[i, j].bits.name] = int(y_bits[i, j])
 
         vectors.append((f"vec_{idx}", ins, outs))
 

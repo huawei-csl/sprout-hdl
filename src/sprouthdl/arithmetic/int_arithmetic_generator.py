@@ -45,7 +45,17 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_fused import (
     MatmulAccumulateComponent as MatmulAccumulateFusedComponent,
     MultiplierConfig as MatmulFusedMultiplierConfig,
 )
-from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import generate_matmul_vectors
+from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
+    FpMMAcCfg,
+    FpMMAcDims,
+    FpMatmulAccumulateComponent,
+)
+from sprouthdl.aggregate.aggregate_floating_point import FloatingPointType
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_add_hw_ref, fp_decode, fp_encode
+from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import (
+    generate_fp_matmul_vectors,
+    generate_matmul_vectors,
+)
 from sprouthdl.arithmetic.int_multipliers.multipliers.mutipliers_ext import StageBasedMultiplierBase
 from sprouthdl.arithmetic.prefix_adders.adders import StageBasedPrefixAdder
 from sprouthdl.helpers import get_yosys_metrics, run_vectors_on_simulator
@@ -123,6 +133,25 @@ class MatmulAccumulateGeneratorConfig:
 
 
 @dataclass(frozen=True)
+class FpMatmulAccumulateGeneratorConfig:
+    dim_m: int
+    dim_n: int
+    dim_k: int
+    exponent_width: int
+    fraction_width: int
+    subnormal_support: bool = False
+    use_operator: bool = False
+    multiplier_opt: MultiplierOption = MultiplierOption.STAGE_BASED_MULTIPLIER
+    ppg_opt: PPGOption = PPGOption.AND
+    ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
+    fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
+    optim_type: Literal["area", "speed"] = "area"
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
 class MatmulAccumulateFusedGeneratorConfig:
     dim_m: int
     dim_n: int
@@ -156,8 +185,8 @@ class GenerationActions:
 class GenerationResult:
     module: Module
     component: Any
-    input_encoding: Encoding
-    output_encoding: Encoding
+    input_encoding: Encoding | None = None
+    output_encoding: Encoding | None = None
     vectors: list[tuple[str, dict[str, int], dict[str, int]]] | None = None
     simulation_failures: int | None = None
     verilog_out: Path | None = None
@@ -617,6 +646,73 @@ def generate_matmul_accumulate_fused(
     )
 
 
+def generate_fp_matmul_accumulate(
+    cfg: FpMatmulAccumulateGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    actions = GenerationActions() if actions is None else actions
+    if actions.num_vectors <= 0:
+        raise ValueError("num_vectors must be > 0")
+
+    ft = FloatingPointType(
+        exponent_width=cfg.exponent_width,
+        fraction_width=cfg.fraction_width,
+        subnormal_support=cfg.subnormal_support,
+    )
+
+    if cfg.use_operator:
+        adder_cfg = None
+        mult_cfg = None
+    else:
+        mult_cfg = MatmulMultiplierConfig(
+            use_operator=False,
+            multiplier_opt=cfg.multiplier_opt,
+            encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
+            ppg_opt=cfg.ppg_opt,
+            ppa_opt=cfg.ppa_opt,
+            fsa_opt=cfg.fsa_opt,
+            optim_type=cfg.optim_type,
+        )
+        adder_cfg = MatmulAdderConfig(
+            use_operator=False,
+            encoding=Encoding.unsigned,
+            optim_type=cfg.optim_type,
+            fsa_opt=cfg.fsa_opt,
+            full_output_bit=True,
+        )
+
+    core_cfg = FpMMAcCfg(
+        dims=FpMMAcDims(dim_m=cfg.dim_m, dim_n=cfg.dim_n, dim_k=cfg.dim_k),
+        ftype=ft,
+        adder_cfg=adder_cfg,
+        mult_cfg=mult_cfg,
+    )
+
+    component = FpMatmulAccumulateComponent(core_cfg)
+    module_name = cfg.module_name or f"fp_matmul_{cfg.dim_m}x{cfg.dim_n}x{cfg.dim_k}_e{cfg.exponent_width}f{cfg.fraction_width}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = None
+    if actions.simulate or actions.testbench_out is not None:
+        vectors = generate_fp_matmul_vectors(component, actions.num_vectors)
+
+    sim_failures, verilog_out, aag_out, testbench_out, yosys_stats = _apply_actions(
+        module, vectors, actions=actions, with_clock=cfg.with_clock,
+    )
+
+    return GenerationResult(
+        module=module,
+        component=component,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        testbench_out=testbench_out,
+        yosys_stats=yosys_stats,
+    )
+
+
 # CLI: Argument parsing and entry point ##############################################################################
 
 
@@ -723,6 +819,28 @@ def _build_parser() -> argparse.ArgumentParser:
     matmul_parser.add_argument("--with-reset", action="store_true", help="Generate module with reset input")
     _add_common_action_args(matmul_parser)
 
+    fp_matmul_parser = sub.add_parser("fpmatmulacc", help="Generate floating-point matrix multiply-accumulate module (Y = A @ B + C)")
+    fp_matmul_parser.add_argument("--dim-m", type=int, required=True, help="Rows of A, C, Y")
+    fp_matmul_parser.add_argument("--dim-n", type=int, required=True, help="Columns of B, C, Y")
+    fp_matmul_parser.add_argument("--dim-k", type=int, required=True, help="Shared dimension of A and B")
+    fp_matmul_parser.add_argument("--exponent-width", type=int, required=True, help="Exponent bit width (e.g. 5 for float16)")
+    fp_matmul_parser.add_argument("--fraction-width", type=int, required=True, help="Fraction bit width (e.g. 10 for float16)")
+    fp_matmul_parser.add_argument("--subnormal-support", action="store_true", help="Enable subnormal support in FP multiplier")
+    fp_matmul_parser.add_argument("--module-name", type=str, default=None)
+    fp_matmul_parser.add_argument(
+        "--use-operator",
+        action="store_true",
+        help="Use * and + operators for mantissa arithmetic instead of explicit stage-based configs",
+    )
+    fp_matmul_parser.add_argument("--multiplier-opt", type=_enum_type(MultiplierOption), default=MultiplierOption.STAGE_BASED_MULTIPLIER)
+    fp_matmul_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    fp_matmul_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    fp_matmul_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    fp_matmul_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    fp_matmul_parser.add_argument("--with-clock", action="store_true")
+    fp_matmul_parser.add_argument("--with-reset", action="store_true")
+    _add_common_action_args(fp_matmul_parser)
+
     matmul_fused_parser = sub.add_parser(
         "matmulacc-fused", help="Generate fused matrix multiply-accumulate module (Y = A @ B + C)"
     )
@@ -761,8 +879,8 @@ def _actions_from_args(args: argparse.Namespace) -> GenerationActions:
 def _result_to_dict(result: GenerationResult) -> dict[str, Any]:
     data: dict[str, Any] = {
         "module_name": result.module.name,
-        "input_encoding": result.input_encoding.name,
-        "output_encoding": result.output_encoding.name,
+        "input_encoding": result.input_encoding.name if result.input_encoding is not None else None,
+        "output_encoding": result.output_encoding.name if result.output_encoding is not None else None,
         "vector_count": len(result.vectors) if result.vectors is not None else 0,
         "simulation_failures": result.simulation_failures,
         "verilog_out": str(result.verilog_out) if result.verilog_out is not None else None,
@@ -844,6 +962,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_matmul_accumulate(cfg, actions=actions)
+    elif args.kind == "fpmatmulacc":
+        cfg = FpMatmulAccumulateGeneratorConfig(
+            dim_m=args.dim_m,
+            dim_n=args.dim_n,
+            dim_k=args.dim_k,
+            exponent_width=args.exponent_width,
+            fraction_width=args.fraction_width,
+            subnormal_support=args.subnormal_support,
+            use_operator=args.use_operator,
+            multiplier_opt=args.multiplier_opt,
+            ppg_opt=args.ppg_opt,
+            ppa_opt=args.ppa_opt,
+            fsa_opt=args.fsa_opt,
+            optim_type=args.optim_type,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_fp_matmul_accumulate(cfg, actions=actions)
     else:
         cfg = MatmulAccumulateFusedGeneratorConfig(
             dim_m=args.dim_m,

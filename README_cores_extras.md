@@ -97,6 +97,26 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc-fused \
   --simulate --num-vectors 16 \
   --verilog-out out/matmulacc_fused_4x4x4_8b.v \
   --json-out out/matmulacc_fused_4x4x4_8b.json
+
+# Floating-point matrix multiply-accumulate (Y = A @ B + C), operator-based mantissa arithmetic
+python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
+  --dim-m 4 --dim-n 4 --dim-k 4 \
+  --exponent-width 5 --fraction-width 10 \
+  --use-operator \
+  --simulate --num-vectors 16 \
+  --verilog-out out/fp_matmulacc_4x4x4_f16.v \
+  --json-out out/fp_matmulacc_4x4x4_f16.json
+
+# Floating-point matrix multiply-accumulate with explicit stage-based mantissa multiplier and adder
+python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
+  --dim-m 4 --dim-n 4 --dim-k 4 \
+  --exponent-width 5 --fraction-width 10 \
+  --ppg-opt AND \
+  --ppa-opt WALLACE_TREE \
+  --fsa-opt RIPPLE_CARRY \
+  --simulate --num-vectors 16 \
+  --verilog-out out/fp_matmulacc_4x4x4_f16_staged.v \
+  --json-out out/fp_matmulacc_4x4x4_f16_staged.json
 ```
 
 ## Arithmetic Evaluations
