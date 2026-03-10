@@ -113,6 +113,32 @@ def build_bf16_subnormal_vectors():
     return build_fp_subnormal_vectors(8, 7)
 
 
+def build_fp_subnormal_ext_vectors(EW: int, FW: int):
+    """Tie-to-even edge cases inside the subnormal range (multiply by 0.5)."""
+    half = fp_encode(0.5, EW, FW)
+    maxS = bits_max_sub(EW, FW)
+    # odd subnormals: n/2 is n.5 ulp → ties to even
+    odd_vals = [1, 3, 5, 7, maxS - 2, maxS]
+    # even subnormals: n/2 is exact or rounds toward even
+    even_vals = [maxS - 1, 2, 4]
+    vecs = []
+    for n in odd_vals:
+        exp = fp_encode(fp_decode(n, EW, FW) * 0.5, EW, FW)
+        vecs.append((f"0x{n:04x} * 0.5 (tie->even)", n, half, exp))
+    for n in even_vals:
+        exp = fp_encode(fp_decode(n, EW, FW) * 0.5, EW, FW)
+        vecs.append((f"0x{n:04x} * 0.5 (below tie)", n, half, exp))
+    return vecs
+
+
+def build_f16_subnormal_ext_vectors():
+    return build_fp_subnormal_ext_vectors(5, 10)
+
+
+def build_bf16_subnormal_ext_vectors():
+    return build_fp_subnormal_ext_vectors(8, 7)
+
+
 # ---------------------------------------------------------------------------
 # Manual test / demo
 # ---------------------------------------------------------------------------

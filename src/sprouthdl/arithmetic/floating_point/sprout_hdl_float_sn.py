@@ -18,14 +18,6 @@ from typing import Dict, List, Optional, Tuple
 
 from sprouthdl.sprouthdl_module import Component, Module
 from sprouthdl.sprouthdl import *
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import (
-    bf16_to_float,
-    build_bf16_vectors,
-    build_f16_vectors,
-    build_fp_mul,
-    half_to_float,
-    run_vectors_aby,
-)
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.arithmetic.int_arithmetic_config import (
     MultiplierConfig,
@@ -36,7 +28,7 @@ from sprouthdl.arithmetic.int_arithmetic_config import (
 # Uses: Module, UInt, Bool, mux, cat (from your sprout_hdl)
 
 
-# ---- tiny helpers used inside build_fp_mul ----
+# ---- helpers used inside FpMulSN ----
 def _or_reduce_bits(vec_expr: Expr, hi: int, lo: int) -> Expr:
     if hi < lo:
         return 0
@@ -327,102 +319,4 @@ def build_fp_mul_sn(name: str, EW: int, FW: int, *, subnormals: bool = True) -> 
     comp = FpMulSN(EW, FW, subnormals=subnormals)
     return comp.to_module(name, with_clock=False, with_reset=False)
 
-# -----------------------
-# float16 (binary16) vectors with SUBNORMALS
-# -----------------------
-# Constants:
-#   min normal   = 0x0400  (2^-14)
-#   0.5          = 0x3800
-#   0.25         = 0x3400
-#   0.125        = 0x3000
-#   0.0625       = 0x2C00
-#   1.0          = 0x3C00
-#   2.0          = 0x4000
-#   3.0          = 0x4200
-#   max subnorm  = 0x03FF
-#   min subnorm  = 0x0001
-def build_f16_subnormal_vectors() -> List[Tuple[str, int, int, int]]:
-    return [
-        # Exact power-of-two scalings from min normal → subnormals
-        ("minNorm * 0.5  -> sub",            0x0400, 0x3800, 0x0200),  # 2^-14 * 2^-1 = 2^-15
-        ("minNorm * 0.25 -> sub",            0x0400, 0x3400, 0x0100),  # 2^-16
-        ("minNorm * 0.125-> sub",            0x0400, 0x3000, 0x0080),  # 2^-17
-        ("minNorm * 0.0625-> sub",           0x0400, 0x2C00, 0x0040),  # 2^-18
 
-        # Subnormal scaling upward/downward by powers of two
-        ("minSub * 2 -> next sub",           0x0001, 0x4000, 0x0002),
-        ("minSub * 3 -> 3*minSub",           0x0001, 0x4200, 0x0003),
-
-        # Subnormal * 1.0 should be identity (key correctness check)
-        ("maxSub * 1.0 -> maxSub",           0x03FF, 0x3C00, 0x03FF),
-        ("minSub * 1.0 -> minSub",           0x0001, 0x3C00, 0x0001),
-
-        # Tie-to-even inside subnormal range
-        # 0x03FF * 0.5 = (1023/2) → 511.5 → ties to even = 512 (0x0200)
-        ("maxSub * 0.5  (tie->even)",        0x03FF, 0x3800, 0x0200),
-
-        # Subnormal * subnormal → still subnormal or zero (exact small values)
-        ("minSub * minSub -> 0",             0x0001, 0x0001, 0x0000),
-    ]
-
-# -----------------------
-# bfloat16 vectors with SUBNORMALS
-# -----------------------
-# Constants:
-#   min normal   = 0x0080  (2^-126)
-#   0.5          = 0x3F00
-#   0.25         = 0x3E80
-#   0.125        = 0x3E00
-#   1.0          = 0x3F80
-#   2.0          = 0x4000
-#   3.0          = 0x4040
-#   max subnorm  = 0x007F
-#   min subnorm  = 0x0001
-def build_bf16_subnormal_vectors() -> List[Tuple[str, int, int, int]]:
-    return [
-        # Exact power-of-two scalings from min normal → subnormals
-        ("minNorm * 0.5  -> sub",            0x0080, 0x3F00, 0x0040),  # 2^-127
-        ("minNorm * 0.25 -> sub",            0x0080, 0x3E80, 0x0020),  # 2^-128
-        ("minNorm * 0.125-> sub",            0x0080, 0x3E00, 0x0010),  # 2^-129
-
-        # Subnormal scaling
-        ("minSub * 2 -> next sub",           0x0001, 0x4000, 0x0002),
-        ("minSub * 3 -> 3*minSub",           0x0001, 0x4040, 0x0003),
-
-        # Subnormal * 1.0 should be identity (key correctness check)
-        ("maxSub * 1.0 -> maxSub",           0x007F, 0x3F80, 0x007F),
-        ("minSub * 1.0 -> minSub",           0x0001, 0x3F80, 0x0001),
-
-        # Tie-to-even in subnormal range: 127/2 = 63.5 → round to 64 (0x0040)
-        ("maxSub * 0.5  (tie->even)",        0x007F, 0x3F00, 0x0040),
-
-        # Subnormal * subnormal → zero (very tiny)
-        ("minSub * minSub -> 0",             0x0001, 0x0001, 0x0000),
-    ]
-
-def build_f16_subnormal_ext_vectors() -> List[Tuple[str, int, int, int]]:
-    return [  # (value, 0.5) → expected
-        # odd subnormals: N/2 is x.5 → tie-to-even
-        ("0x0001 * 0.5 (tie->even)", 0x0001, 0x3800, 0x0000),  # 0.5 ulp → 0x0000
-        ("0x0003 * 0.5 (tie->even)", 0x0003, 0x3800, 0x0002),  # 1.5 ulp → even 2
-        ("0x0005 * 0.5 (tie->even)", 0x0005, 0x3800, 0x0002),  # 2.5 ulp → even 2
-        ("0x0007 * 0.5 (tie->even)", 0x0007, 0x3800, 0x0004),
-        ("0x03FD * 0.5 (tie->even)", 0x03FD, 0x3800, 0x01FE),  # 510.5 → 0x01FE (even)
-        ("0x03FF * 0.5 (tie->even)", 0x03FF, 0x3800, 0x0200),  # 511.5 → 0x0200 (even)
-        # near-tie neighbors:
-        ("0x03FE * 0.5 (below tie)", 0x03FE, 0x3800, 0x01FF),  # 511.0 → 0x01FF
-        ("0x0002 * 0.5 (below tie)", 0x0002, 0x3800, 0x0001),  # 1.0 → 0x0001
-        ("0x0004 * 0.5 (below tie)", 0x0004, 0x3800, 0x0002),  # 2.0 → 0x0002
-    ]
-
-if __name__ == "__main__":
-    #f16 = build_fp_mul_sn("F16Mul_Sub", EW=5, FW=10, subnormals=False)
-    #bf16 = build_fp_mul_sn("BF16Mul_Sub", EW=8, FW=7, subnormals=False)
-    f16 = build_fp_mul_sn("F16Mul_Sub", EW=5, FW=10, subnormals=True)
-    bf16 = build_fp_mul_sn("BF16Mul_Sub", EW=8, FW=7, subnormals=True)
-
-    run_vectors_aby(f16, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors_aby(bf16, build_bf16_vectors(), label="bfloat16 default cases", decoder=bf16_to_float)
-    run_vectors_aby(f16,  build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors_aby(bf16, build_bf16_subnormal_vectors(), label="bfloat16 subnormal cases", decoder=bf16_to_float)
-    run_vectors_aby(f16, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)

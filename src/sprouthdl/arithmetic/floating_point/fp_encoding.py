@@ -68,12 +68,12 @@ def fp_encode(x: float, ew: int, fw: int, *, subnormals: bool = True) -> int:
         return fp_pack(sgn, (1 << ew) - 1, 0, ew, fw)
 
     if E <= 0:
-        if not subnormals:
-            return fp_pack(sgn, 0, 0, ew, fw)
         f_unrnd = ax * (2.0 ** (fw + bias - 1))
-        f = max(0, min((1 << fw) - 1, _round_to_even(f_unrnd)))
-        if f == (1 << fw):
-            return fp_pack(sgn, 1, 0, ew, fw)
+        f = max(0, _round_to_even(f_unrnd))
+        if f >= (1 << fw):
+            return fp_pack(sgn, 1, 0, ew, fw)  # rounds up to min_normal
+        if not subnormals:
+            return fp_pack(sgn, 0, 0, ew, fw)  # FTZ: truly subnormal → zero
         return fp_pack(sgn, 0, f, ew, fw)
 
     frac_unrnd = (m - 1.0) * (1 << fw)

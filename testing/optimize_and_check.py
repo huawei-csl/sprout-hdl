@@ -1,14 +1,14 @@
 from aigverse import Aig, DepthAig
 from sprouthdl.sprouthdl import UInt
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_f16_vectors, build_fp_mul, half_to_float, run_vectors_aby
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import build_f16_mul, build_fp_mul, run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter, export_module_to_aiger
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_aig_into_aag, read_aag_into_aig
 
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
 from sprouthdl.sprouthdl_module import IOCollector
-from testing.floating_point.fp_testvectors_general import build_f16_subnormal_vectors
+from testing.floating_point.fp_testvectors_general import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_f16_vectors, floatx_to_float
 
 
 def get_size_mult(ew: int, subnormals=False) -> int:
@@ -75,12 +75,12 @@ def get_size_mult(ew: int, subnormals=False) -> int:
     from aigverse import equivalence_checking
     assert equivalence_checking(aig_clone, aig2), "AIGs are not equivalent after conversion!"
 
-    run_vectors_aby(m, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
+    run_vectors_aby(m, build_f16_vectors(), label="float16 default cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
 
-    run_vectors_aby(sprout, build_f16_vectors(), label="float16 default cases", decoder=half_to_float)
-    run_vectors_aby(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors_aby(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
+    run_vectors_aby(sprout, build_f16_vectors(), label="float16 default cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=lambda b: floatx_to_float(b, ew, fw))
 
     return aig.size(), DepthAig(aig).num_levels()
 

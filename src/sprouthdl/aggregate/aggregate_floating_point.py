@@ -112,7 +112,7 @@ class FloatingPoint(HDLAggregate):
         if self.ftype != other.ftype:
             raise ValueError("FloatingPoint add requires matching types")
 
-        core = FpAdd(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width, adder_cfg=self.adder_cfg).make_internal()
+        core = FpAdd(EW=self.ftype.exponent_width, FW=self.ftype.fraction_width, adder_cfg=self.adder_cfg, subnormals=self.ftype.subnormal_support).make_internal()
 
         core.io.a <<= self.bits
         core.io.b <<= other.bits

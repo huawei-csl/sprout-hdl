@@ -2,8 +2,9 @@ from aigverse import equivalence_checking
 from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig
 from sprouthdl.sprouthdl import UInt
 from sprouthdl.sprouthdl_aiger import AigerExporter, AigerImporter
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float import half_to_float, run_vectors_aby
-from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_fp_mul_sn
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float import run_vectors_aby
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_sn import build_fp_mul_sn
+from testing.floating_point.fp_testvectors_general import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, floatx_to_float
 from sprouthdl.sprouthdl_module import IOCollector
 
 
@@ -33,11 +34,11 @@ def main():
         "y": UInt(16),
     })
 
-    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors_aby(m, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
+    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, 5, 10))
+    run_vectors_aby(m, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=lambda b: floatx_to_float(b, 5, 10))
 
-    run_vectors_aby(m2, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=half_to_float)
-    run_vectors_aby(m2, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=half_to_float)
+    run_vectors_aby(m2, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, 5, 10))
+    run_vectors_aby(m2, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=lambda b: floatx_to_float(b, 5, 10))
 
 
 if __name__ == "__main__":
