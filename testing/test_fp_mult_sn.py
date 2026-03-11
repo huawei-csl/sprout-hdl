@@ -36,11 +36,8 @@ from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import (
 
 
 def _sn_normal_vectors(EW, FW):
-    # build_fp_vectors includes "Underflow: min*0.5 = 0" which assumes FTZ.
-    # With subnormals=True that case produces a subnormal instead; it is tested
-    # separately in build_fp_subnormal_vectors, so we exclude it here.
     from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import build_fp_vectors
-    return [v for v in build_fp_vectors(EW, FW) if not v[0].startswith("Underflow")]
+    return build_fp_vectors(EW, FW, subnormals=True)
 
 
 def test_f16_mul_sn_normal_vectors():

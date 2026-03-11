@@ -119,8 +119,13 @@ class FpMulTestVectorsExhaustive:
 # ---------------------------------------------------------------------------
 
 
-def build_fp_vectors(EW: int, FW: int):
-    """Basic sanity vectors (normals/specials); works for any (EW, FW)."""
+def build_fp_vectors(EW: int, FW: int, subnormals: bool = False):
+    """Basic sanity vectors (normals/specials); works for any (EW, FW).
+
+    The ``subnormals`` flag controls the expected result for the underflow
+    case: with subnormals disabled (FTZ) the result is zero; with subnormals
+    enabled the result is the correct subnormal encoding.
+    """
     one = fp_encode(1.0, EW, FW)
     two = fp_encode(2.0, EW, FW)
     thr = fp_encode(3.0, EW, FW)
@@ -135,6 +140,9 @@ def build_fp_vectors(EW: int, FW: int):
     qnan = bits_qnan(EW, FW)
     maxf = bits_max_finite(EW, FW)
     minN = bits_min_normal(EW, FW)
+    underflow_expected = fp_encode(
+        fp_decode(minN, EW, FW) * 0.5, EW, FW, subnormals=subnormals,
+    )
 
     return [
         ("1*2 = 2", one, two, fp_encode(2.0, EW, FW)),
@@ -148,7 +156,7 @@ def build_fp_vectors(EW: int, FW: int):
         ("Inf * 0 = NaN", pinf, pos0, qnan),
         ("NaN * 2 = NaN", qnan, two, qnan),
         ("Overflow: max*2 = Inf", maxf, two, pinf),
-        ("Underflow: min*0.5 = 0", minN, half, pos0),
+        ("Underflow: min*0.5", minN, half, underflow_expected),
         ("(-1)*1 = -1", fp_encode(-1.0, EW, FW), one, fp_encode(-1.0, EW, FW)),
         ("4 * 0.5 = 2", four, half, two),
     ]
@@ -228,7 +236,7 @@ def build_bf16_subnormal_ext_vectors():
 
 def build_targeted_mul_vectors(EW: int, FW: int, subnormals: bool = True) -> TestVectors:
     """Collect all applicable targeted multiply vectors in the standard TestVectors format."""
-    four_tuples = build_fp_vectors(EW, FW)
+    four_tuples = build_fp_vectors(EW, FW, subnormals=subnormals)
     if subnormals:
         four_tuples += build_fp_subnormal_vectors(EW, FW)
         four_tuples += build_fp_subnormal_ext_vectors(EW, FW)
