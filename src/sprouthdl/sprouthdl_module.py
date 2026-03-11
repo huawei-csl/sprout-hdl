@@ -5,6 +5,7 @@ import random
 import time
 
 
+from sprouthdl import VERILOG_BANNER
 from sprouthdl.sprouthdl import Bool, Expr, ExprLike, HDLType, Signal, UInt, cat, fit_width, _SHARED, reset_shared_cache
 
 
@@ -403,7 +404,7 @@ class Module:
             if s.kind == "reg" and s._driver is None:
                 raise ValueError(f"Register '{s.name}' has no next-state assignment.")
 
-        lines: List[str] = []
+        lines: List[str] = [VERILOG_BANNER, ""]
         # Ports list
         port_names = [p.name for p in self._ports]
         ports_csv = ", ".join(port_names)

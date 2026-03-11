@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
 
+from sprouthdl import VERILOG_BANNER
 from sprouthdl.sprouthdl import Expr, Signal
 from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator_base import SimulatorBase
@@ -200,7 +201,7 @@ class TestbenchGenSimulator(SimulatorBase):
 
         tb_name = tb_module_name or f"{self.m.name}_tb"
 
-        lines: List[str] = []
+        lines: List[str] = [VERILOG_BANNER, ""]
 
         if timescale:
             lines.append(f"`timescale {timescale}")
@@ -344,7 +345,7 @@ class TestbenchGenSimulator(SimulatorBase):
 
         tb_name = f"{self.m.name}_tb"
 
-        lines: List[str] = []
+        lines: List[str] = [VERILOG_BANNER, ""]
         if timescale:
             lines.append(f"`timescale {timescale}")
             lines.append("")
