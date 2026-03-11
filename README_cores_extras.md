@@ -12,7 +12,7 @@ Each module ships with small vector generators or evaluators so you can integrat
 ### Unified adder/multiplier/mac/matmul generator
 
 For integer adders, multipliers, and MACs (`y = a*b + c`), as well as matmul-accumulate there is a unified generator with both Python API and CLI frontend:
-[`int_arithmetic_generator.py`](src/sprouthdl/arithmetic/int_arithmetic_generator.py).
+[`arithmetic_generator.py`](src/sprouthdl/arithmetic/arithmetic_generator.py).
 
 It can optionally:
 - write Verilog
@@ -24,12 +24,12 @@ It can optionally:
 - save the result summary JSON to a file (`--json-out`)
 
 Multiplier/Adder Python API usage reference:
-[`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
+[`testing/low_level_arithmetic/test_arithmetic_generator.py`](testing/low_level_arithmetic/test_arithmetic_generator.py).
 
 Python API example (integer multiplier):
 
 ```python
-from sprouthdl.arithmetic.int_arithmetic_generator import (
+from sprouthdl.arithmetic.arithmetic_generator import (
     GenerationActions,
     MultiplierGeneratorConfig,
     generate_multiplier,
@@ -61,12 +61,12 @@ print(result.transistor_count)     # estimated transistor count from Yosys
 ```
 
 MAC Python API usage reference:
-[`testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py`](testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py).
+[`testing/low_level_arithmetic/test_arithmetic_generator_mac.py`](testing/low_level_arithmetic/test_arithmetic_generator_mac.py).
 
 CLI examples:
 
 ```bash
-python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
+python -m sprouthdl.arithmetic.arithmetic_generator multiplier \
   --n-bits 8 \
   --multiplier-opt STAGE_BASED_MULTIPLIER \
   --ppg-opt BAUGH_WOOLEY \
@@ -80,14 +80,14 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
   --yosys-stats \
   --json-out out/mul8_result.json
 
-python -m sprouthdl.arithmetic.int_arithmetic_generator adder \
+python -m sprouthdl.arithmetic.arithmetic_generator adder \
   --n-bits 16 \
   --fsa-opt PREFIX_BRENT_KUNG \
   --encoding twos_complement \
   --simulate --num-vectors 128 \
   --verilog-out out/add16.v
 
-python -m sprouthdl.arithmetic.int_arithmetic_generator mac \
+python -m sprouthdl.arithmetic.arithmetic_generator mac \
   --n-bits 8 \
   --c-bits 16 \
   --ppg-opt BAUGH_WOOLEY \
@@ -100,7 +100,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator mac \
   --testbench-out out/mac8_tb.v
 
 # Matrix multiply-accumulate (Y = A @ B + C), explicit multiplier and adder stages
-python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
+python -m sprouthdl.arithmetic.arithmetic_generator matmulacc \
   --dim-m 4 --dim-n 4 --dim-k 4 \
   --a-width 8 \
   --ppg-opt BAUGH_WOOLEY \
@@ -112,7 +112,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
   --json-out out/matmulacc_4x4x4_8b.json
 
 # Matrix multiply-accumulate using * and + operators directly (compact Verilog output)
-python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
+python -m sprouthdl.arithmetic.arithmetic_generator matmulacc \
   --dim-m 4 --dim-n 4 --dim-k 4 \
   --a-width 8 \
   --use-operator \
@@ -122,7 +122,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc \
   --json-out out/matmulacc_4x4x4_8b.json
 
 # Fused matrix multiply-accumulate: partial products from all cells merged before final addition
-python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc-fused \
+python -m sprouthdl.arithmetic.arithmetic_generator matmulacc-fused \
   --dim-m 4 --dim-n 4 --dim-k 4 \
   --a-width 8 \
   --ppg-opt BAUGH_WOOLEY \
@@ -134,7 +134,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator matmulacc-fused \
   --json-out out/matmulacc_fused_4x4x4_8b.json
 
 # Data-driven testbench: vectors stored in a separate .dat file
-python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
+python -m sprouthdl.arithmetic.arithmetic_generator multiplier \
   --n-bits 8 \
   --simulate --num-vectors 128 \
   --verilog-out out/mul8.v \
@@ -143,7 +143,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator multiplier \
   --json-out out/mul8_result.json
 
 # Floating-point matrix multiply-accumulate (Y = A @ B + C), operator-based mantissa arithmetic
-python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
+python -m sprouthdl.arithmetic.arithmetic_generator fpmatmulacc \
   --dim-m 4 --dim-n 4 --dim-k 4 \
   --exponent-width 5 --fraction-width 10 \
   --use-operator \
@@ -152,7 +152,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
   --json-out out/fp_matmulacc_4x4x4_f16.json
 
 # Floating-point matrix multiply-accumulate with explicit stage-based mantissa multiplier and adder
-python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
+python -m sprouthdl.arithmetic.arithmetic_generator fpmatmulacc \
   --dim-m 4 --dim-n 4 --dim-k 4 \
   --exponent-width 5 --fraction-width 10 \
   --ppg-opt AND \
@@ -163,7 +163,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
   --json-out out/fp_matmulacc_4x4x4_f16_staged.json
 
 # Standalone floating-point multiplier (bfloat16) with simulation, data-driven testbench, and Yosys stats
-python -m sprouthdl.arithmetic.int_arithmetic_generator fpmul \
+python -m sprouthdl.arithmetic.arithmetic_generator fpmul \
   --exponent-width 8 --fraction-width 7 \
   --subnormal-support \
   --simulate --num-vectors 128 \
@@ -174,7 +174,7 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator fpmul \
   --json-out out/fp_mul_bf16.json
 
 # Standalone floating-point adder (float16) with simulation, data-driven testbench, and Yosys stats
-python -m sprouthdl.arithmetic.int_arithmetic_generator fpadd \
+python -m sprouthdl.arithmetic.arithmetic_generator fpadd \
   --exponent-width 5 --fraction-width 10 \
   --subnormal-support \
   --simulate --num-vectors 128 \

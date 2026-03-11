@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from sprouthdl.arithmetic.int_arithmetic_generator import (
+from sprouthdl.arithmetic.arithmetic_generator import (
     AdderGeneratorConfig,
     GenerationActions,
     MultiplierGeneratorConfig,

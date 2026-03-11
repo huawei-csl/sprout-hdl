@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from sprouthdl.arithmetic.int_arithmetic_generator import (
+from sprouthdl.arithmetic.arithmetic_generator import (
     GenerationActions,
     MacGeneratorConfig,
     generate_mac,
