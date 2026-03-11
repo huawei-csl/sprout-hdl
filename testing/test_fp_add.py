@@ -19,19 +19,20 @@ from sprouthdl.arithmetic.floating_point.fp_add_testvectors import (
     FpAddTestVectors,
     FpAddTestVectorsExhaustive,
 )
-from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
+from sprouthdl.arithmetic.floating_point.fp_encoding import (
+    bits_inf,
+    bits_max_sub,
+    bits_min_normal,
+    bits_min_sub,
+    bits_qnan,
+    bits_zero,
+    fp_decode,
+    fp_encode,
+)
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd, build_fp_add
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
 from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.floating_point.fp_testvectors_general import (
-    bits_inf,
-    bits_min_normal,
-    bits_max_sub,
-    bits_min_sub,
-    bits_qnan,
-    bits_zero,
-)
 
 
 # -- Hand-picked vectors ----------------------------------------------------

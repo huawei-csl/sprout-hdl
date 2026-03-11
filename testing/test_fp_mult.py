@@ -16,24 +16,23 @@ sys.path.append(ROOT)
 from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode, fp_unpack
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import FpMul, build_fp_mul, run_vectors_aby
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.floating_point.fp_testvectors_general import (
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import (
     build_bf16_vectors,
     build_f16_vectors,
-    floatx_to_float,
 )
 
 
 def test_f16_mul_vectors():
     mod = build_fp_mul("F16MulTest", EW=5, FW=10)
     passed = run_vectors_aby(mod, build_f16_vectors(), label="f16 mul",
-                             decoder=lambda b: floatx_to_float(b, 5, 10))
+                             decoder=lambda b: fp_decode(b, 5, 10))
     assert passed
 
 
 def test_bf16_mul_vectors():
     mod = build_fp_mul("BF16MulTest", EW=8, FW=7)
     passed = run_vectors_aby(mod, build_bf16_vectors(), label="bf16 mul",
-                             decoder=lambda b: floatx_to_float(b, 8, 7))
+                             decoder=lambda b: fp_decode(b, 8, 7))
     assert passed
 
 

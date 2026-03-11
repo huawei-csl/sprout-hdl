@@ -25,14 +25,13 @@ from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vector
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN, build_fp_mul_sn
 from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
-from testing.floating_point.fp_testvectors_general import (
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import (
     build_bf16_subnormal_ext_vectors,
     build_bf16_subnormal_vectors,
     build_bf16_vectors,
     build_f16_subnormal_ext_vectors,
     build_f16_subnormal_vectors,
     build_f16_vectors,
-    floatx_to_float,
 )
 
 
@@ -40,35 +39,35 @@ def _sn_normal_vectors(EW, FW):
     # build_fp_vectors includes "Underflow: min*0.5 = 0" which assumes FTZ.
     # With subnormals=True that case produces a subnormal instead; it is tested
     # separately in build_fp_subnormal_vectors, so we exclude it here.
-    from testing.floating_point.fp_testvectors_general import build_fp_vectors
+    from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import build_fp_vectors
     return [v for v in build_fp_vectors(EW, FW) if not v[0].startswith("Underflow")]
 
 
 def test_f16_mul_sn_normal_vectors():
     mod = build_fp_mul_sn("F16MulSNTest", EW=5, FW=10, subnormals=True)
     passed = run_vectors_aby(mod, _sn_normal_vectors(5, 10), label="f16 mul_sn normal",
-                             decoder=lambda b: floatx_to_float(b, 5, 10))
+                             decoder=lambda b: fp_decode(b, 5, 10))
     assert passed
 
 
 def test_bf16_mul_sn_normal_vectors():
     mod = build_fp_mul_sn("BF16MulSNTest", EW=8, FW=7, subnormals=True)
     passed = run_vectors_aby(mod, _sn_normal_vectors(8, 7), label="bf16 mul_sn normal",
-                             decoder=lambda b: floatx_to_float(b, 8, 7))
+                             decoder=lambda b: fp_decode(b, 8, 7))
     assert passed
 
 
 def test_f16_mul_sn_subnormal_vectors():
     mod = build_fp_mul_sn("F16MulSNSubTest", EW=5, FW=10, subnormals=True)
     passed = run_vectors_aby(mod, build_f16_subnormal_vectors(), label="f16 mul_sn subnormal",
-                             decoder=lambda b: floatx_to_float(b, 5, 10))
+                             decoder=lambda b: fp_decode(b, 5, 10))
     assert passed
 
 
 def test_bf16_mul_sn_subnormal_vectors():
     mod = build_fp_mul_sn("BF16MulSNSubTest", EW=8, FW=7, subnormals=True)
     passed = run_vectors_aby(mod, build_bf16_subnormal_vectors(), label="bf16 mul_sn subnormal",
-                             decoder=lambda b: floatx_to_float(b, 8, 7))
+                             decoder=lambda b: fp_decode(b, 8, 7))
     assert passed
 
 
@@ -76,7 +75,7 @@ def test_f16_mul_sn_subnormal_ext():
     """Tie-to-even edge cases inside the f16 subnormal range."""
     mod = build_fp_mul_sn("F16MulSNExtTest", EW=5, FW=10, subnormals=True)
     passed = run_vectors_aby(mod, build_f16_subnormal_ext_vectors(), label="f16 mul_sn subnormal ext",
-                             decoder=lambda b: floatx_to_float(b, 5, 10))
+                             decoder=lambda b: fp_decode(b, 5, 10))
     assert passed
 
 
@@ -84,7 +83,7 @@ def test_bf16_mul_sn_subnormal_ext():
     """Tie-to-even edge cases inside the bf16 subnormal range."""
     mod = build_fp_mul_sn("BF16MulSNExtTest", EW=8, FW=7, subnormals=True)
     passed = run_vectors_aby(mod, build_bf16_subnormal_ext_vectors(), label="bf16 mul_sn subnormal ext",
-                             decoder=lambda b: floatx_to_float(b, 8, 7))
+                             decoder=lambda b: fp_decode(b, 8, 7))
     assert passed
 
 
@@ -92,14 +91,14 @@ def test_f16_mul_sn_ftz():
     """With subnormals=False, subnormal results flush to zero (same as FpMul)."""
     mod = build_fp_mul_sn("F16MulSNFtzTest", EW=5, FW=10, subnormals=False)
     passed = run_vectors_aby(mod, build_f16_vectors(), label="f16 mul_sn ftz",
-                             decoder=lambda b: floatx_to_float(b, 5, 10))
+                             decoder=lambda b: fp_decode(b, 5, 10))
     assert passed
 
 
 def test_bf16_mul_sn_ftz():
     mod = build_fp_mul_sn("BF16MulSNFtzTest", EW=8, FW=7, subnormals=False)
     passed = run_vectors_aby(mod, build_bf16_vectors(), label="bf16 mul_sn ftz",
-                             decoder=lambda b: floatx_to_float(b, 8, 7))
+                             decoder=lambda b: fp_decode(b, 8, 7))
     assert passed
 
 
@@ -214,7 +213,7 @@ def test_e3f4_mul_sn_ftz_asr_boundary():
         ("sub→min_normal (neg)", 0x0024, 0x0099, 0x0090),
     ]
     passed = run_vectors_aby(mod, vectors, label="e3f4 ftz asr boundary",
-                             decoder=lambda b: floatx_to_float(b, 3, 4))
+                             decoder=lambda b: fp_decode(b, 3, 4))
     assert passed
 
 

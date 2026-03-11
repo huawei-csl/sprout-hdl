@@ -8,7 +8,8 @@ from sprouthdl.aig.aig_aigerverse import _get_aag_sym, conv_aag_into_aig, conv_a
 from aigverse import aig_resubstitution, sop_refactoring, aig_cut_rewriting, balancing
 
 from sprouthdl.sprouthdl_module import IOCollector
-from testing.floating_point.fp_testvectors_general import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_f16_vectors, floatx_to_float
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import build_f16_subnormal_ext_vectors, build_f16_subnormal_vectors, build_f16_vectors
 
 
 def get_size_mult(ew: int, subnormals=False) -> int:
@@ -75,12 +76,12 @@ def get_size_mult(ew: int, subnormals=False) -> int:
     from aigverse import equivalence_checking
     assert equivalence_checking(aig_clone, aig2), "AIGs are not equivalent after conversion!"
 
-    run_vectors_aby(m, build_f16_vectors(), label="float16 default cases", decoder=lambda b: floatx_to_float(b, ew, fw))
-    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(m, build_f16_vectors(), label="float16 default cases", decoder=lambda b: fp_decode(b, ew, fw))
+    run_vectors_aby(m, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: fp_decode(b, ew, fw))
 
-    run_vectors_aby(sprout, build_f16_vectors(), label="float16 default cases", decoder=lambda b: floatx_to_float(b, ew, fw))
-    run_vectors_aby(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
-    run_vectors_aby(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(sprout, build_f16_vectors(), label="float16 default cases", decoder=lambda b: fp_decode(b, ew, fw))
+    run_vectors_aby(sprout, build_f16_subnormal_vectors(), label="float16 subnormal cases", decoder=lambda b: fp_decode(b, ew, fw))
+    run_vectors_aby(sprout, build_f16_subnormal_ext_vectors(), label="float16 subnormal ext cases", decoder=lambda b: fp_decode(b, ew, fw))
 
     return aig.size(), DepthAig(aig).num_levels()
 

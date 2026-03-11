@@ -12,7 +12,8 @@ from sprouthdl.sprouthdl_module import IOCollector
 import os
 from pyosys import libyosys as ys
 
-from testing.floating_point.fp_testvectors_general import build_fp_vectors, floatx_to_float
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import build_fp_vectors
 
 
 
@@ -204,8 +205,8 @@ def main():
     print(f"Back AIG Size: {aig_back.size()}")
 
     # simulations:
-    run_vectors_aby(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
-    run_vectors_aby(m_back, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: floatx_to_float(b, ew, fw))
+    run_vectors_aby(m, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: fp_decode(b, ew, fw))
+    run_vectors_aby(m_back, build_fp_vectors(ew, fw), label=f"float{ew+fw+1} normal cases", decoder=lambda b: fp_decode(b, ew, fw))
 
     assert equivalence_checking(aig, aig_back), "AIGs are not equivalent after conversion!"
 

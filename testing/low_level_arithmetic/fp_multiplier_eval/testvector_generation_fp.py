@@ -7,8 +7,8 @@ from enum import Enum
 from typing import Callable, List, Optional, Tuple, Union
 
 # Encoding helpers for IEEE-like floats (arbitrary EW/FW)
-from testing.floating_point.fp_testvectors_general import fp_encode, fp_limits
-from testing.floating_point.fp_testvectors_general import fp_decode  # tie handling aid (IEEE only)
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_encode, fp_limits
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode  # tie handling aid (IEEE only)
 
 # HiFloat8 encode/decode will be imported lazily inside HiF8Format methods to
 # avoid pulling optional heavy dependencies at import time.

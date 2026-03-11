@@ -106,7 +106,7 @@ def test_cli_mac_smoke(tmp_path: Path):
     cmd = [
         sys.executable,
         "-m",
-        "sprouthdl.arithmetic.int_arithmetic_generator",
+        "sprouthdl.arithmetic.arithmetic_generator",
         "mac",
         "--n-bits",
         "4",

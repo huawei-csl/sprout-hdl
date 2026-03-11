@@ -1,8 +1,12 @@
 """Test vector generation for the FP multiplier (FpMulSN).
 
-Provides random and exhaustive vector generators following the same
-tuple-based format as the integer arithmetic test vectors:
+Provides random, exhaustive, and hand-crafted vector generators following
+the same tuple-based format as the integer arithmetic test vectors:
     [(name, {"a": bits, "b": bits}, {"y": bits}), ...]
+
+Also provides targeted edge-case builders (normals, specials, subnormals,
+tie-to-even) that return 4-tuples ``(name, a_bits, b_bits, expected_bits)``
+for use with ``run_vectors_aby``-style test harnesses.
 """
 from __future__ import annotations
 
@@ -10,7 +14,17 @@ from typing import List, Tuple, Dict
 
 import numpy as np
 
-from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
+from sprouthdl.arithmetic.floating_point.fp_encoding import (
+    bits_inf,
+    bits_max_finite,
+    bits_max_sub,
+    bits_min_normal,
+    bits_min_sub,
+    bits_qnan,
+    bits_zero,
+    fp_decode,
+    fp_encode,
+)
 
 TestVectors = List[Tuple[str, Dict[str, int], Dict[str, int]]]
 
@@ -98,3 +112,115 @@ class FpMulTestVectorsExhaustive:
                     continue
                 vectors.append((f"v{len(vectors)}", {"a": a, "b": b}, {"y": y}))
         return vectors
+
+
+# ---------------------------------------------------------------------------
+# Targeted edge-case vectors (4-tuple format: name, a, b, expected)
+# ---------------------------------------------------------------------------
+
+
+def build_fp_vectors(EW: int, FW: int):
+    """Basic sanity vectors (normals/specials); works for any (EW, FW)."""
+    one = fp_encode(1.0, EW, FW)
+    two = fp_encode(2.0, EW, FW)
+    thr = fp_encode(3.0, EW, FW)
+    four = fp_encode(4.0, EW, FW)
+    half = fp_encode(0.5, EW, FW)
+    onept5 = fp_encode(1.5, EW, FW)
+    neg2 = fp_encode(-2.0, EW, FW)
+    pos0 = bits_zero(EW, FW, 0)
+    neg0 = bits_zero(EW, FW, 1)
+    pinf = bits_inf(EW, FW, 0)
+    ninf = bits_inf(EW, FW, 1)
+    qnan = bits_qnan(EW, FW)
+    maxf = bits_max_finite(EW, FW)
+    minN = bits_min_normal(EW, FW)
+
+    return [
+        ("1*2 = 2", one, two, fp_encode(2.0, EW, FW)),
+        ("(-2)*2 = -4", neg2, two, fp_encode(-4.0, EW, FW)),
+        ("1.5*1.5 = 2.25", onept5, onept5, fp_encode(2.25, EW, FW)),
+        ("3*0.5 = 1.5", thr, half, onept5),
+        ("0 * 1 = 0", pos0, one, pos0),
+        ("(-0) * 2 = (-0)", neg0, two, neg0),
+        ("Inf * 3 = Inf", pinf, thr, pinf),
+        ("(-Inf) * (-2) = +Inf", ninf, neg2, pinf),
+        ("Inf * 0 = NaN", pinf, pos0, qnan),
+        ("NaN * 2 = NaN", qnan, two, qnan),
+        ("Overflow: max*2 = Inf", maxf, two, pinf),
+        ("Underflow: min*0.5 = 0", minN, half, pos0),
+        ("(-1)*1 = -1", fp_encode(-1.0, EW, FW), one, fp_encode(-1.0, EW, FW)),
+        ("4 * 0.5 = 2", four, half, two),
+    ]
+
+
+def build_fp_subnormal_vectors(EW: int, FW: int):
+    """Subnormal-focused tests (assumes DUT supports subnormals)."""
+    half = fp_encode(0.5, EW, FW)
+    qtr = fp_encode(0.25, EW, FW)
+    eigth = fp_encode(0.125, EW, FW)
+    six = fp_encode(0.0625, EW, FW)
+    minN = bits_min_normal(EW, FW)
+    minS = bits_min_sub(EW, FW)
+    maxS = bits_max_sub(EW, FW)
+    one = fp_encode(1.0, EW, FW)
+    two = fp_encode(2.0, EW, FW)
+    thr = fp_encode(3.0, EW, FW)
+
+    return [
+        ("minNorm * 0.5  -> sub", minN, half, fp_encode(fp_decode(minN, EW, FW) * 0.5, EW, FW)),
+        ("minNorm * 0.25 -> sub", minN, qtr, fp_encode(fp_decode(minN, EW, FW) * 0.25, EW, FW)),
+        ("minNorm * 0.125-> sub", minN, eigth, fp_encode(fp_decode(minN, EW, FW) * 0.125, EW, FW)),
+        ("minNorm * 0.0625-> sub", minN, six, fp_encode(fp_decode(minN, EW, FW) * 0.0625, EW, FW)),
+        ("minSub * 2 -> next sub", minS, two, fp_encode(fp_decode(minS, EW, FW) * 2.0, EW, FW)),
+        ("minSub * 3 -> 3*minSub", minS, thr, fp_encode(fp_decode(minS, EW, FW) * 3.0, EW, FW)),
+        ("maxSub * 1.0 -> maxSub", maxS, one, maxS),
+        ("minSub * 1.0 -> minSub", minS, one, minS),
+        ("maxSub * 0.5  (tie->even)", maxS, half, fp_encode(fp_decode(maxS, EW, FW) * 0.5, EW, FW)),
+        ("minSub * minSub -> 0", minS, minS, bits_zero(EW, FW, 0)),
+    ]
+
+
+def build_fp_subnormal_ext_vectors(EW: int, FW: int):
+    """Tie-to-even edge cases inside the subnormal range (multiply by 0.5)."""
+    half = fp_encode(0.5, EW, FW)
+    maxS = bits_max_sub(EW, FW)
+    odd_vals = [1, 3, 5, 7, maxS - 2, maxS]
+    even_vals = [maxS - 1, 2, 4]
+    vecs = []
+    for n in odd_vals:
+        exp = fp_encode(fp_decode(n, EW, FW) * 0.5, EW, FW)
+        vecs.append((f"0x{n:04x} * 0.5 (tie->even)", n, half, exp))
+    for n in even_vals:
+        exp = fp_encode(fp_decode(n, EW, FW) * 0.5, EW, FW)
+        vecs.append((f"0x{n:04x} * 0.5 (below tie)", n, half, exp))
+    return vecs
+
+
+# ---------------------------------------------------------------------------
+# Convenience wrappers for common formats
+# ---------------------------------------------------------------------------
+
+
+def build_f16_vectors():
+    return build_fp_vectors(5, 10)
+
+
+def build_f16_subnormal_vectors():
+    return build_fp_subnormal_vectors(5, 10)
+
+
+def build_f16_subnormal_ext_vectors():
+    return build_fp_subnormal_ext_vectors(5, 10)
+
+
+def build_bf16_vectors():
+    return build_fp_vectors(8, 7)
+
+
+def build_bf16_subnormal_vectors():
+    return build_fp_subnormal_vectors(8, 7)
+
+
+def build_bf16_subnormal_ext_vectors():
+    return build_fp_subnormal_ext_vectors(8, 7)

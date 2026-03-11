@@ -14,7 +14,8 @@ from sprouthdl.sprouthdl_module import Module
 from sprouthdl.sprouthdl_simulator import Simulator
 from sprouthdl.sprouthdl_module import IOCollector
 from sprouthdl.aig.aig_yosys import verilog_to_aag_via_yosys
-from testing.floating_point.fp_testvectors_general import build_fp_vectors, floatx_to_float  # generic EW,FW vectors/decoder
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import build_fp_vectors  # generic EW,FW vectors/decoder
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import build_fp_mul_sn
 
 # Pyosys
@@ -104,7 +105,7 @@ def build_fp_mul_case(EW: int, FW: int, *, subnormals: bool = False):
     for name, a, b, exp in build_fp_vectors(EW, FW):
         vecs_basic.append((name, {"a": a, "b": b}, {"y": exp}))
     spec = {"a": UInt(bits_tot), "b": UInt(bits_tot), "y": UInt(bits_tot)}
-    return m, spec, vecs_basic, (lambda bits: floatx_to_float(bits, EW, FW))
+    return m, spec, vecs_basic, (lambda bits: fp_decode(bits, EW, FW))
 
 
 # primary pi permutation handler

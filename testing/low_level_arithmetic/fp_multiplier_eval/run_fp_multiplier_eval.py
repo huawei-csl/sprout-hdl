@@ -24,7 +24,7 @@ import math
 import uuid
 
 from sprouthdl.arithmetic.floating_point.sprout_hdl_hif8 import hif8_to_float
-from testing.floating_point.fp_testvectors_general import fp_decode
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode
 
 
 try:

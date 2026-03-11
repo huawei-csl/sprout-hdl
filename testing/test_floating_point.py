@@ -9,10 +9,10 @@ repo_root = pathlib.Path(__file__).resolve().parents[1]
 sys.path.append(str(repo_root / "src"))
 sys.path.append(str(repo_root))
 
-from testing.floating_point.fp_testvectors_general import (
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import (
     build_f16_subnormal_vectors,
     build_f16_vectors,
-    floatx_to_float,
 )
 
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPoint, FloatingPointType
@@ -51,8 +51,8 @@ def _encode_half(val: float) -> int:
 
 
 def _assert_fp_match(got_bits: int, expected_bits: int, *, require_bit_exact: bool = True):
-    got_val = floatx_to_float(got_bits, 5, 10)
-    expected_val = floatx_to_float(expected_bits, 5, 10)
+    got_val = fp_decode(got_bits, 5, 10)
+    expected_val = fp_decode(expected_bits, 5, 10)
 
     if math.isnan(expected_val):
         assert math.isnan(got_val)
