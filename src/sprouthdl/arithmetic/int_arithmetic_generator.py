@@ -52,6 +52,10 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
     FpMatmulAccumulateComponent,
 )
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPointType
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN
+from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import FpMulTestVectors
+from sprouthdl.arithmetic.floating_point.fp_add_testvectors import FpAddTestVectors
 from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import (
     generate_fp_matmul_vectors,
     generate_matmul_vectors,
@@ -147,6 +151,29 @@ class FpMatmulAccumulateGeneratorConfig:
     ppa_opt: PPAOption = PPAOption.ACCUMULATOR_TREE
     fsa_opt: FSAOption = FSAOption.RIPPLE_CARRY
     optim_type: Literal["area", "speed"] = "area"
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class FpMultiplierGeneratorConfig:
+    exponent_width: int
+    fraction_width: int
+    subnormals: bool = True
+    always_subnormal_rounding: bool = False
+    mult_cfg: MatmulMultiplierConfig | None = None
+    module_name: str | None = None
+    with_clock: bool = False
+    with_reset: bool = False
+
+
+@dataclass(frozen=True)
+class FpAdderGeneratorConfig:
+    exponent_width: int
+    fraction_width: int
+    subnormals: bool = True
+    adder_cfg: MatmulAdderConfig | None = None
     module_name: str | None = None
     with_clock: bool = False
     with_reset: bool = False
@@ -605,6 +632,68 @@ def generate_matmul_accumulate_fused(
                      input_encoding=cfg.input_encoding, output_encoding=output_encoding)
 
 
+def generate_fp_multiplier(
+    cfg: FpMultiplierGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    actions = GenerationActions() if actions is None else actions
+
+    if not cfg.subnormals and not cfg.always_subnormal_rounding:
+        warnings.warn(
+            "subnormals is disabled without always_subnormal_rounding: "
+            "products that round up to min_normal will be incorrectly flushed to zero. "
+            "Consider enabling always_subnormal_rounding for correct FTZ boundary behaviour.",
+            stacklevel=2,
+        )
+
+    component = FpMulSN(
+        cfg.exponent_width, cfg.fraction_width,
+        subnormals=cfg.subnormals,
+        always_subnormal_rounding=cfg.always_subnormal_rounding,
+        mult_cfg=cfg.mult_cfg,
+    )
+    module_name = cfg.module_name or f"fp_mul_e{cfg.exponent_width}f{cfg.fraction_width}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = None
+    if actions.simulate or actions.testbench_out is not None:
+        vectors = FpMulTestVectors(
+            EW=cfg.exponent_width, FW=cfg.fraction_width,
+            num_vectors=actions.num_vectors,
+            subnormals=cfg.subnormals,
+            always_subnormal_rounding=cfg.always_subnormal_rounding,
+        ).generate()
+
+    return _finalize(module, component, vectors, actions, cfg.with_clock)
+
+
+def generate_fp_adder(
+    cfg: FpAdderGeneratorConfig,
+    actions: GenerationActions | None = None,
+) -> GenerationResult:
+    _validate_clock_reset(cfg.with_clock, cfg.with_reset)
+    actions = GenerationActions() if actions is None else actions
+
+    component = FpAdd(
+        cfg.exponent_width, cfg.fraction_width,
+        adder_cfg=cfg.adder_cfg,
+        subnormals=cfg.subnormals,
+    )
+    module_name = cfg.module_name or f"fp_add_e{cfg.exponent_width}f{cfg.fraction_width}"
+    module = component.to_module(module_name, with_clock=cfg.with_clock, with_reset=cfg.with_reset)
+
+    vectors = None
+    if actions.simulate or actions.testbench_out is not None:
+        vectors = FpAddTestVectors(
+            EW=cfg.exponent_width, FW=cfg.fraction_width,
+            num_vectors=actions.num_vectors,
+            subnormals=cfg.subnormals,
+        ).generate()
+
+    return _finalize(module, component, vectors, actions, cfg.with_clock)
+
+
 def generate_fp_matmul_accumulate(
     cfg: FpMatmulAccumulateGeneratorConfig,
     actions: GenerationActions | None = None,
@@ -798,6 +887,33 @@ def _build_parser() -> argparse.ArgumentParser:
     fp_matmul_parser.add_argument("--with-reset", action="store_true")
     _add_common_action_args(fp_matmul_parser)
 
+    fp_mul_parser = sub.add_parser("fpmul", help="Generate standalone floating-point multiplier")
+    fp_mul_parser.add_argument("--exponent-width", type=int, required=True, help="Exponent bit width (e.g. 5 for float16)")
+    fp_mul_parser.add_argument("--fraction-width", type=int, required=True, help="Fraction bit width (e.g. 10 for float16)")
+    fp_mul_parser.add_argument("--subnormal-support", action="store_true", help="Enable subnormal support")
+    fp_mul_parser.add_argument("--always-subnormal-rounding", action="store_true", help="Enable correct FTZ boundary rounding")
+    fp_mul_parser.add_argument("--module-name", type=str, default=None)
+    fp_mul_parser.add_argument("--use-operator", action="store_true", help="Use * operator for mantissa multiplication")
+    fp_mul_parser.add_argument("--multiplier-opt", type=_enum_type(MultiplierOption), default=MultiplierOption.STAGE_BASED_MULTIPLIER)
+    fp_mul_parser.add_argument("--ppg-opt", type=_enum_type(PPGOption), default=PPGOption.AND)
+    fp_mul_parser.add_argument("--ppa-opt", type=_enum_type(PPAOption), default=PPAOption.ACCUMULATOR_TREE)
+    fp_mul_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    fp_mul_parser.add_argument("--optim-type", choices=["area", "speed"], default="area")
+    fp_mul_parser.add_argument("--with-clock", action="store_true")
+    fp_mul_parser.add_argument("--with-reset", action="store_true")
+    _add_common_action_args(fp_mul_parser)
+
+    fp_add_parser = sub.add_parser("fpadd", help="Generate standalone floating-point adder")
+    fp_add_parser.add_argument("--exponent-width", type=int, required=True, help="Exponent bit width (e.g. 5 for float16)")
+    fp_add_parser.add_argument("--fraction-width", type=int, required=True, help="Fraction bit width (e.g. 10 for float16)")
+    fp_add_parser.add_argument("--subnormal-support", action="store_true", help="Enable subnormal support")
+    fp_add_parser.add_argument("--module-name", type=str, default=None)
+    fp_add_parser.add_argument("--use-operator", action="store_true", help="Use + operator for internal addition")
+    fp_add_parser.add_argument("--fsa-opt", type=_enum_type(FSAOption), default=FSAOption.RIPPLE_CARRY)
+    fp_add_parser.add_argument("--with-clock", action="store_true")
+    fp_add_parser.add_argument("--with-reset", action="store_true")
+    _add_common_action_args(fp_add_parser)
+
     matmul_fused_parser = sub.add_parser(
         "matmulacc-fused", help="Generate fused matrix multiply-accumulate module (Y = A @ B + C)"
     )
@@ -921,6 +1037,47 @@ def main(argv: Sequence[str] | None = None) -> int:
             with_reset=args.with_reset,
         )
         result = generate_matmul_accumulate(cfg, actions=actions)
+    elif args.kind == "fpmul":
+        mult_cfg = None
+        if not args.use_operator:
+            mult_cfg = MatmulMultiplierConfig(
+                use_operator=False,
+                multiplier_opt=args.multiplier_opt,
+                encodings=TwoInputAritEncodings.with_enc(Encoding.unsigned),
+                ppg_opt=args.ppg_opt,
+                ppa_opt=args.ppa_opt,
+                fsa_opt=args.fsa_opt,
+                optim_type=args.optim_type,
+            )
+        cfg = FpMultiplierGeneratorConfig(
+            exponent_width=args.exponent_width,
+            fraction_width=args.fraction_width,
+            subnormals=args.subnormal_support,
+            always_subnormal_rounding=args.always_subnormal_rounding,
+            mult_cfg=mult_cfg,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_fp_multiplier(cfg, actions=actions)
+    elif args.kind == "fpadd":
+        adder_cfg = None
+        if not args.use_operator:
+            adder_cfg = MatmulAdderConfig(
+                use_operator=False,
+                encoding=Encoding.unsigned,
+                fsa_opt=args.fsa_opt,
+            )
+        cfg = FpAdderGeneratorConfig(
+            exponent_width=args.exponent_width,
+            fraction_width=args.fraction_width,
+            subnormals=args.subnormal_support,
+            adder_cfg=adder_cfg,
+            module_name=args.module_name,
+            with_clock=args.with_clock,
+            with_reset=args.with_reset,
+        )
+        result = generate_fp_adder(cfg, actions=actions)
     elif args.kind == "fpmatmulacc":
         cfg = FpMatmulAccumulateGeneratorConfig(
             dim_m=args.dim_m,

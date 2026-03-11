@@ -26,6 +26,40 @@ It can optionally:
 Multiplier/Adder Python API usage reference:
 [`testing/low_level_arithmetic/test_int_arithmetic_generator.py`](testing/low_level_arithmetic/test_int_arithmetic_generator.py).
 
+Python API example (integer multiplier):
+
+```python
+from sprouthdl.arithmetic.int_arithmetic_generator import (
+    GenerationActions,
+    MultiplierGeneratorConfig,
+    generate_multiplier,
+)
+from sprouthdl.arithmetic.int_multipliers.eval.multiplier_stage_options_demo_lib import (
+    FSAOption, MultiplierOption, PPAOption, PPGOption,
+)
+from sprouthdl.arithmetic.int_multipliers.eval.testvector_generation import Encoding
+
+cfg = MultiplierGeneratorConfig(
+    n_bits=8,
+    multiplier_opt=MultiplierOption.STAGE_BASED_MULTIPLIER,
+    ppg_opt=PPGOption.BAUGH_WOOLEY,
+    ppa_opt=PPAOption.WALLACE_TREE,
+    fsa_opt=FSAOption.RIPPLE_CARRY,
+    input_encoding=Encoding.twos_complement,
+)
+actions = GenerationActions(
+    verilog_out="out/mul8.v",
+    aag_out="out/mul8.aag",
+    simulate=True,
+    num_vectors=128,
+    yosys_stats=True,
+)
+
+result = generate_multiplier(cfg, actions=actions)
+print(result.simulation_failures)  # 0
+print(result.transistor_count)     # estimated transistor count from Yosys
+```
+
 MAC Python API usage reference:
 [`testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py`](testing/low_level_arithmetic/test_int_arithmetic_generator_mac.py).
 
@@ -127,6 +161,28 @@ python -m sprouthdl.arithmetic.int_arithmetic_generator fpmatmulacc \
   --simulate --num-vectors 16 \
   --verilog-out out/fp_matmulacc_4x4x4_f16_staged.v \
   --json-out out/fp_matmulacc_4x4x4_f16_staged.json
+
+# Standalone floating-point multiplier (bfloat16) with simulation, data-driven testbench, and Yosys stats
+python -m sprouthdl.arithmetic.int_arithmetic_generator fpmul \
+  --exponent-width 8 --fraction-width 7 \
+  --subnormal-support \
+  --simulate --num-vectors 128 \
+  --verilog-out out/fp_mul_bf16.v \
+  --testbench-out out/fp_mul_bf16_tb.v \
+  --data-driven-testbench \
+  --yosys-stats \
+  --json-out out/fp_mul_bf16.json
+
+# Standalone floating-point adder (float16) with simulation, data-driven testbench, and Yosys stats
+python -m sprouthdl.arithmetic.int_arithmetic_generator fpadd \
+  --exponent-width 5 --fraction-width 10 \
+  --subnormal-support \
+  --simulate --num-vectors 128 \
+  --verilog-out out/fp_add_f16.v \
+  --testbench-out out/fp_add_f16_tb.v \
+  --data-driven-testbench \
+  --yosys-stats \
+  --json-out out/fp_add_f16.json
 ```
 
 ## Arithmetic Evaluations

@@ -9,15 +9,21 @@ Covers:
 import os
 import sys
 
-import numpy as np
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(ROOT, "src"))
 sys.path.append(ROOT)
 
+import numpy as np
+
 from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import (
+    FpMulTestVectors,
+    FpMulTestVectorsExhaustive,
+    _should_skip,
+)
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN, build_fp_mul_sn
+from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.floating_point.fp_testvectors_general import (
     build_bf16_subnormal_ext_vectors,
@@ -97,45 +103,16 @@ def test_bf16_mul_sn_ftz():
     assert passed
 
 
-def _is_subnormal(bits: int, EW: int, FW: int) -> bool:
-    e = (bits >> FW) & ((1 << EW) - 1)
-    f = bits & ((1 << FW) - 1)
-    return e == 0 and f != 0
-
-
 def _run_random_mul_sn(EW: int, FW: int, name: str, *, subnormals: bool,
                        num_vectors: int = 10_000, seed: int = 42,
                        always_subnormal_rounding: bool = False):
-    W = 1 + EW + FW
     mul = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
     sim = Simulator(mul.to_module(name, with_clock=False, with_reset=False))
-    rng = np.random.default_rng(seed)
-    failures = []
-    tested = 0
-    while tested < num_vectors:
-        a = int(rng.integers(0, 1 << W))
-        b = int(rng.integers(0, 1 << W))
-        if not subnormals and (_is_subnormal(a, EW, FW) or _is_subnormal(b, EW, FW)):
-            continue  # FTZ: subnormal inputs give wrong results (buggy exponent path)
-        product_val = fp_decode(a, EW, FW) * fp_decode(b, EW, FW)
-        exp = fp_encode(product_val, EW, FW, subnormals=subnormals)
-        if not subnormals and not always_subnormal_rounding:
-            min_normal_val = 2.0 ** (2 - (1 << (EW - 1)))
-            if 0 < abs(product_val) < min_normal_val and exp != 0:
-                continue  # plain FTZ known limitation: hardware pre-rounds to zero,
-                           # but product rounds up to min_normal post-rounding
-        tested += 1
-        sim.set(mul.io.a, a)
-        sim.set(mul.io.b, b)
-        sim.eval()
-        got = sim.get(mul.io.y)
-        if got != exp:
-            failures.append((a, b, exp, got))
-    assert not failures, (
-        f"{len(failures)}/{num_vectors} failures; first 5:\n"
-        + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
-                    for a, b, e, g in failures[:5])
-    )
+    vectors = FpMulTestVectors(
+        EW=EW, FW=FW, num_vectors=num_vectors, subnormals=subnormals,
+        always_subnormal_rounding=always_subnormal_rounding, seed=seed,
+    ).generate()
+    fails = run_vectors_on_simulator(sim, vectors, use_signed=False, raise_on_fail=True, print_on_pass=False)
 
 
 def test_f16_mul_sn_random():
@@ -164,14 +141,13 @@ def test_custom_34_mul_random_sn():
     _run_random_mul_sn(3, 4, "BF16MulSNRandFtz", subnormals=True)
 
 
-def _run_random_mul_sn_asr(EW: int, FW: int, name: str, num_vectors: int = 10_000, seed: int = 42):
-    """Random FTZ test with always_subnormal_rounding=True.
-
-    Verifies that FpMulSN(subnormals=False, always_subnormal_rounding=True) correctly
-    outputs min_normal when a subnormal product rounds up to it, instead of flushing.
-    """
+def _run_random_mul_sn_inline(EW: int, FW: int, name: str, subnormals: bool,
+                              num_vectors: int = 10_000, seed: int = 42,
+                              always_subnormal_rounding: bool = False):
+    """Illustrative inline version — does the same as _run_random_mul_sn /
+    run_vectors_on_simulator but with an explicit simulate-and-compare loop."""
     W = 1 + EW + FW
-    mul = FpMulSN(EW, FW, subnormals=False, always_subnormal_rounding=True)
+    mul = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
     sim = Simulator(mul.to_module(name, with_clock=False, with_reset=False))
     rng = np.random.default_rng(seed)
     failures = []
@@ -179,9 +155,10 @@ def _run_random_mul_sn_asr(EW: int, FW: int, name: str, num_vectors: int = 10_00
     while tested < num_vectors:
         a = int(rng.integers(0, 1 << W))
         b = int(rng.integers(0, 1 << W))
-        if _is_subnormal(a, EW, FW) or _is_subnormal(b, EW, FW):
-            continue  # subnormal inputs not supported (buggy exponent path in FTZ)
-        exp = fp_encode(fp_decode(a, EW, FW) * fp_decode(b, EW, FW), EW, FW, subnormals=False)
+        product_val = fp_decode(a, EW, FW) * fp_decode(b, EW, FW)
+        exp = fp_encode(product_val, EW, FW, subnormals=subnormals)
+        if _should_skip(a, b, product_val, exp, EW, FW, subnormals, always_subnormal_rounding):
+            continue
         tested += 1
         sim.set(mul.io.a, a)
         sim.set(mul.io.b, b)
@@ -194,6 +171,21 @@ def _run_random_mul_sn_asr(EW: int, FW: int, name: str, num_vectors: int = 10_00
         + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
                     for a, b, e, g in failures[:5])
     )
+
+
+def test_f16_mul_sn_random_inline():
+    _run_random_mul_sn_inline(5, 10, "F16MulSNRandInline", subnormals=True)
+
+
+def test_bf16_mul_sn_random_ftz_inline():
+    _run_random_mul_sn_inline(8, 7, "BF16MulSNRandFtzInline", subnormals=False)
+
+
+def _run_random_mul_sn_asr(EW: int, FW: int, name: str, num_vectors: int = 10_000, seed: int = 42):
+    """Random FTZ test with always_subnormal_rounding=True."""
+    _run_random_mul_sn(EW, FW, name, subnormals=False,
+                       always_subnormal_rounding=True,
+                       num_vectors=num_vectors, seed=seed)
 
 
 def test_f16_mul_sn_random_ftz_asr():
@@ -229,33 +221,13 @@ def test_e3f4_mul_sn_ftz_asr_boundary():
 def _run_exhaustive_mul_sn(EW: int, FW: int, name: str, *, subnormals: bool,
                            always_subnormal_rounding: bool = False):
     """Exhaustive test for small formats (all input pairs)."""
-    W = 1 + EW + FW
     mul = FpMulSN(EW, FW, subnormals=subnormals, always_subnormal_rounding=always_subnormal_rounding)
     sim = Simulator(mul.to_module(name, with_clock=False, with_reset=False))
-    failures = []
-    tested = 0
-    for a in range(1 << W):
-        for b in range(1 << W):
-            if not subnormals and (_is_subnormal(a, EW, FW) or _is_subnormal(b, EW, FW)):
-                continue
-            product_val = fp_decode(a, EW, FW) * fp_decode(b, EW, FW)
-            exp = fp_encode(product_val, EW, FW, subnormals=subnormals)
-            if not subnormals and not always_subnormal_rounding:
-                min_normal_val = 2.0 ** (2 - (1 << (EW - 1)))
-                if 0 < abs(product_val) < min_normal_val and exp != 0:
-                    continue
-            tested += 1
-            sim.set(mul.io.a, a)
-            sim.set(mul.io.b, b)
-            sim.eval()
-            got = sim.get(mul.io.y)
-            if got != exp:
-                failures.append((a, b, exp, got))
-    assert not failures, (
-        f"{len(failures)}/{tested} failures; first 5:\n"
-        + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
-                    for a, b, e, g in failures[:5])
-    )
+    vectors = FpMulTestVectorsExhaustive(
+        EW=EW, FW=FW, subnormals=subnormals,
+        always_subnormal_rounding=always_subnormal_rounding,
+    ).generate()
+    fails = run_vectors_on_simulator(sim, vectors, use_signed=False, raise_on_fail=True, print_on_pass=False)
 
 
 def test_e1f2_mul_sn_exhaustive():

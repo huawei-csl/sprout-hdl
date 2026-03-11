@@ -1,16 +1,28 @@
+"""Tests for FpAdd (floating-point adder).
+
+Covers:
+  - Hand-picked normal / subnormal / special-value vectors
+  - Flush-to-zero mode (subnormals=False)
+  - Random tests via FpAddTestVectors
+  - Exhaustive tests for small EW/FW via FpAddTestVectorsExhaustive
+"""
 import os
 import sys
 
 import numpy as np
-import pytest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(ROOT, "src"))
 sys.path.append(ROOT)
 
+from sprouthdl.arithmetic.floating_point.fp_add_testvectors import (
+    FpAddTestVectors,
+    FpAddTestVectorsExhaustive,
+)
+from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd, build_fp_add
-from sprouthdl.arithmetic.floating_point.fp_encoding import fp_decode, fp_encode, fp_unpack
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult import run_vectors_aby
+from sprouthdl.helpers import run_vectors_on_simulator
 from sprouthdl.sprouthdl_simulator import Simulator
 from testing.floating_point.fp_testvectors_general import (
     bits_inf,
@@ -21,6 +33,8 @@ from testing.floating_point.fp_testvectors_general import (
     bits_zero,
 )
 
+
+# -- Hand-picked vectors ----------------------------------------------------
 
 def build_add_vectors(EW: int, FW: int):
     one = fp_encode(1.0, EW, FW)
@@ -72,37 +86,6 @@ def test_f16_adder_vectors():
     assert passed
 
 
-def test_f16_adder_random(num_vectors: int = 10_000, seed: int = 42):
-    """IEEE 754 compliance: exhaustive random test against fp_encode/fp_decode reference."""
-    EW, FW = 5, 10
-    W = 1 + EW + FW
-    adder = FpAdd(EW, FW)
-    module = adder.to_module("F16RandTest", with_clock=False, with_reset=False)
-    sim = Simulator(module)
-
-    rng = np.random.default_rng(seed)
-    failures = []
-    for _ in range(num_vectors):
-        a_bits = int(rng.integers(0, 1 << W))
-        b_bits = int(rng.integers(0, 1 << W))
-        exp_bits = fp_encode(fp_decode(a_bits, EW, FW) + fp_decode(b_bits, EW, FW), EW, FW)
-        sim.set(adder.io.a, a_bits)
-        sim.set(adder.io.b, b_bits)
-        sim.eval()
-        got_bits = sim.get(adder.io.y)
-        if got_bits != exp_bits:
-            failures.append((a_bits, b_bits, exp_bits, got_bits))
-
-    assert not failures, (
-        f"{len(failures)}/{num_vectors} failures; first 5:\n"
-        + "\n".join(
-            f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
-            for a, b, e, g in failures[:5]
-        )
-    )
-    print(f"Random test passed: {num_vectors} vectors, 0 failures")
-
-
 def test_f16_adder_subnormal_vectors():
     """Explicit subnormal input/output cases with subnormals=True (default)."""
     EW, FW = 5, 10
@@ -114,16 +97,11 @@ def test_f16_adder_subnormal_vectors():
     pos0 = bits_zero(EW, FW, 0)
 
     vectors = [
-        # subnormal + subnormal = subnormal
         ("minSub+minSub=2*minSub", min_sub, min_sub,
          fp_encode(fp_decode(min_sub, EW, FW) * 2, EW, FW)),
-        # subnormal + subnormal = normal (carry out of subnormal range)
         ("maxSub+minSub=minNorm", max_sub, min_sub, min_norm),
-        # normal - normal = subnormal
         ("minNorm+(-maxSub)=minSub", min_norm, neg_max_sub, min_sub),
-        # normal - normal = zero (exact cancellation)
         ("minNorm+(-minNorm)=+0", min_norm, neg_min_norm, pos0),
-        # subnormal input, result is normal
         ("maxSub+maxSub", max_sub, max_sub,
          fp_encode(fp_decode(max_sub, EW, FW) * 2, EW, FW)),
     ]
@@ -131,39 +109,6 @@ def test_f16_adder_subnormal_vectors():
     mod = build_fp_add("F16SubnormalTest", EW=EW, FW=FW, subnormals=True)
     passed = run_vectors_aby(mod, vectors, label="f16 subnormal")
     assert passed
-
-
-def test_f16_adder_random_ftz(num_vectors: int = 10_000, seed: int = 42):
-    """Random test with subnormals=False: results in subnormal range flush to +0."""
-    EW, FW = 5, 10
-    W = 1 + EW + FW
-    adder = FpAdd(EW, FW, subnormals=False)
-    module = adder.to_module("F16RandFtzTest", with_clock=False, with_reset=False)
-    sim = Simulator(module)
-
-    rng = np.random.default_rng(seed)
-    failures = []
-    for _ in range(num_vectors):
-        a_bits = int(rng.integers(0, 1 << W))
-        b_bits = int(rng.integers(0, 1 << W))
-        exp_bits = fp_encode(
-            fp_decode(a_bits, EW, FW) + fp_decode(b_bits, EW, FW), EW, FW, subnormals=False
-        )
-        sim.set(adder.io.a, a_bits)
-        sim.set(adder.io.b, b_bits)
-        sim.eval()
-        got_bits = sim.get(adder.io.y)
-        if got_bits != exp_bits:
-            failures.append((a_bits, b_bits, exp_bits, got_bits))
-
-    assert not failures, (
-        f"{len(failures)}/{num_vectors} failures; first 5:\n"
-        + "\n".join(
-            f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
-            for a, b, e, g in failures[:5]
-        )
-    )
-    print(f"Random FTZ test passed: {num_vectors} vectors, 0 failures")
 
 
 def test_f16_adder_flush_to_zero():
@@ -176,10 +121,8 @@ def test_f16_adder_flush_to_zero():
     pos0 = bits_zero(EW, FW, 0)
 
     vectors = [
-        # These would be subnormal with subnormals=True, but flush to zero
         ("minNorm+(-maxSub) flushes to 0", min_norm, neg_max_sub, pos0),
         ("minSub+minSub flushes to 0", min_sub, min_sub, pos0),
-        # Normal results are unaffected
         ("1+1=2 still works", fp_encode(1.0, EW, FW), fp_encode(1.0, EW, FW), fp_encode(2.0, EW, FW)),
     ]
 
@@ -188,28 +131,80 @@ def test_f16_adder_flush_to_zero():
     assert passed
 
 
-def _run_exhaustive_add(EW: int, FW: int, name: str, *, subnormals: bool = True):
-    """Exhaustive test for small formats (all input pairs)."""
+# -- Random tests using FpAddTestVectors ------------------------------------
+
+def _run_random_add(EW: int, FW: int, name: str, subnormals: bool = True,
+                    num_vectors: int = 10_000, seed: int = 42):
+    adder = FpAdd(EW, FW, subnormals=subnormals)
+    sim = Simulator(adder.to_module(name, with_clock=False, with_reset=False))
+    vectors = FpAddTestVectors(
+        EW=EW, FW=FW, num_vectors=num_vectors, subnormals=subnormals, seed=seed,
+    ).generate()
+    run_vectors_on_simulator(sim, vectors, use_signed=False, raise_on_fail=True, print_on_pass=False)
+
+
+def test_f16_adder_random():
+    _run_random_add(5, 10, "F16RandTest")
+
+
+def test_f16_adder_random_ftz():
+    _run_random_add(5, 10, "F16RandFtzTest", subnormals=False)
+
+
+def test_bf16_adder_random():
+    _run_random_add(8, 7, "BF16RandTest")
+
+
+def test_bf16_adder_random_ftz():
+    _run_random_add(8, 7, "BF16RandFtzTest", subnormals=False)
+
+
+# -- Inline random test (illustrative, same as _run_random_add / run_vectors_on_simulator) --
+
+def _run_random_add_inline(EW: int, FW: int, name: str, subnormals: bool = True,
+                           num_vectors: int = 10_000, seed: int = 42):
+    """Illustrative inline version — does the same as _run_random_add /
+    run_vectors_on_simulator but with an explicit simulate-and-compare loop."""
     W = 1 + EW + FW
     adder = FpAdd(EW, FW, subnormals=subnormals)
     sim = Simulator(adder.to_module(name, with_clock=False, with_reset=False))
+    rng = np.random.default_rng(seed)
     failures = []
-    for a in range(1 << W):
-        for b in range(1 << W):
-            exp = fp_encode(
-                fp_decode(a, EW, FW) + fp_decode(b, EW, FW), EW, FW, subnormals=subnormals
-            )
-            sim.set(adder.io.a, a)
-            sim.set(adder.io.b, b)
-            sim.eval()
-            got = sim.get(adder.io.y)
-            if got != exp:
-                failures.append((a, b, exp, got))
+    for _ in range(num_vectors):
+        a = int(rng.integers(0, 1 << W))
+        b = int(rng.integers(0, 1 << W))
+        exp = fp_encode(fp_decode(a, EW, FW) + fp_decode(b, EW, FW), EW, FW, subnormals=subnormals)
+        sim.set(adder.io.a, a)
+        sim.set(adder.io.b, b)
+        sim.eval()
+        got = sim.get(adder.io.y)
+        if got != exp:
+            failures.append((a, b, exp, got))
     assert not failures, (
-        f"{len(failures)} failures; first 5:\n"
+        f"{len(failures)}/{num_vectors} failures; first 5:\n"
         + "\n".join(f"  a={a:#06x} b={b:#06x} exp={e:#06x} got={g:#06x}"
                     for a, b, e, g in failures[:5])
     )
+
+
+def test_f16_adder_random_inline():
+    _run_random_add_inline(5, 10, "F16RandInline")
+
+
+def test_f16_adder_random_ftz_inline():
+    _run_random_add_inline(5, 10, "F16RandFtzInline", subnormals=False)
+
+
+# -- Exhaustive tests using FpAddTestVectorsExhaustive ----------------------
+
+def _run_exhaustive_add(EW: int, FW: int, name: str, subnormals: bool = True):
+    """Exhaustive test for small formats (all input pairs)."""
+    adder = FpAdd(EW, FW, subnormals=subnormals)
+    sim = Simulator(adder.to_module(name, with_clock=False, with_reset=False))
+    vectors = FpAddTestVectorsExhaustive(
+        EW=EW, FW=FW, subnormals=subnormals,
+    ).generate()
+    run_vectors_on_simulator(sim, vectors, use_signed=False, raise_on_fail=True, print_on_pass=False)
 
 
 def test_e1f2_add_sn_exhaustive():
@@ -245,5 +240,7 @@ if __name__ == "__main__":
     test_f16_adder_vectors()
     test_f16_adder_subnormal_vectors()
     test_f16_adder_flush_to_zero()
-    test_f16_adder_random_ftz()
     test_f16_adder_random()
+    test_f16_adder_random_ftz()
+    test_f16_adder_random_inline()
+    test_f16_adder_random_ftz_inline()
