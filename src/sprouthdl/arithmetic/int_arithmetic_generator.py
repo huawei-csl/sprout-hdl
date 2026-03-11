@@ -322,6 +322,33 @@ def _apply_actions(
     return sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats
 
 
+def _finalize(
+    module: Module,
+    component: Any,
+    vectors: list[tuple[str, dict[str, int], dict[str, int]]] | None,
+    actions: GenerationActions,
+    with_clock: bool,
+    input_encoding: Encoding | None = None,
+    output_encoding: Encoding | None = None,
+) -> GenerationResult:
+    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
+        module, vectors, actions=actions, with_clock=with_clock,
+    )
+    return GenerationResult(
+        module=module,
+        component=component,
+        input_encoding=input_encoding,
+        output_encoding=output_encoding,
+        vectors=vectors,
+        simulation_failures=sim_failures,
+        verilog_out=verilog_out,
+        aag_out=aag_out,
+        testbench_out=testbench_out,
+        testbench_data_out=testbench_data_out,
+        yosys_stats=yosys_stats,
+    )
+
+
 # Generators: Public API for building and exporting arithmetic modules ################################################
 
 
@@ -365,26 +392,8 @@ def generate_multiplier(
         y_encoding=encodings.y,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module,
-        vectors,
-        actions=actions,
-        with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        input_encoding=encodings.a,
-        output_encoding=encodings.y,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock,
+                     input_encoding=encodings.a, output_encoding=encodings.y)
 
 
 def generate_adder(
@@ -430,26 +439,8 @@ def generate_adder(
         y_encoding=adder_output_encoding,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module,
-        vectors,
-        actions=actions,
-        with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        input_encoding=cfg.input_encoding,
-        output_encoding=adder_output_encoding,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock,
+                     input_encoding=cfg.input_encoding, output_encoding=adder_output_encoding)
 
 
 def generate_mac(
@@ -498,26 +489,8 @@ def generate_mac(
         output_encoding=mac_output_encoding,
     ).generate()
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module,
-        vectors,
-        actions=actions,
-        with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        input_encoding=cfg.input_encoding,
-        output_encoding=mac_output_encoding,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock,
+                     input_encoding=cfg.input_encoding, output_encoding=mac_output_encoding)
 
 
 def generate_matmul_accumulate(
@@ -580,23 +553,8 @@ def generate_matmul_accumulate(
         component, encoding=cfg.input_encoding, num_vectors=actions.num_vectors, sigma=actions.tb_sigma,
     )
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module, vectors, actions=actions, with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        input_encoding=cfg.input_encoding,
-        output_encoding=output_encoding,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock,
+                     input_encoding=cfg.input_encoding, output_encoding=output_encoding)
 
 
 def generate_matmul_accumulate_fused(
@@ -643,23 +601,8 @@ def generate_matmul_accumulate_fused(
         component, encoding=cfg.input_encoding, num_vectors=actions.num_vectors, sigma=actions.tb_sigma,
     )
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module, vectors, actions=actions, with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        input_encoding=cfg.input_encoding,
-        output_encoding=output_encoding,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock,
+                     input_encoding=cfg.input_encoding, output_encoding=output_encoding)
 
 
 def generate_fp_matmul_accumulate(
@@ -722,21 +665,7 @@ def generate_fp_matmul_accumulate(
     if actions.simulate or actions.testbench_out is not None:
         vectors = generate_fp_matmul_vectors(component, actions.num_vectors)
 
-    sim_failures, verilog_out, aag_out, testbench_out, testbench_data_out, yosys_stats = _apply_actions(
-        module, vectors, actions=actions, with_clock=cfg.with_clock,
-    )
-
-    return GenerationResult(
-        module=module,
-        component=component,
-        vectors=vectors,
-        simulation_failures=sim_failures,
-        verilog_out=verilog_out,
-        aag_out=aag_out,
-        testbench_out=testbench_out,
-        testbench_data_out=testbench_data_out,
-        yosys_stats=yosys_stats,
-    )
+    return _finalize(module, component, vectors, actions, cfg.with_clock)
 
 
 # CLI: Argument parsing and entry point ##############################################################################
