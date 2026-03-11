@@ -224,3 +224,12 @@ def build_bf16_subnormal_vectors():
 
 def build_bf16_subnormal_ext_vectors():
     return build_fp_subnormal_ext_vectors(8, 7)
+
+
+def build_targeted_mul_vectors(EW: int, FW: int, subnormals: bool = True) -> TestVectors:
+    """Collect all applicable targeted multiply vectors in the standard TestVectors format."""
+    four_tuples = build_fp_vectors(EW, FW)
+    if subnormals:
+        four_tuples += build_fp_subnormal_vectors(EW, FW)
+        four_tuples += build_fp_subnormal_ext_vectors(EW, FW)
+    return [(name, {"a": a, "b": b}, {"y": y}) for name, a, b, y in four_tuples]

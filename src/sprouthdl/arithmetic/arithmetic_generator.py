@@ -54,8 +54,8 @@ from sprouthdl.cores.matmul_accumulate.matmul_accumulate_core_float import (
 from sprouthdl.aggregate.aggregate_floating_point import FloatingPointType
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_mult_sn import FpMulSN
 from sprouthdl.arithmetic.floating_point.sprout_hdl_float_add import FpAdd
-from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import FpMulTestVectors
-from sprouthdl.arithmetic.floating_point.fp_add_testvectors import FpAddTestVectors
+from sprouthdl.arithmetic.floating_point.fp_mul_testvectors import FpMulTestVectors, build_targeted_mul_vectors
+from sprouthdl.arithmetic.floating_point.fp_add_testvectors import FpAddTestVectors, build_targeted_add_vectors
 from sprouthdl.cores.matmul_accumulate.matmul_test_vectors import (
     generate_fp_matmul_vectors,
     generate_matmul_vectors,
@@ -204,6 +204,7 @@ class GenerationActions:
     data_driven_testbench: bool = False
     simulate: bool = False
     num_vectors: int = 64
+    targeted_test_vectors: bool = False
     tb_sigma: float | None = None
     yosys_stats: bool = False
     yosys_deepsyn: bool = False
@@ -658,12 +659,23 @@ def generate_fp_multiplier(
 
     vectors = None
     if actions.simulate or actions.testbench_out is not None:
-        vectors = FpMulTestVectors(
-            EW=cfg.exponent_width, FW=cfg.fraction_width,
-            num_vectors=actions.num_vectors,
-            subnormals=cfg.subnormals,
-            always_subnormal_rounding=cfg.always_subnormal_rounding,
-        ).generate()
+        if actions.targeted_test_vectors:
+            targeted = build_targeted_mul_vectors(cfg.exponent_width, cfg.fraction_width, subnormals=cfg.subnormals)
+            num_random = max(0, actions.num_vectors - len(targeted))
+            random_vecs = FpMulTestVectors(
+                EW=cfg.exponent_width, FW=cfg.fraction_width,
+                num_vectors=num_random,
+                subnormals=cfg.subnormals,
+                always_subnormal_rounding=cfg.always_subnormal_rounding,
+            ).generate() if num_random > 0 else []
+            vectors = targeted + random_vecs
+        else:
+            vectors = FpMulTestVectors(
+                EW=cfg.exponent_width, FW=cfg.fraction_width,
+                num_vectors=actions.num_vectors,
+                subnormals=cfg.subnormals,
+                always_subnormal_rounding=cfg.always_subnormal_rounding,
+            ).generate()
 
     return _finalize(module, component, vectors, actions, cfg.with_clock)
 
@@ -685,11 +697,21 @@ def generate_fp_adder(
 
     vectors = None
     if actions.simulate or actions.testbench_out is not None:
-        vectors = FpAddTestVectors(
-            EW=cfg.exponent_width, FW=cfg.fraction_width,
-            num_vectors=actions.num_vectors,
-            subnormals=cfg.subnormals,
-        ).generate()
+        if actions.targeted_test_vectors:
+            targeted = build_targeted_add_vectors(cfg.exponent_width, cfg.fraction_width, subnormals=cfg.subnormals)
+            num_random = max(0, actions.num_vectors - len(targeted))
+            random_vecs = FpAddTestVectors(
+                EW=cfg.exponent_width, FW=cfg.fraction_width,
+                num_vectors=num_random,
+                subnormals=cfg.subnormals,
+            ).generate() if num_random > 0 else []
+            vectors = targeted + random_vecs
+        else:
+            vectors = FpAddTestVectors(
+                EW=cfg.exponent_width, FW=cfg.fraction_width,
+                num_vectors=actions.num_vectors,
+                subnormals=cfg.subnormals,
+            ).generate()
 
     return _finalize(module, component, vectors, actions, cfg.with_clock)
 
@@ -767,6 +789,7 @@ def _add_common_action_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--data-driven-testbench", action="store_true", help="Generate data-driven testbench with separate .dat file instead of inline vectors")
     parser.add_argument("--simulate", action="store_true", help="Run vector simulation after generation")
     parser.add_argument("--num-vectors", type=int, default=64, help="Number of vectors for simulation")
+    parser.add_argument("--targeted-test-vectors", action="store_true", help="Prepend targeted edge-case vectors (FP mul/add only)")
     parser.add_argument("--tb-sigma", type=float, default=None, help="Optional sigma for normal-distributed vectors")
     parser.add_argument("--yosys-stats", action="store_true", help="Collect Yosys stats")
     parser.add_argument("--yosys-deepsyn", action="store_true", help="Use Yosys/ABC deepsyn flow")
@@ -943,6 +966,7 @@ def _actions_from_args(args: argparse.Namespace) -> GenerationActions:
         data_driven_testbench=args.data_driven_testbench,
         simulate=args.simulate,
         num_vectors=args.num_vectors,
+        targeted_test_vectors=args.targeted_test_vectors,
         tb_sigma=args.tb_sigma,
         yosys_stats=args.yosys_stats,
         yosys_deepsyn=args.yosys_deepsyn,
